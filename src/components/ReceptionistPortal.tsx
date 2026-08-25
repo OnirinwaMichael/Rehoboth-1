@@ -538,6 +538,17 @@ placeholder="25"
 </div>
 <div className="space-y-2">
 <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+<Briefcase className="w-4 h-4" /> Occupation
+</label>
+<input
+value={formData.occupation}
+onChange={e => setFormData({ ...formData, occupation: e.target.value })}
+className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+placeholder="e.g. Trader, Civil Servant, Student"
+/>
+</div>
+<div className="space-y-2">
+<label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
 <Phone className="w-4 h-4" /> Phone Number
 </label>
 <input

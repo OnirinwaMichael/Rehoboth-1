@@ -13,6 +13,7 @@ export const ProfileSettings: React.FC<Props> = ({ user, onClose }) => {
 const [name, setName] = useState(user.name);
 const [phone, setPhone] = useState(user.phone || '');
 const [photoURL, setPhotoURL] = useState(user.photoURL || '');
+const [photoFile, setPhotoFile] = useState<File | null>(null);
 const [isSaving, setIsSaving] = useState(false);
 // Password change states
 const [showPasswordChange, setShowPasswordChange] = useState(false);
@@ -23,16 +24,13 @@ const [isChangingPassword, setIsChangingPassword] = useState(false);
 const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 const file = e.target.files?.[0];
 if (file) {
-if (file.size > 500000) { // 500KB limit for base64 storage
-toast.error('Image is too large. Please select an image under 500KB.');
+if (file.size > 10 * 1024 * 1024) { // 10MB limit — stored in Supabase Storage, not the database
+toast.error('Image is too large. Please select an image under 10MB.');
 return;
 }
-const reader = new FileReader();
-reader.onloadend = () => {
-setPhotoURL(reader.result as string);
+setPhotoFile(file);
+setPhotoURL(URL.createObjectURL(file)); // local preview only, not uploaded yet
 };
-reader.readAsDataURL(file);
-}
 };
 const handleSave = async () => {
 if (!name.trim()) {
@@ -41,10 +39,21 @@ return;
 }
 setIsSaving(true);
 try {
+let uploadedPhotoUrl = user.photoURL || null;
+if (photoFile) {
+const ext = photoFile.name.split('.').pop() || 'jpg';
+const path = `${user.uid}/${Date.now()}.${ext}`;
+const { error: uploadError } = await supabase.storage
+.from('staff-photos')
+.upload(path, photoFile, { upsert: true, contentType: photoFile.type });
+if (uploadError) throw uploadError;
+const { data: publicUrlData } = supabase.storage.from('staff-photos').getPublicUrl(path);
+uploadedPhotoUrl = publicUrlData.publicUrl;
+}
 const { error } = await supabase.from('users').update({
 name,
 phone,
-photo_url: photoURL,
+photo_url: uploadedPhotoUrl,
 }).eq('id', user.uid);
 if (error) throw error;
 await logAction(user.uid, 'UPDATE_PROFILE', `Updated profile information`);
@@ -129,7 +138,7 @@ onClick={(e) => e.stopPropagation()}
 <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
 </label>
 </div>
-<p className="text-xs text-slate-400">Max size: 500KB</p>
+<p className="text-xs text-slate-400">Max size: 10MB</p>
 </div>
 {/* Form Fields */}
 <div className="space-y-4">

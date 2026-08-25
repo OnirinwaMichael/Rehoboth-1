@@ -550,19 +550,24 @@ className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
 type="file" 
 className="hidden" 
 accept="image/*" 
-onChange={(e) => {
+onChange={async (e) => {
 const file = e.target.files?.[0];
-if (file) {
-if (file.size > 500000) {
-toast.error('Image too large (max 500KB)');
+if (!file) return;
+if (file.size > 10 * 1024 * 1024) {
+toast.error('Image too large (max 10MB)');
 return;
 }
-const reader = new FileReader();
-reader.onloadend = () => {
-setStaffForm({ ...staffForm, photoURL: reader.result as string });
-};
-reader.readAsDataURL(file);
+const ext = file.name.split('.').pop() || 'jpg';
+const path = `${userId}/new-staff-${Date.now()}.${ext}`;
+const { error: uploadError } = await supabase.storage
+.from('staff-photos')
+.upload(path, file, { upsert: true, contentType: file.type });
+if (uploadError) {
+toast.error('Could not upload photo. Please try again.');
+return;
 }
+const { data: publicUrlData } = supabase.storage.from('staff-photos').getPublicUrl(path);
+setStaffForm({ ...staffForm, photoURL: publicUrlData.publicUrl });
 }} 
 />
 </label>
