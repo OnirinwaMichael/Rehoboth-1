@@ -24,6 +24,7 @@ nokAddress: string;
 nokPhone: string;
 category: 'single card' | 'family card' | 'antenatal' | "children's card";
 createdAt: string;
+registrationType: 'fresh' | 'old';
 }
 export interface Vitals {
 bloodPressure?: string;

@@ -7,6 +7,8 @@ import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 import { logAction } from '../lib/audit';
 import { useFormDraft } from '../hooks/useFormDraft';
+import { generatePatientRegister } from '../lib/excel';
+import { Download } from 'lucide-react';
 // --- DB <-> app-shape mappers (keep every other line of this file,
 // and every other component, working with the same camelCase field
 // names as before — only these functions know about snake_case) ---
@@ -15,7 +17,7 @@ cardId: r.card_id, name: r.name, gender: r.gender, dob: r.dob,
 stateOfOrigin: r.state_of_origin, age: r.age, occupation: r.occupation,
 address: r.address, phone: r.phone, nextOfKin: r.next_of_kin,
 relationship: r.relationship, nokAddress: r.nok_address, nokPhone: r.nok_phone,
-category: r.category, createdAt: r.created_at,
+category: r.category, createdAt: r.created_at, registrationType: r.registration_type || 'fresh',
 });
 const patientToRow = (p: any) => ({
 name: p.name, gender: p.gender, dob: p.dob, state_of_origin: p.stateOfOrigin,
@@ -75,6 +77,10 @@ const [showAppointmentModal, setShowAppointmentModal] = useState(false);
 const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
 const [patientToDelete, setPatientToDelete] = useState<string | null>(null);
 const [appointmentToDelete, setAppointmentToDelete] = useState<string | null>(null);
+const [entryMode, setEntryMode] = useState<'auto' | 'manual'>('auto');
+const [manualCardId, setManualCardId] = useState('');
+const [directoryFilter, setDirectoryFilter] = useState<'all' | 'fresh' | 'old'>('all');
+const [exporting, setExporting] = useState(false);
 const initialFormData = {
 name: '',
 gender: 'male' as 'male' | 'female',
@@ -135,6 +141,21 @@ const { data, error } = await supabase
 if (error) return handleSupabaseError(error, 'select', 'patients');
 setAllPatients((data || []).map(patientFromRow));
 };
+const handleExportRegister = () => {
+if (allPatients.length === 0) {
+toast.error('No patients to export yet.');
+return;
+}
+setExporting(true);
+try {
+generatePatientRegister(allPatients);
+toast.success('Patient register downloaded.');
+} catch (error) {
+toast.error('Could not generate the spreadsheet. Please try again.');
+} finally {
+setExporting(false);
+}
+};
 const fetchDoctors = async () => {
 const { data, error } = await supabase
 .from('users')
@@ -171,18 +192,38 @@ return data as string;
 };
 const handleSubmit = async (e: React.FormEvent) => {
 e.preventDefault();
+if (entryMode === 'manual' && !manualCardId.trim()) {
+toast.error('Enter the existing file/registration number, or switch to Auto-generate.');
+return;
+}
 setLoading(true);
 try {
-const cardId = await generateCardId();
+const cardId = entryMode === 'manual' ? manualCardId.trim() : await generateCardId();
+const registrationType = entryMode === 'manual' ? 'old' : 'fresh';
 const { error } = await supabase.from('patients').insert({
 card_id: cardId,
+registration_type: registrationType,
 ...patientToRow(formData),
 age: parseInt(formData.age),
 });
-if (error) throw error;
-await logAction(userId, 'REGISTER_PATIENT', `Registered patient ${formData.name} with Card ID ${cardId}`);
+if (error) {
+// Postgres unique_violation — someone already holds this card_id
+if ((error as any).code === '23505') {
+toast.error(`Card ID "${cardId}" is already in use by another patient. Please check and try a different number.`);
+return;
+}
+throw error;
+}
+if (entryMode === 'manual') {
+// Advance the auto-number sequence past this manual entry so a
+// future Fresh registration can never collide with it.
+await supabase.rpc('bump_patient_card_id_seq', { p_card_id: cardId });
+}
+await logAction(userId, 'REGISTER_PATIENT', `Registered ${registrationType === 'old' ? 'existing-file' : 'new'} patient ${formData.name} with Card ID ${cardId}`);
 toast.success('Patient registered successfully!');
 clearFormDraft();
+setEntryMode('auto');
+setManualCardId('');
 fetchRecentPatients();
 setView('dashboard');
 } catch (error) {
@@ -393,6 +434,46 @@ className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 text-left hover
 <h3 className="font-bold text-slate-900">{editingPatient ? 'Edit Patient Record' : 'New Patient Registration'}</h3>
 </div>
 <form onSubmit={editingPatient ? handleEditPatient : handleSubmit} className="p-8 space-y-6">
+{!editingPatient && (
+<div className="space-y-3 pb-2 border-b border-slate-100">
+<label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+<CreditCard className="w-4 h-4" /> Registration Number
+</label>
+<div className="flex gap-2">
+<button
+type="button"
+onClick={() => { setEntryMode('auto'); setManualCardId(''); }}
+className={cn(
+"flex-1 p-3 rounded-xl border text-sm font-semibold transition-all text-left",
+entryMode === 'auto' ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+)}
+>
+Fresh / Complete New Patient
+<span className="block font-normal text-xs text-slate-500 mt-0.5">System auto-generates the next number</span>
+</button>
+<button
+type="button"
+onClick={() => setEntryMode('manual')}
+className={cn(
+"flex-1 p-3 rounded-xl border text-sm font-semibold transition-all text-left",
+entryMode === 'manual' ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+)}
+>
+Old / Already Existing File
+<span className="block font-normal text-xs text-slate-500 mt-0.5">Enter their existing paper-file number</span>
+</button>
+</div>
+{entryMode === 'manual' && (
+<input
+required
+value={manualCardId}
+onChange={e => setManualCardId(e.target.value)}
+placeholder="e.g. 000045"
+className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+/>
+)}
+</div>
+)}
 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 <div className="space-y-2">
 <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
@@ -682,10 +763,11 @@ No appointments found.
 )}
 {view === 'directory' && (
 <div className="space-y-6">
-<div className="flex items-center justify-between">
+<div className="flex items-center justify-between flex-wrap gap-4">
 <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
 <UsersIcon className="w-6 h-6 text-blue-600" /> Patient Directory
 </h3>
+<div className="flex items-center gap-3">
 <div className="relative w-72">
 <Search className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
 <input
@@ -696,6 +778,29 @@ onChange={(e) => setSearchQuery(e.target.value)}
 className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
 />
 </div>
+<button
+onClick={handleExportRegister}
+disabled={exporting}
+className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50 shrink-0"
+title="Download the entire patient register as a spreadsheet"
+>
+<Download className="w-4 h-4" /> Download Register
+</button>
+</div>
+</div>
+<div className="flex items-center gap-2">
+{([['all', 'All Patients'], ['fresh', 'Fresh / New'], ['old', 'Old / Existing File']] as const).map(([key, label]) => (
+<button
+key={key}
+onClick={() => setDirectoryFilter(key)}
+className={cn(
+"px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-colors",
+directoryFilter === key ? "bg-blue-600 text-white" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-50"
+)}
+>
+{label}
+</button>
+))}
 </div>
 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
 <div className="overflow-x-auto">
@@ -705,6 +810,7 @@ className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-
 <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Card ID</th>
 <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Name</th>
 <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Category</th>
+<th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Type</th>
 <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Phone</th>
 <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Registered</th>
 <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
@@ -713,6 +819,7 @@ className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-
 <tbody className="divide-y divide-slate-50">
 {allPatients
 .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.cardId.includes(searchQuery))
+.filter(p => directoryFilter === 'all' || p.registrationType === directoryFilter)
 .map((p) => (
 <React.Fragment key={p.cardId}>
 <tr className="hover:bg-slate-50/50 transition-colors">
@@ -723,6 +830,14 @@ className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-
 </td>
 <td className="p-4 font-bold text-slate-900">{p.name}</td>
 <td className="p-4 text-sm text-slate-600 capitalize">{p.category}</td>
+<td className="p-4">
+<span className={cn(
+"text-[10px] font-bold px-2 py-1 rounded-full uppercase",
+p.registrationType === 'old' ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
+)}>
+{p.registrationType === 'old' ? 'Old' : 'Fresh'}
+</span>
+</td>
 <td className="p-4 text-sm text-slate-600">{p.phone}</td>
 <td className="p-4 text-sm text-slate-600">{format(new Date(p.createdAt), 'MMM d, yyyy')}</td>
 <td className="p-4 text-right">
@@ -771,7 +886,7 @@ title="Delete Patient"
 </tr>
 {expandedPatientId === p.cardId && (
 <tr className="bg-slate-50">
-<td colSpan={6} className="p-4">
+<td colSpan={7} className="p-4">
 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
 <div>
 <p className="text-slate-500 font-bold mb-1">Contact Info</p>

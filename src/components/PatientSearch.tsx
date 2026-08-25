@@ -10,7 +10,7 @@ cardId: r.card_id, name: r.name, gender: r.gender, dob: r.dob,
 stateOfOrigin: r.state_of_origin, age: r.age, occupation: r.occupation,
 address: r.address, phone: r.phone, nextOfKin: r.next_of_kin,
 relationship: r.relationship, nokAddress: r.nok_address, nokPhone: r.nok_phone,
-category: r.category, createdAt: r.created_at,
+category: r.category, createdAt: r.created_at, registrationType: r.registration_type || 'fresh',
 });
 export const PatientSearch: React.FC = () => {
 const [searchTerm, setSearchTerm] = useState('');

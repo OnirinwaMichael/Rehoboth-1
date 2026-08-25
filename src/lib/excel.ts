@@ -1,7 +1,32 @@
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, isWithinInterval, parseISO } from 'date-fns';
-import { FinancialRecord, Expense } from '../types';
+import { FinancialRecord, Expense, Patient } from '../types';
+// Full patient register export — Card ID, Name, Phone, Next of Kin,
+// Registration Date, split into Fresh/Old tabs plus an All-Patients
+// tab, so the CMD or Receptionist can hand this off as one file.
+export const generatePatientRegister = (patients: Patient[]) => {
+const wb = XLSX.utils.book_new();
+const toRows = (list: Patient[]) => [
+['Card ID', 'Name', 'Phone', 'Next of Kin', 'Next of Kin Phone', 'Registration Type', 'Registered'],
+...list.map(p => [
+p.cardId,
+p.name,
+p.phone,
+p.nextOfKin,
+p.nokPhone,
+p.registrationType === 'old' ? 'Old / Existing File' : 'Fresh / New Patient',
+format(parseISO(p.createdAt), 'yyyy-MM-dd HH:mm'),
+]),
+];
+const sorted = [...patients].sort((a, b) => a.name.localeCompare(b.name));
+XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(toRows(sorted)), 'All Patients');
+XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(toRows(sorted.filter(p => p.registrationType === 'fresh'))), 'Fresh');
+XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(toRows(sorted.filter(p => p.registrationType === 'old'))), 'Old');
+const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+const dataBlob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+saveAs(dataBlob, `Patient_Register_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+};
 interface ReportData {
 income: FinancialRecord[];
 expenses: Expense[];
