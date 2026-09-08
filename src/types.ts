@@ -58,6 +58,15 @@ result: string;
 range: string;
 unit: string;
 }
+export interface LabRequestDetails {
+hospitalClinic?: string;
+ward?: string;
+no?: string;
+clinicalHistory?: string;
+consultant?: string;
+provisionalDiagnosis?: string;
+natureOfSpecimen?: string;
+}
 export interface LabTest {
 id: string;
 patientId: string;
@@ -69,6 +78,22 @@ structuredResults?: LabResultParameter[];
 imageUrl?: string;
 paymentStatus: 'pending' | 'paid';
 createdAt: string;
+reportType?: 'legacy' | 'basic' | 'comprehensive';
+requestDetails?: LabRequestDetails;
+panelResults?: import('./data/labReportTemplates').ComprehensivePanelResults;
+}
+export interface ClinicalLetter {
+id: string;
+patientId: string;
+staffId: string;
+staffName?: string;
+letterType: 'diagnosis' | 'referral';
+yourRef?: string;
+ourRef?: string;
+referredTo?: string;
+body: string;
+createdAt: string;
+updatedAt: string;
 }
 export interface FinancialRecord {
 id: string;

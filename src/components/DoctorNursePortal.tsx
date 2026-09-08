@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, memo } from 'react';
 import { supabase, handleSupabaseError } from '../lib/supabase';
-import { Patient, MedicalRecord, UserRole, Visit, LabTest } from '../types';
+import { Patient, MedicalRecord, UserRole, Visit, LabTest, ClinicalLetter } from '../types';
 import { toast } from 'sonner';
 import { Search, Activity, ClipboardList, FlaskConical, Pill, Plus, Save, History, User, Heart, Thermometer, Droplets, Stethoscope, FileText, CreditCard, LayoutDashboard, Users as UsersIcon, ChevronDown, ChevronUp, Wind, X, AlertTriangle, FolderOpen, Camera } from 'lucide-react';
 import { format } from 'date-fns';
@@ -36,9 +36,17 @@ const labTestFromRow = (r: any): LabTest => ({
 id: r.id, patientId: r.patient_id, recordId: r.record_id, testType: r.test_type,
 price: r.price, result: r.result, structuredResults: r.structured_results,
 paymentStatus: r.payment_status, createdAt: r.created_at,
+reportType: r.report_type || 'legacy', requestDetails: r.request_details || undefined,
+panelResults: r.panel_results || undefined,
+});
+const letterFromRow = (r: any): ClinicalLetter => ({
+id: r.id, patientId: r.patient_id, staffId: r.staff_id, letterType: r.letter_type,
+yourRef: r.your_ref, ourRef: r.our_ref, referredTo: r.referred_to, body: r.body,
+createdAt: r.created_at, updatedAt: r.updated_at,
 });
 import { motion, AnimatePresence } from 'motion/react';
 import { PatientHistory } from './PatientHistory';
+import { LetterheadPrint } from './LetterheadPrint';
 interface Props {
 role: UserRole;
 userId: string;
@@ -56,6 +64,13 @@ todayRecords: 0
 });
 const [visits, setVisits] = useState<Visit[]>([]);
 const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
+const [letters, setLetters] = useState<ClinicalLetter[]>([]);
+const [showLetterModal, setShowLetterModal] = useState(false);
+const [printLetter, setPrintLetter] = useState<ClinicalLetter | null>(null);
+const [letterDraft, setLetterDraft] = useState({
+letterType: 'diagnosis' as 'diagnosis' | 'referral',
+yourRef: '', ourRef: '', referredTo: '', body: '',
+});
 const [isNewConsultation, setIsNewConsultation] = useState(false);
 const [showImageUpload, setShowImageUpload] = useState(false);
 const [showGlobalConsultation, setShowGlobalConsultation] = useState(false);
@@ -185,15 +200,50 @@ const { data: visitsData, error: visitsErr } = await supabase
 .order('timestamp', { ascending: false });
 if (visitsErr) return handleSupabaseError(visitsErr, 'select', 'visits');
 setVisits((visitsData || []).map(visitFromRow));
+const { data: lettersData, error: lettersErr } = await supabase
+.from('clinical_letters')
+.select('*')
+.eq('patient_id', patient.cardId)
+.order('created_at', { ascending: false });
+if (lettersErr) return handleSupabaseError(lettersErr, 'select', 'clinical_letters');
+setLetters((lettersData || []).map(letterFromRow));
 };
 fetchRecordsAndVisits();
 const channel = supabase
 .channel(`patient-${patient.cardId}-changes`)
 .on('postgres_changes', { event: '*', schema: 'public', table: 'medical_records', filter: `patient_id=eq.${patient.cardId}` }, fetchRecordsAndVisits)
 .on('postgres_changes', { event: '*', schema: 'public', table: 'visits', filter: `patient_id=eq.${patient.cardId}` }, fetchRecordsAndVisits)
+.on('postgres_changes', { event: '*', schema: 'public', table: 'clinical_letters', filter: `patient_id=eq.${patient.cardId}` }, fetchRecordsAndVisits)
 .subscribe();
 return () => { supabase.removeChannel(channel); };
 }, [patient]);
+const handleSaveLetter = async (e: React.FormEvent) => {
+e.preventDefault();
+if (!patient) return;
+if (!letterDraft.body.trim()) {
+toast.error('Please enter the letter content.');
+return;
+}
+try {
+const ourRef = letterDraft.ourRef || `RCM/${letterDraft.letterType === 'referral' ? 'REF' : 'DX'}/${Date.now().toString().slice(-6)}`;
+const { error } = await supabase.from('clinical_letters').insert({
+patient_id: patient.cardId,
+staff_id: userId,
+letter_type: letterDraft.letterType,
+your_ref: letterDraft.yourRef || null,
+our_ref: ourRef,
+referred_to: letterDraft.letterType === 'referral' ? letterDraft.referredTo : null,
+body: letterDraft.body,
+});
+if (error) throw error;
+await logAction(userId, 'CREATE_CLINICAL_LETTER', `Created ${letterDraft.letterType} letter for patient ${patient.cardId}`);
+toast.success('Letter saved successfully!');
+setShowLetterModal(false);
+setLetterDraft({ letterType: 'diagnosis', yourRef: '', ourRef: '', referredTo: '', body: '' });
+} catch (error) {
+handleSupabaseError(error, 'insert', 'clinical_letters');
+}
+};
 const handleConsultationSubmit = async (e: React.FormEvent) => {
 e.preventDefault();
 if (!patient) return;
@@ -525,6 +575,12 @@ className="w-full flex items-center justify-center gap-2 py-3 bg-slate-50 text-s
 >
 <History className="w-4 h-4" /> View Full History
 </button>
+<button
+onClick={() => setShowLetterModal(true)}
+className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-50 text-emerald-700 rounded-xl font-bold hover:bg-emerald-100 transition-all border border-emerald-100"
+>
+<FileText className="w-4 h-4" /> Diagnosis / Referral Letter
+</button>
 </div>
 <div className="mt-6 pt-6 border-t border-slate-100 space-y-2">
 <p className="text-xs font-bold text-slate-400 uppercase">Address</p>
@@ -538,6 +594,29 @@ className="w-full flex items-center justify-center gap-2 py-3 bg-slate-50 text-s
 </div>
 </div>
 </div>
+{letters.length > 0 && (
+<div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+<h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
+<FileText className="w-4 h-4 text-emerald-500" /> Letters
+</h4>
+<div className="space-y-3">
+{letters.map(letter => (
+<div key={letter.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+<div>
+<p className="text-xs font-bold text-slate-900 capitalize">{letter.letterType} Letter</p>
+<p className="text-[10px] text-slate-400">{format(new Date(letter.createdAt), 'MMM d, yyyy')} · {letter.ourRef}</p>
+</div>
+<button
+onClick={() => setPrintLetter(letter)}
+className="text-xs font-bold text-blue-600 hover:text-blue-700"
+>
+View / Print
+</button>
+</div>
+))}
+</div>
+</div>
+)}
 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
 <h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
 <History className="w-4 h-4 text-slate-400" /> Medical History
@@ -1214,6 +1293,79 @@ onClose={() => setShowHistory(false)}
 </div>
 )}
 </AnimatePresence>
+{/* Diagnosis / Referral Letter Compose Modal */}
+<AnimatePresence>
+{showLetterModal && patient && (
+<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+<motion.form
+onSubmit={handleSaveLetter}
+initial={{ opacity: 0, scale: 0.95 }}
+animate={{ opacity: 1, scale: 1 }}
+exit={{ opacity: 0, scale: 0.95 }}
+className="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-lg overflow-hidden my-8"
+>
+<div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+<h3 className="font-bold text-slate-900 flex items-center gap-2">
+<FileText className="w-5 h-5 text-emerald-600" /> New Letter — {patient.name}
+</h3>
+<button type="button" onClick={() => setShowLetterModal(false)} className="p-2 hover:bg-slate-200 rounded-lg transition-colors">
+<X className="w-4 h-4" />
+</button>
+</div>
+<div className="p-6 space-y-4">
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Letter Type</label>
+<select
+value={letterDraft.letterType}
+onChange={e => setLetterDraft({ ...letterDraft, letterType: e.target.value as 'diagnosis' | 'referral' })}
+className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+>
+<option value="diagnosis">Diagnosis Entry</option>
+<option value="referral">Patient Referral</option>
+</select>
+</div>
+{letterDraft.letterType === 'referral' && (
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Referred To</label>
+<input
+value={letterDraft.referredTo}
+onChange={e => setLetterDraft({ ...letterDraft, referredTo: e.target.value })}
+className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+placeholder="Receiving hospital / specialist"
+/>
+</div>
+)}
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Your Ref (optional)</label>
+<input
+value={letterDraft.yourRef}
+onChange={e => setLetterDraft({ ...letterDraft, yourRef: e.target.value })}
+className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+/>
+</div>
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Letter Content</label>
+<textarea
+value={letterDraft.body}
+onChange={e => setLetterDraft({ ...letterDraft, body: e.target.value })}
+className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none min-h-[180px]"
+placeholder={letterDraft.letterType === 'referral' ? 'Reason for referral, findings, and recommendations...' : 'Diagnosis details...'}
+/>
+</div>
+<button
+type="submit"
+className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
+>
+<Save className="w-4 h-4" /> Save Letter
+</button>
+</div>
+</motion.form>
+</div>
+)}
+</AnimatePresence>
+{printLetter && (
+<LetterheadPrint letter={printLetter} patient={patient || undefined} onClose={() => setPrintLetter(null)} />
+)}
 {/* Global Routine Check-up Modal */}
 <AnimatePresence>
 {showGlobalConsultation && (

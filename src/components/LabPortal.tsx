@@ -11,6 +11,13 @@ import { logAction } from '../lib/audit';
 import { PatientHistory } from './PatientHistory';
 import { useFormDraft } from '../hooks/useFormDraft';
 import { ConfirmModal } from './ConfirmModal';
+import { LabReportPrint } from './LabReportPrint';
+import {
+  LAB_REQUEST_FIELDS, HAEMATOLOGY_FIELDS, WIDAL_FIELDS, WIDAL_SIGNIFICANT_TITRE,
+  URINALYSIS_FIELDS, PARASITOLOGY_FIELDS, SEMEN_ANALYSIS_FIELDS, BIOCHEMISTRY_FIELDS,
+  CULTURE_SPECIMEN_TYPES, MICROSCOPY_FINDINGS, BLOOD_TRANSFUSION_FIELDS, SENSITIVITY_ANTIBIOTICS,
+  emptyPanelResults, ComprehensivePanelResults,
+} from '../data/labReportTemplates';
 const patientFromRow = (r: any): Patient => ({
 cardId: r.card_id, name: r.name, gender: r.gender, dob: r.dob,
 stateOfOrigin: r.state_of_origin, age: r.age, occupation: r.occupation,
@@ -22,14 +29,17 @@ const labTestFromRow = (r: any): LabTest => ({
 id: r.id, patientId: r.patient_id, recordId: r.record_id, testType: r.test_type,
 price: r.price, result: r.result, structuredResults: r.structured_results,
 imageUrl: r.image_url, paymentStatus: r.payment_status, createdAt: r.created_at,
+reportType: r.report_type || 'legacy', requestDetails: r.request_details || undefined,
+panelResults: r.panel_results || undefined,
 });
 interface Props {
 userId: string;
 }
-const LabTestRow = memo(({ test, onSelect, onDelete }: { 
+const LabTestRow = memo(({ test, onSelect, onDelete, onPrint }: { 
 test: LabTest & { patient?: Patient }, 
 onSelect: (test: LabTest & { patient?: Patient }) => void,
-onDelete: (id: string) => void 
+onDelete: (id: string) => void,
+onPrint: (test: LabTest & { patient?: Patient }) => void
 }) => (
 <tr className="hover:bg-slate-50 transition-colors group">
 <td className="px-6 py-4">
@@ -74,6 +84,12 @@ className="text-blue-600 hover:text-blue-700 font-bold text-xs"
 {test.result ? 'Edit Result' : 'Enter Result'}
 </button>
 <button
+onClick={() => onPrint(test)}
+className="text-slate-500 hover:text-slate-700 font-bold text-xs"
+>
+Print
+</button>
+<button
 onClick={() => onDelete(test.id)}
 className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
 title="Delete Lab Result"
@@ -96,12 +112,34 @@ patientId: '',
 testType: '',
 price: '',
 result: '',
-imageUrl: ''
+imageUrl: '',
+reportType: 'legacy' as 'legacy' | 'basic' | 'comprehensive',
+requestDetails: {} as Record<string, string>,
 });
 const { data: labFormRows, setData: setLabFormRows, clearDraft: clearLabRowsDraft } = useFormDraft('lab_form_rows', [
 { parameter: '', result: '', range: '', unit: '' }
 ]);
 const { data: result, setData: setResult, clearDraft: clearResultDraft } = useFormDraft('lab_result_notes', '');
+const [panelResults, setPanelResults] = useState<ComprehensivePanelResults>(emptyPanelResults());
+const [printTest, setPrintTest] = useState<(LabTest & { patient?: Patient }) | null>(null);
+const updatePanelField = (section: keyof ComprehensivePanelResults, key: string, value: string) => {
+setPanelResults(prev => ({ ...prev, [section]: { ...(prev[section] as any || {}), [key]: value } }));
+};
+const updateSensitivity = (antibiotic: string, field: 'rate' | 'result', value: string) => {
+setPanelResults(prev => ({
+...prev,
+sensitivity: { ...(prev.sensitivity || {}), [antibiotic]: { ...(prev.sensitivity?.[antibiotic] || { rate: '', result: '' }), [field]: value } }
+}));
+};
+const updateCultureCell = (specimen: string, finding: string, value: string) => {
+setPanelResults(prev => ({
+...prev,
+cultureMicroscopy: {
+...(prev.cultureMicroscopy || {}),
+[specimen]: { ...(prev.cultureMicroscopy?.[specimen] || {}), [finding]: value }
+}
+}));
+};
 const [stats, setStats] = useState({
 pending: 0,
 completed: 0,
@@ -173,6 +211,8 @@ price: parseFloat(manualEntry.price) || 0,
 result: manualEntry.result,
 image_url: manualEntry.imageUrl || null,
 payment_status: 'pending', // Only accountant can clear payments
+report_type: manualEntry.reportType,
+request_details: manualEntry.reportType === 'basic' ? manualEntry.requestDetails : null,
 });
 if (error) throw error;
 await logAction(userId, 'MANUAL_LAB_ENTRY', `Manually recorded ${manualEntry.testType} for patient ${manualEntry.patientId}`);
@@ -187,22 +227,24 @@ setLoading(false);
 };
 const handleSaveResult = async () => {
 if (!selectedTest) return;
+const isComprehensive = selectedTest.reportType === 'comprehensive';
 const validRows = labFormRows.filter(row => row.parameter || row.result);
 let finalResult = result;
-if (validRows.length > 0) {
+if (!isComprehensive && validRows.length > 0) {
 const tableHeader = "| Parameter | Result | Range | Unit |\n|---|---|---|---|\n";
 const tableRows = validRows
 .map(row => `| ${row.parameter} | ${row.result} | ${row.range} | ${row.unit} |`)
 .join('\n');
 finalResult = tableHeader + tableRows + (result ? `\n\nNotes: ${result}` : '');
 }
-if (!finalResult && validRows.length === 0) {
+if (!isComprehensive && !finalResult && validRows.length === 0) {
 toast.error('Please enter results');
 return;
 }
 const { error } = await supabase.from('lab_tests').update({
-result: finalResult,
-structured_results: validRows,
+result: finalResult || (isComprehensive ? 'See structured report' : finalResult),
+structured_results: isComprehensive ? null : validRows,
+panel_results: isComprehensive ? panelResults : null,
 image_url: imageUrl || null,
 updated_at: new Date().toISOString(),
 }).eq('id', selectedTest.id);
@@ -408,6 +450,36 @@ className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring
 </select>
 </div>
 <div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Report Template</label>
+<select
+value={manualEntry.reportType}
+onChange={e => setManualEntry({ ...manualEntry, reportType: e.target.value as 'legacy' | 'basic' | 'comprehensive' })}
+className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+>
+<option value="legacy">Free-form (legacy)</option>
+<option value="basic">Basic Lab Request Form</option>
+<option value="comprehensive">Comprehensive Lab Report</option>
+</select>
+{manualEntry.reportType === 'comprehensive' && (
+<p className="text-xs text-slate-500">Structured panels are filled after creation, from the Test Queue → Enter Result.</p>
+)}
+</div>
+{manualEntry.reportType === 'basic' && (
+<div className="space-y-3 border border-slate-200 rounded-xl p-4 bg-slate-50/50">
+<p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Lab Request Details</p>
+{LAB_REQUEST_FIELDS.map(f => (
+<div key={f.key}>
+<label className="text-[10px] font-bold text-slate-500">{f.label}</label>
+<input
+value={manualEntry.requestDetails[f.key] || ''}
+onChange={e => setManualEntry({ ...manualEntry, requestDetails: { ...manualEntry.requestDetails, [f.key]: e.target.value } })}
+className="w-full p-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500"
+/>
+</div>
+))}
+</div>
+)}
+<div className="space-y-2">
 <label className="text-sm font-bold text-slate-700">Price (₦)</label>
 <input
 type="number"
@@ -523,14 +595,16 @@ className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover
 key={test.id || idx} 
 test={test} 
 onDelete={(id) => setDeleteConfirmId(id)}
+onPrint={(t) => setPrintTest(t)}
 onSelect={(t) => {
 setSelectedTest(t);
-setResult(t.result || '');
+setResult(t.reportType === 'comprehensive' ? '' : (t.result || ''));
 if (t.structuredResults && t.structuredResults.length > 0) {
 setLabFormRows(t.structuredResults);
 } else {
 setLabFormRows([{ parameter: '', result: '', range: '', unit: '' }]);
 }
+setPanelResults(t.panelResults && Object.keys(t.panelResults).length > 0 ? t.panelResults : emptyPanelResults());
 }}
 />
 ))}
@@ -560,9 +634,18 @@ className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidde
 <h3 className="font-bold flex items-center gap-2">
 <FileText className="w-5 h-5 text-blue-400" /> Record Result
 </h3>
+<div className="flex items-center gap-1">
+<button
+onClick={() => setPrintTest(selectedTest)}
+className="px-3 py-1.5 text-xs font-bold bg-white/10 hover:bg-white/20 rounded-lg"
+title="Preview / Print Report"
+>
+Print
+</button>
 <button onClick={() => setSelectedTest(null)} className="p-1 hover:bg-white/10 rounded-lg">
 <X className="w-5 h-5" />
 </button>
+</div>
 </div>
 <div className="p-6 space-y-6">
 <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
@@ -585,6 +668,161 @@ title="View Patient History"
 </div>
 </div>
 <div className="space-y-4">
+{selectedTest.reportType === 'comprehensive' ? (
+<div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+<p className="text-xs font-bold text-purple-600 uppercase tracking-wider">Comprehensive Lab Report — fill only the panels that apply</p>
+
+<details className="border border-slate-200 rounded-xl p-3" open>
+<summary className="text-sm font-bold text-slate-700 cursor-pointer">Haematology / BGS</summary>
+<div className="grid grid-cols-2 gap-2 mt-3">
+{HAEMATOLOGY_FIELDS.map(f => (
+<div key={f.key}>
+<label className="text-[10px] font-bold text-slate-500">{f.label}</label>
+<input value={panelResults.haematology?.[f.key] || ''} onChange={e => updatePanelField('haematology', f.key, e.target.value)}
+className="w-full p-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500" />
+</div>
+))}
+</div>
+</details>
+
+<details className="border border-slate-200 rounded-xl p-3">
+<summary className="text-sm font-bold text-slate-700 cursor-pointer">Widal Test <span className="text-[10px] font-normal text-slate-400">({WIDAL_SIGNIFICANT_TITRE})</span></summary>
+<div className="grid grid-cols-2 gap-2 mt-3">
+{WIDAL_FIELDS.map(f => (
+<div key={f.key}>
+<label className="text-[10px] font-bold text-slate-500">{f.label}</label>
+<input value={panelResults.widal?.[f.key] || ''} onChange={e => updatePanelField('widal', f.key, e.target.value)}
+className="w-full p-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500" />
+</div>
+))}
+</div>
+</details>
+
+<details className="border border-slate-200 rounded-xl p-3">
+<summary className="text-sm font-bold text-slate-700 cursor-pointer">Urinalysis</summary>
+<div className="grid grid-cols-2 gap-2 mt-3">
+{URINALYSIS_FIELDS.map(f => (
+<div key={f.key}>
+<label className="text-[10px] font-bold text-slate-500">{f.label}</label>
+<input value={panelResults.urinalysis?.[f.key] || ''} onChange={e => updatePanelField('urinalysis', f.key, e.target.value)}
+className="w-full p-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500" />
+</div>
+))}
+</div>
+</details>
+
+<details className="border border-slate-200 rounded-xl p-3">
+<summary className="text-sm font-bold text-slate-700 cursor-pointer">Parasitology</summary>
+<div className="grid grid-cols-2 gap-2 mt-3">
+{PARASITOLOGY_FIELDS.map(f => (
+<div key={f.key}>
+<label className="text-[10px] font-bold text-slate-500">{f.label}</label>
+<input value={panelResults.parasitology?.[f.key] || ''} onChange={e => updatePanelField('parasitology', f.key, e.target.value)}
+className="w-full p-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500" />
+</div>
+))}
+</div>
+</details>
+
+<details className="border border-slate-200 rounded-xl p-3">
+<summary className="text-sm font-bold text-slate-700 cursor-pointer">Semen Analysis</summary>
+<div className="grid grid-cols-2 gap-2 mt-3">
+{SEMEN_ANALYSIS_FIELDS.map(f => (
+<div key={f.key}>
+<label className="text-[10px] font-bold text-slate-500">{f.label}</label>
+<input value={panelResults.semenAnalysis?.[f.key] || ''} onChange={e => updatePanelField('semenAnalysis', f.key, e.target.value)}
+className="w-full p-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500" />
+</div>
+))}
+</div>
+</details>
+
+<details className="border border-slate-200 rounded-xl p-3">
+<summary className="text-sm font-bold text-slate-700 cursor-pointer">Biochemistry</summary>
+<div className="grid grid-cols-2 gap-2 mt-3">
+{BIOCHEMISTRY_FIELDS.map(f => (
+<div key={f.key}>
+<label className="text-[10px] font-bold text-slate-500">{f.label}</label>
+<input value={panelResults.biochemistry?.[f.key] || ''} onChange={e => updatePanelField('biochemistry', f.key, e.target.value)}
+className="w-full p-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500" />
+</div>
+))}
+</div>
+</details>
+
+<details className="border border-slate-200 rounded-xl p-3">
+<summary className="text-sm font-bold text-slate-700 cursor-pointer">Culture / Microscopy</summary>
+<div className="overflow-x-auto mt-3">
+<table className="text-[10px] border-collapse w-full">
+<thead>
+<tr>
+<th className="border border-slate-200 px-1 py-1 bg-slate-50">Specimen</th>
+{MICROSCOPY_FINDINGS.map(f => (
+<th key={f} className="border border-slate-200 px-1 py-1 bg-slate-50 whitespace-nowrap">{f}</th>
+))}
+</tr>
+</thead>
+<tbody>
+{CULTURE_SPECIMEN_TYPES.map(spec => (
+<tr key={spec}>
+<td className="border border-slate-200 px-1 py-1 font-semibold whitespace-nowrap">{spec}</td>
+{MICROSCOPY_FINDINGS.map(f => (
+<td key={f} className="border border-slate-200 p-0.5">
+<input value={panelResults.cultureMicroscopy?.[spec]?.[f] || ''} onChange={e => updateCultureCell(spec, f, e.target.value)}
+className="w-12 p-1 text-[10px] outline-none focus:ring-1 focus:ring-blue-500 rounded" />
+</td>
+))}
+</tr>
+))}
+</tbody>
+</table>
+</div>
+</details>
+
+<details className="border border-slate-200 rounded-xl p-3">
+<summary className="text-sm font-bold text-slate-700 cursor-pointer">Blood Transfusion</summary>
+<div className="grid grid-cols-2 gap-2 mt-3">
+{BLOOD_TRANSFUSION_FIELDS.map(f => (
+<div key={f.key}>
+<label className="text-[10px] font-bold text-slate-500">{f.label}</label>
+<input value={panelResults.bloodTransfusion?.[f.key] || ''} onChange={e => updatePanelField('bloodTransfusion', f.key, e.target.value)}
+className="w-full p-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500" />
+</div>
+))}
+</div>
+</details>
+
+<details className="border border-slate-200 rounded-xl p-3">
+<summary className="text-sm font-bold text-slate-700 cursor-pointer">Gram's Reaction — Sensitivity Pattern</summary>
+<div className="grid grid-cols-2 gap-2 mt-3">
+{SENSITIVITY_ANTIBIOTICS.map(ab => (
+<div key={ab} className="flex items-center gap-1">
+<span className="text-[10px] font-bold text-slate-500 flex-1">{ab}</span>
+<select value={panelResults.sensitivity?.[ab]?.result || ''} onChange={e => updateSensitivity(ab, 'result', e.target.value)}
+className="text-[10px] border border-slate-200 rounded p-1 outline-none">
+<option value="">-</option>
+<option value="S">S</option>
+<option value="R">R</option>
+</select>
+<input value={panelResults.sensitivity?.[ab]?.rate || ''} onChange={e => updateSensitivity(ab, 'rate', e.target.value)}
+placeholder="Rate" className="w-14 text-[10px] p-1 border border-slate-200 rounded outline-none" />
+</div>
+))}
+</div>
+</details>
+
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Additional Notes</label>
+<textarea
+value={result}
+onChange={e => setResult(e.target.value)}
+className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none min-h-[80px]"
+placeholder="Any additional observations..."
+/>
+</div>
+</div>
+) : (
+<>
 <div className="flex items-center justify-between">
 <label className="text-sm font-bold text-slate-700">Standard Lab Form (Grid)</label>
 <button 
@@ -662,6 +900,8 @@ className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring
 placeholder="Enter any additional notes..."
 />
 </div>
+</>
+)}
 <div className="space-y-4 border-t border-slate-100 pt-4">
 <div className="flex items-center justify-between">
 <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
@@ -773,6 +1013,9 @@ setDeleteConfirmId(null);
 }}
 onCancel={() => setDeleteConfirmId(null)}
 />
+{printTest && (
+<LabReportPrint test={printTest} onClose={() => setPrintTest(null)} />
+)}
 </div>
 );
 };
