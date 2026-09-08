@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, memo } from 'react';
 import { supabase, handleSupabaseError } from '../lib/supabase';
-import { FinancialRecord, Patient, MedicalRecord, Visit, Expense } from '../types';
+import { FinancialRecord, Patient, MedicalRecord, Visit, Expense, BillingItem } from '../types';
 import { toast } from 'sonner';
-import { Receipt, Search, Plus, DollarSign, CreditCard, Banknote, User, CheckCircle, Clock, History, FileText, Save, X, LayoutDashboard, Wallet, ArrowUpRight, ClipboardList, Trash2, User as UserIcon, FileSpreadsheet, TrendingDown, TrendingUp } from 'lucide-react';
+import { Receipt, Search, Plus, DollarSign, CreditCard, Banknote, User, CheckCircle, Clock, History, FileText, Save, X, LayoutDashboard, Wallet, ArrowUpRight, Trash2, User as UserIcon, FileSpreadsheet, TrendingDown, TrendingUp } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, isWithinInterval, parseISO } from 'date-fns';
 import { cn } from '../lib/utils';
 import { logAction } from '../lib/audit';
@@ -27,6 +27,11 @@ createdAt: r.created_at,
 const expenseFromRow = (r: any): Expense => ({
 id: r.id, description: r.description, amount: r.amount, category: r.category,
 staffId: r.staff_id, createdAt: r.created_at,
+});
+const billingItemFromRow = (r: any): BillingItem => ({
+id: r.id, itemType: r.item_type, description: r.description, amount: r.amount,
+paymentStatus: r.payment_status, createdAt: r.created_at,
+paidSoFar: r.paid_so_far, balance: r.balance,
 });
 interface Props {
 userId: string;
@@ -120,7 +125,7 @@ const [view, setView] = useState<'dashboard' | 'billing' | 'reconciliation' | 'p
 const [allPatients, setAllPatients] = useState<Patient[]>([]);
 const [expandedPatientId, setExpandedPatientId] = useState<string | null>(null);
 const [patientSearchQuery, setPatientSearchQuery] = useState('');
-const [pendingFees, setPendingFees] = useState<{ id: string; amount: number; description: string; date: string; type: 'clinical' | 'lab' }[]>([]);
+const [billingItems, setBillingItems] = useState<BillingItem[]>([]);
 const [stats, setStats] = useState({
 totalRevenue: 0,
 todayRevenue: 0,
@@ -131,11 +136,7 @@ netProfit: 0
 const [showHistory, setShowHistory] = useState(false);
 const [printingRecord, setPrintingRecord] = useState<(FinancialRecord & { patient?: Patient }) | null>(null);
 const [deleteConfirm, setDeleteConfirm] = useState<{type: 'expense' | 'transaction', id: string} | null>(null);
-const { data: formData, setData: setFormData, clearDraft: clearBillingDraft } = useFormDraft('accountant_billing_form', {
-totalAmount: '',
-paidAmount: '',
-paymentMethod: 'cash' as 'cash' | 'bank transfer'
-});
+const [payModal, setPayModal] = useState<{ item: BillingItem; amount: string; method: 'cash' | 'bank transfer' } | null>(null);
 const { data: expenseForm, setData: setExpenseForm, clearDraft: clearExpenseDraft } = useFormDraft('accountant_expense_form', {
 description: '',
 amount: '',
@@ -202,31 +203,7 @@ if (pData) {
 const patient = patientFromRow(pData);
 setSelectedPatient(patient);
 setView('billing');
-const { data: recordsData } = await supabase
-.from('medical_records').select('*').eq('patient_id', searchId).eq('payment_status', 'pending');
-const pFees = (recordsData || [])
-.filter((r: any) => r.payment_fee && r.payment_fee > 0)
-.map((r: any) => ({
-id: r.id, amount: r.payment_fee, description: r.diagnosis || 'Clinical Assessment',
-date: r.created_at, type: 'clinical' as const,
-}));
-const { data: visitsData } = await supabase
-.from('visits').select('*').eq('patient_id', searchId).eq('payment_status', 'pending');
-const vFees = (visitsData || [])
-.filter((v: any) => v.billing_amount && v.billing_amount > 0)
-.map((v: any) => ({
-id: v.id, amount: v.billing_amount, description: v.diagnosis || 'Routine Check-up',
-date: v.timestamp, type: 'visit' as const,
-}));
-const { data: labsData } = await supabase
-.from('lab_tests').select('*').eq('patient_id', searchId).eq('payment_status', 'pending');
-const lFees = (labsData || [])
-.filter((l: any) => l.price && l.price > 0)
-.map((l: any) => ({
-id: l.id, amount: l.price, description: `Lab Test: ${l.test_type}`,
-date: l.created_at, type: 'lab' as const,
-}));
-setPendingFees([...pFees, ...vFees, ...lFees].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+await fetchBillingItems(searchId);
 await logAction(userId, 'SEARCH_PATIENT_BILLING', `Searched billing for patient ${searchId}`);
 } else {
 toast.error('Patient not found.');
@@ -236,48 +213,47 @@ setSelectedPatient(null);
 handleSupabaseError(error, 'select', 'patients');
 }
 };
-const handleSavePayment = async (e: React.FormEvent) => {
-e.preventDefault();
-if (!selectedPatient) return;
-const total = parseFloat(formData.totalAmount);
-const paid = parseFloat(formData.paidAmount);
-const pending = total - paid;
+const fetchBillingItems = async (patientCardId: string) => {
+const { data, error } = await supabase.rpc('get_patient_billing', { p_patient_id: patientCardId });
+if (error) return handleSupabaseError(error, 'select', 'billing_items');
+setBillingItems((data || []).map(billingItemFromRow));
+};
+const handleConfirmPayment = async () => {
+if (!payModal || !selectedPatient) return;
+const amount = parseFloat(payModal.amount);
+if (!amount || amount <= 0) {
+toast.error('Enter a valid amount.');
+return;
+}
+if (amount > payModal.item.balance) {
+toast.error(`Amount cannot exceed the outstanding balance of ₦${payModal.item.balance.toLocaleString()}.`);
+return;
+}
 try {
-const { error } = await supabase.from('financials').insert({
-patient_id: selectedPatient.cardId,
-total_amount: total,
-paid_amount: paid,
-pending_amount: pending,
-payment_status: pending <= 0 ? 'fully paid' : 'partially paid',
-payment_method: formData.paymentMethod,
+const { error } = await supabase.rpc('record_item_payment', {
+p_item_type: payModal.item.itemType,
+p_item_id: payModal.item.id,
+p_patient_id: selectedPatient.cardId,
+p_amount_paid: amount,
+p_payment_method: payModal.method,
 });
 if (error) throw error;
-// All three updates happen atomically in one transaction (see
-// clear_pending_payments) — avoids a partial-failure state where
-// financials says "fully paid" but some records are still pending.
-if (pending <= 0) {
-const { error: clearErr } = await supabase.rpc('clear_pending_payments', {
-p_patient_id: selectedPatient.cardId,
-});
-if (clearErr) throw clearErr;
-}
-await logAction(userId, 'RECORD_PAYMENT', `Recorded payment of ${formData.paidAmount} for patient ${selectedPatient.cardId}`);
-toast.success('Payment recorded successfully!');
-const newRecord = {
+await logAction(userId, 'RECORD_ITEM_PAYMENT', `Recorded ₦${amount} payment (${payModal.item.itemType}) for patient ${selectedPatient.cardId}`);
+toast.success(amount >= payModal.item.balance ? 'Marked as paid!' : 'Partial payment recorded!');
+const receipt = {
 patientId: selectedPatient.cardId,
-totalAmount: total,
-paidAmount: paid,
-pendingAmount: pending,
-paymentStatus: pending <= 0 ? 'fully paid' : 'partially paid',
-paymentMethod: formData.paymentMethod,
+totalAmount: payModal.item.amount,
+paidAmount: amount,
+pendingAmount: Math.max(payModal.item.balance - amount, 0),
+paymentStatus: amount >= payModal.item.balance ? 'fully paid' : 'partially paid',
+paymentMethod: payModal.method,
 createdAt: new Date().toISOString(),
 patient: selectedPatient,
 } as FinancialRecord & { patient: Patient };
-setPrintingRecord(newRecord);
-setSelectedPatient(null);
-clearBillingDraft();
-setSearchId('');
-setView('dashboard');
+setPrintingRecord(receipt);
+setPayModal(null);
+await fetchBillingItems(selectedPatient.cardId);
+fetchFinancials();
 } catch (error) {
 handleSupabaseError(error, 'insert', 'financials');
 }
@@ -566,126 +542,80 @@ Search
 </div>
 ) : view === 'billing' ? (
 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-{/* Payment Entry Form */}
-<div className="lg:col-span-4 space-y-6">
-{selectedPatient && (
-<div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-<h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-<ClipboardList className="w-4 h-4 text-orange-500" /> Pending Fees
-</h4>
-<div className="space-y-3">
-{pendingFees.map((fee, idx) => (
-<div key={idx} className="p-3 rounded-xl bg-orange-50 border border-orange-100">
-<div className="flex justify-between items-center mb-1">
-<p className="text-xs font-bold text-slate-900">
-{format(new Date(fee.date), 'MMM d, yyyy')}
-</p>
-<p className="text-sm font-black text-orange-600">₦{fee.amount.toLocaleString()}</p>
-</div>
-<p className="text-[10px] text-slate-500">{fee.description}</p>
-</div>
-))}
-{pendingFees.length === 0 && (
-<p className="text-center text-slate-400 text-sm py-4">No pending fees found</p>
-)}
-</div>
-</div>
-)}
+{/* Itemized Billing */}
+<div className="lg:col-span-12 space-y-6">
 {selectedPatient ? (
 <div className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
 <div className="p-6 border-b border-slate-100 bg-slate-900 text-white flex items-center justify-between">
-<h3 className="font-bold flex items-center gap-2">
-<Receipt className="w-5 h-5 text-blue-400" /> New Payment
-</h3>
-<button onClick={() => setSelectedPatient(null)} className="p-1 hover:bg-white/10 rounded-lg">
-<X className="w-5 h-5" />
-</button>
-</div>
-<form onSubmit={handleSavePayment} className="p-6 space-y-6">
-<div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-<p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Patient Details</p>
-<div className="flex justify-between items-center">
 <div>
-<p className="font-bold text-slate-900">{selectedPatient.name}</p>
-<p className="text-xs text-slate-500">Card ID: <span className="text-blue-600 font-bold">{selectedPatient.cardId}</span></p>
+<h3 className="font-bold flex items-center gap-2">
+<Receipt className="w-5 h-5 text-blue-400" /> {selectedPatient.name}
+</h3>
+<p className="text-xs text-slate-400">Card ID: {selectedPatient.cardId}</p>
 </div>
-<button 
-type="button"
+<div className="flex items-center gap-1">
+<button
 onClick={() => setShowHistory(true)}
-className="p-2 bg-white border border-slate-200 rounded-lg text-slate-600 hover:text-blue-600 transition-colors"
+className="p-2 hover:bg-white/10 rounded-lg text-slate-300 hover:text-white transition-colors"
 title="View Patient History"
 >
 <History className="w-4 h-4" />
 </button>
+<button onClick={() => { setSelectedPatient(null); setBillingItems([]); }} className="p-1 hover:bg-white/10 rounded-lg">
+<X className="w-5 h-5" />
+</button>
 </div>
 </div>
-<div className="space-y-4">
-<div className="space-y-2">
-<label className="text-sm font-bold text-slate-700">Total Amount (₦)</label>
-<input
-type="number"
-required
-value={formData.totalAmount}
-onChange={e => setFormData({ ...formData, totalAmount: e.target.value })}
-className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-lg"
-placeholder="0.00"
-/>
+<div className="divide-y divide-slate-100">
+{billingItems.length === 0 ? (
+<p className="text-center text-slate-400 text-sm py-12">No billable items found for this patient.</p>
+) : (
+billingItems.map((item) => (
+<div key={item.id} className="p-4 flex items-center justify-between gap-4">
+<div className="min-w-0 flex-1">
+<p className="text-sm font-bold text-slate-900 truncate">{item.description}</p>
+<div className="flex items-center gap-2 mt-1">
+<span className={cn(
+"text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border",
+item.paymentStatus === 'paid' && "bg-green-50 text-green-600 border-green-100",
+item.paymentStatus === 'partial' && "bg-blue-50 text-blue-600 border-blue-100",
+item.paymentStatus === 'pending' && "bg-orange-50 text-orange-600 border-orange-100",
+)}>
+{item.paymentStatus}
+</span>
+<span className="text-[10px] text-slate-400">{format(new Date(item.createdAt), 'MMM d, yyyy')}</span>
 </div>
-<div className="space-y-2">
-<label className="text-sm font-bold text-slate-700">Paid Amount (₦)</label>
-<input
-type="number"
-required
-value={formData.paidAmount}
-onChange={e => setFormData({ ...formData, paidAmount: e.target.value })}
-className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-lg"
-placeholder="0.00"
-/>
 </div>
-<div className="space-y-2">
-<label className="text-sm font-bold text-slate-700">Payment Method</label>
-<div className="grid grid-cols-2 gap-4">
-<button
-type="button"
-onClick={() => setFormData({ ...formData, paymentMethod: 'cash' })}
-className={cn(
-"flex items-center justify-center gap-2 p-3 rounded-xl border transition-all",
-formData.paymentMethod === 'cash' ? "bg-blue-50 border-blue-600 text-blue-600 font-bold shadow-sm" : "border-slate-200 text-slate-500"
+<div className="text-right">
+<p className="text-sm font-black text-slate-900">₦{item.amount.toLocaleString()}</p>
+{item.paidSoFar > 0 && item.balance > 0 && (
+<p className="text-[10px] text-slate-400">Paid ₦{item.paidSoFar.toLocaleString()} · Owes ₦{item.balance.toLocaleString()}</p>
 )}
->
-<Banknote className="w-4 h-4" /> Cash
-</button>
+</div>
+{item.balance > 0 ? (
 <button
-type="button"
-onClick={() => setFormData({ ...formData, paymentMethod: 'bank transfer' })}
-className={cn(
-"flex items-center justify-center gap-2 p-3 rounded-xl border transition-all",
-formData.paymentMethod === 'bank transfer' ? "bg-blue-50 border-blue-600 text-blue-600 font-bold shadow-sm" : "border-slate-200 text-slate-500"
+onClick={() => setPayModal({ item, amount: item.balance.toString(), method: 'cash' })}
+className="shrink-0 px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700 transition-all"
+>
+Pay
+</button>
+) : (
+<CheckCircle className="w-5 h-5 text-green-500 shrink-0" />
 )}
->
-<CreditCard className="w-4 h-4" /> Transfer
-</button>
 </div>
+))
+)}
 </div>
-</div>
-<button
-type="submit"
-className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2"
->
-<Save className="w-5 h-5" />
-Record Payment
-</button>
-</form>
 </div>
 ) : (
 <div className="bg-slate-100 rounded-2xl border-2 border-dashed border-slate-200 p-12 text-center flex flex-col items-center justify-center h-[400px]">
 <Receipt className="w-12 h-12 text-slate-300 mb-4" />
-<p className="text-slate-400 font-medium">Search for a patient to record a new payment.</p>
+<p className="text-slate-400 font-medium">Search for a patient to view their billing.</p>
 </div>
 )}
 </div>
 {/* Financial History */}
-<div className="lg:col-span-8 space-y-6">
+<div className="lg:col-span-12 space-y-6">
 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
 <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
 <h3 className="font-bold text-slate-900 flex items-center gap-2">
@@ -1045,6 +975,81 @@ No patients found.
 </div>
 </div>
 ) : null}
+{/* Pay / Partial Payment Modal */}
+<AnimatePresence>
+{payModal && (
+<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+<motion.div
+initial={{ opacity: 0, scale: 0.95 }}
+animate={{ opacity: 1, scale: 1 }}
+exit={{ opacity: 0, scale: 0.95 }}
+className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+>
+<div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+<h3 className="font-bold text-slate-900">Record Payment</h3>
+<button onClick={() => setPayModal(null)} className="p-2 hover:bg-slate-200 rounded-lg transition-colors">
+<X className="w-4 h-4" />
+</button>
+</div>
+<div className="p-6 space-y-4">
+<div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+<p className="text-xs font-bold text-slate-500">{payModal.item.description}</p>
+<p className="text-[10px] text-slate-400 mt-1">
+Balance due: ₦{payModal.item.balance.toLocaleString()}
+{payModal.item.paidSoFar > 0 && ` (already paid ₦${payModal.item.paidSoFar.toLocaleString()} of ₦${payModal.item.amount.toLocaleString()})`}
+</p>
+</div>
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Amount Paid (₦)</label>
+<input
+type="number"
+autoFocus
+value={payModal.amount}
+onChange={e => setPayModal({ ...payModal, amount: e.target.value })}
+className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-lg"
+placeholder="0.00"
+/>
+<p className="text-[10px] text-slate-400">
+Defaults to the full balance. Enter a smaller amount to record a partial payment — the remaining balance stays visible until it's fully settled.
+</p>
+</div>
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Payment Method</label>
+<div className="grid grid-cols-2 gap-3">
+<button
+type="button"
+onClick={() => setPayModal({ ...payModal, method: 'cash' })}
+className={cn(
+"flex items-center justify-center gap-2 p-3 rounded-xl border transition-all text-sm",
+payModal.method === 'cash' ? "bg-blue-50 border-blue-600 text-blue-600 font-bold shadow-sm" : "border-slate-200 text-slate-500"
+)}
+>
+<Banknote className="w-4 h-4" /> Cash
+</button>
+<button
+type="button"
+onClick={() => setPayModal({ ...payModal, method: 'bank transfer' })}
+className={cn(
+"flex items-center justify-center gap-2 p-3 rounded-xl border transition-all text-sm",
+payModal.method === 'bank transfer' ? "bg-blue-50 border-blue-600 text-blue-600 font-bold shadow-sm" : "border-slate-200 text-slate-500"
+)}
+>
+<CreditCard className="w-4 h-4" /> Transfer
+</button>
+</div>
+</div>
+<button
+onClick={handleConfirmPayment}
+className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
+>
+<Save className="w-4 h-4" />
+{parseFloat(payModal.amount || '0') >= payModal.item.balance ? 'Mark as Paid' : 'Record Partial Payment'}
+</button>
+</div>
+</motion.div>
+</div>
+)}
+</AnimatePresence>
 {/* Patient History Modal */}
 <AnimatePresence>
 {showHistory && selectedPatient && (

@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo, memo } from 'react';
 import { supabase, handleSupabaseError } from '../lib/supabase';
-import { Patient, MedicalRecord, UserRole, Visit, LabTest, ClinicalLetter } from '../types';
+import { Patient, MedicalRecord, UserRole, Visit, LabTest, ClinicalLetter, InventoryItem } from '../types';
 import { toast } from 'sonner';
 import { Search, Activity, ClipboardList, FlaskConical, Pill, Plus, Save, History, User, Heart, Thermometer, Droplets, Stethoscope, FileText, CreditCard, LayoutDashboard, Users as UsersIcon, ChevronDown, ChevronUp, Wind, X, AlertTriangle, FolderOpen, Camera } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
-import { NAFDAC_DRUGS, LAB_TESTS } from '../data/hospitalData';
+import { LAB_TESTS, NAFDAC_DRUGS } from '../data/hospitalData';
 import { logAction, logRecordAccess } from '../lib/audit';
 import { useFormDraft } from '../hooks/useFormDraft';
 const patientFromRow = (r: any): Patient => ({
@@ -93,7 +93,7 @@ respiratoryRate: '',
 spo2: '',
 weight: '',
 diagnosis: '',
-prescription: '',
+prescriptionItems: [] as { drugId: string, drugName: string, drugPrice: number, quantity: number }[],
 recommendedTests: [] as { name: string, price: string }[],
 admissionRecommended: false,
 cSectionRecommended: false,
@@ -101,24 +101,46 @@ paymentFee: ''
 };
 const { data: formData, setData: setFormData, clearDraft: clearFormDraft } = useFormDraft('medical_assessment', initialFormData);
 const [drugSearch, setDrugSearch] = useState('');
+const [drugCatalog, setDrugCatalog] = useState<InventoryItem[]>([]);
 const [testSearch, setTestSearch] = useState('');
 const [showHistory, setShowHistory] = useState(false);
 const [globalLabTests, setGlobalLabTests] = useState<(LabTest & { patient?: Patient })[]>([]);
-const filteredDrugs = useMemo(() => 
-NAFDAC_DRUGS.filter(d => d.toLowerCase().includes(drugSearch.toLowerCase())).slice(0, 5),
-[drugSearch]
+useEffect(() => {
+const fetchDrugCatalog = async () => {
+const { data, error } = await supabase.from('inventory').select('*').order('name', { ascending: true });
+if (error) return handleSupabaseError(error, 'select', 'inventory');
+setDrugCatalog((data || []).map((r: any) => ({
+id: r.id, name: r.name, price: r.price, stock: r.stock, category: r.category, lastUpdated: r.last_updated,
+})));
+};
+fetchDrugCatalog();
+}, []);
+const filteredDrugs = useMemo(() =>
+drugCatalog.filter(d => d.name.toLowerCase().includes(drugSearch.toLowerCase())).slice(0, 8),
+[drugSearch, drugCatalog]
 );
 const filteredTests = useMemo(() => 
 LAB_TESTS.filter(t => t.toLowerCase().includes(testSearch.toLowerCase())).slice(0, 5),
 [testSearch]
 );
-const addDrug = (drug: string) => {
-const current = formData.prescription ? formData.prescription.split(',').map(s => s.trim()) : [];
-if (!current.includes(drug)) {
-setFormData({ ...formData, prescription: [...current, drug].join(', ') });
+const addDrug = (drug: InventoryItem) => {
+const existingIndex = formData.prescriptionItems.findIndex(p => p.drugId === drug.id);
+if (existingIndex >= 0) {
+const updated = [...formData.prescriptionItems];
+updated[existingIndex] = { ...updated[existingIndex], quantity: updated[existingIndex].quantity + 1 };
+setFormData({ ...formData, prescriptionItems: updated });
+} else {
+setFormData({
+...formData,
+prescriptionItems: [...formData.prescriptionItems, { drugId: drug.id, drugName: drug.name, drugPrice: drug.price, quantity: 1 }],
+});
 }
 setDrugSearch('');
 };
+const prescriptionTotal = useMemo(() =>
+formData.prescriptionItems.reduce((sum, p) => sum + (p.drugPrice * p.quantity), 0),
+[formData.prescriptionItems]
+);
 const addTest = (test: string) => {
 if (!formData.recommendedTests.some(t => t.name === test)) {
 setFormData({ ...formData, recommendedTests: [...formData.recommendedTests, { name: test, price: '' }] });
@@ -280,7 +302,7 @@ setLoading(false);
 const handleSubmit = async (e: React.FormEvent) => {
 e.preventDefault();
 if (!patient) return;
-if (!formData.diagnosis.trim() && (formData.prescription || formData.recommendedTests)) {
+if (!formData.diagnosis.trim() && (formData.prescriptionItems.length > 0 || formData.recommendedTests.length > 0)) {
 toast.error('Please provide a diagnosis before adding prescriptions or tests.');
 return;
 }
@@ -302,7 +324,7 @@ respiratory_rate: formData.respiratoryRate,
 spo2: formData.spo2,
 weight: formData.weight,
 diagnosis: formData.diagnosis,
-prescriptions: formData.prescription.split(',').map(s => s.trim()).filter(s => s),
+prescriptions: formData.prescriptionItems.map(p => `${p.drugName} x${p.quantity}`),
 recommended_tests: formData.recommendedTests.map(t => t.name),
 admission_recommended: formData.admissionRecommended,
 c_section_recommended: formData.cSectionRecommended,
@@ -323,6 +345,21 @@ payment_status: 'pending',
 if (labErr) throw labErr;
 await logAction(userId, 'RECOMMEND_LAB_TEST', `Recommended ${test.name} for patient ${patient.cardId}`);
 }
+}
+if (formData.prescriptionItems.length > 0) {
+const { error: presErr } = await supabase.from('prescriptions').insert(
+formData.prescriptionItems.map(p => ({
+patient_id: patient.cardId,
+record_id: recordRow?.id,
+staff_id: userId,
+drug_name: p.drugName,
+drug_price: p.drugPrice,
+quantity: p.quantity,
+payment_status: 'pending',
+}))
+);
+if (presErr) throw presErr;
+await logAction(userId, 'CREATE_PRESCRIPTION', `Prescribed ${formData.prescriptionItems.length} drug(s) for patient ${patient.cardId}`);
 }
 toast.success('Medical record saved successfully!');
 clearFormDraft();
@@ -1103,29 +1140,65 @@ placeholder="Enter patient diagnosis..."
 value={drugSearch}
 onChange={e => setDrugSearch(e.target.value)}
 className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-placeholder="Search NAFDAC approved drugs..."
+placeholder="Search pharmacy drugs by name..."
 />
 {drugSearch && (
-<div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
-{filteredDrugs.map((drug, i) => (
+<div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+{filteredDrugs.length === 0 ? (
+<p className="px-4 py-3 text-sm text-slate-400">No matching drugs in pharmacy inventory.</p>
+) : (
+filteredDrugs.map((drug) => (
 <button
-key={i}
+key={drug.id}
 type="button"
 onClick={() => addDrug(drug)}
-className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors font-medium"
+className="w-full flex items-center justify-between text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors"
 >
-{drug}
+<span className="font-medium">{drug.name}</span>
+<span className="text-xs font-bold text-slate-500">₦{drug.price.toLocaleString()} · Stock: {drug.stock}</span>
 </button>
-))}
+))
+)}
 </div>
 )}
 </div>
-<textarea
-value={formData.prescription}
-onChange={e => setFormData({ ...formData, prescription: e.target.value })}
-className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none min-h-[100px]"
-placeholder="Selected medications will appear here..."
+<div className="space-y-2">
+{formData.prescriptionItems.length === 0 ? (
+<p className="text-sm text-slate-400 italic p-3">Search and tap a drug above to add it — tap again to increase quantity.</p>
+) : (
+formData.prescriptionItems.map((item, index) => (
+<div key={item.drugId} className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
+<span className="flex-1 text-sm font-medium text-slate-700">{item.drugName}</span>
+<span className="text-xs text-slate-400">₦{item.drugPrice.toLocaleString()} ×</span>
+<input
+type="number"
+min={1}
+value={item.quantity}
+onChange={e => {
+const updated = [...formData.prescriptionItems];
+updated[index] = { ...updated[index], quantity: Math.max(1, parseInt(e.target.value) || 1) };
+setFormData({ ...formData, prescriptionItems: updated });
+}}
+className="w-16 p-1 text-sm border border-slate-300 rounded outline-none focus:border-blue-500 text-center"
 />
+<span className="text-sm font-bold text-slate-700 w-20 text-right">₦{(item.drugPrice * item.quantity).toLocaleString()}</span>
+<button
+type="button"
+onClick={() => setFormData({ ...formData, prescriptionItems: formData.prescriptionItems.filter((_, i) => i !== index) })}
+className="p-1 text-red-500 hover:bg-red-50 rounded"
+>
+<X className="w-4 h-4" />
+</button>
+</div>
+))
+)}
+{formData.prescriptionItems.length > 0 && (
+<div className="flex items-center justify-between px-2 pt-2 border-t border-slate-200">
+<span className="text-sm font-bold text-slate-500 uppercase tracking-wider">Prescription Total</span>
+<span className="text-lg font-black text-green-700">₦{prescriptionTotal.toLocaleString()}</span>
+</div>
+)}
+</div>
 </div>
 </div>
 </div>

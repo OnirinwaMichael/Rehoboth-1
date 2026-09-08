@@ -46,7 +46,7 @@ recommendedTests?: string[];
 admissionRecommended?: boolean;
 cSectionRecommended?: boolean;
 paymentFee?: number;
-paymentStatus?: 'pending' | 'paid';
+paymentStatus?: 'pending' | 'partial' | 'paid';
 dispensed?: boolean;
 dispensedAt?: string;
 dispensedBy?: string;
@@ -67,6 +67,27 @@ consultant?: string;
 provisionalDiagnosis?: string;
 natureOfSpecimen?: string;
 }
+export interface Prescription {
+id: string;
+patientId: string;
+recordId?: string;
+staffId: string;
+drugName: string;
+drugPrice: number;
+quantity: number;
+paymentStatus: 'pending' | 'partial' | 'paid';
+createdAt: string;
+}
+export interface BillingItem {
+id: string;
+itemType: 'consultation' | 'visit' | 'lab_test' | 'prescription';
+description: string;
+amount: number;
+paymentStatus: 'pending' | 'partial' | 'paid';
+createdAt: string;
+paidSoFar: number;
+balance: number;
+}
 export interface LabTest {
 id: string;
 patientId: string;
@@ -76,7 +97,7 @@ price?: number;
 result?: string;
 structuredResults?: LabResultParameter[];
 imageUrl?: string;
-paymentStatus: 'pending' | 'paid';
+paymentStatus: 'pending' | 'partial' | 'paid';
 createdAt: string;
 reportType?: 'legacy' | 'basic' | 'comprehensive';
 requestDetails?: LabRequestDetails;
@@ -133,7 +154,7 @@ structuredLabNote?: string;
 prescription: string;
 prescriptionNote?: string;
 billingAmount: number;
-paymentStatus?: 'pending' | 'paid';
+paymentStatus?: 'pending' | 'partial' | 'paid';
 staffId: string;
 }
 export interface Appointment {
