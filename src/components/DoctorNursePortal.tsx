@@ -47,6 +47,7 @@ createdAt: r.created_at, updatedAt: r.updated_at,
 import { motion, AnimatePresence } from 'motion/react';
 import { PatientHistory } from './PatientHistory';
 import { LetterheadPrint } from './LetterheadPrint';
+import { LabReportPrint } from './LabReportPrint';
 interface Props {
 role: UserRole;
 userId: string;
@@ -65,6 +66,8 @@ todayRecords: 0
 const [visits, setVisits] = useState<Visit[]>([]);
 const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
 const [letters, setLetters] = useState<ClinicalLetter[]>([]);
+const [patientLabTests, setPatientLabTests] = useState<LabTest[]>([]);
+const [printTest, setPrintTest] = useState<LabTest | null>(null);
 const [showLetterModal, setShowLetterModal] = useState(false);
 const [printLetter, setPrintLetter] = useState<ClinicalLetter | null>(null);
 const [letterDraft, setLetterDraft] = useState({
@@ -240,6 +243,13 @@ const { data: lettersData, error: lettersErr } = await supabase
 .order('created_at', { ascending: false });
 if (lettersErr) return handleSupabaseError(lettersErr, 'select', 'clinical_letters');
 setLetters((lettersData || []).map(letterFromRow));
+const { data: labsData, error: labsErr } = await supabase
+.from('lab_tests')
+.select('*')
+.eq('patient_id', patient.cardId)
+.order('created_at', { ascending: false });
+if (labsErr) return handleSupabaseError(labsErr, 'select', 'lab_tests');
+setPatientLabTests((labsData || []).map(labTestFromRow));
 };
 fetchRecordsAndVisits();
 const channel = supabase
@@ -247,6 +257,7 @@ const channel = supabase
 .on('postgres_changes', { event: '*', schema: 'public', table: 'medical_records', filter: `patient_id=eq.${patient.cardId}` }, fetchRecordsAndVisits)
 .on('postgres_changes', { event: '*', schema: 'public', table: 'visits', filter: `patient_id=eq.${patient.cardId}` }, fetchRecordsAndVisits)
 .on('postgres_changes', { event: '*', schema: 'public', table: 'clinical_letters', filter: `patient_id=eq.${patient.cardId}` }, fetchRecordsAndVisits)
+.on('postgres_changes', { event: '*', schema: 'public', table: 'lab_tests', filter: `patient_id=eq.${patient.cardId}` }, fetchRecordsAndVisits)
 .subscribe();
 return () => { supabase.removeChannel(channel); };
 }, [patient]);
@@ -642,6 +653,48 @@ className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-50 text
 </div>
 </div>
 </div>
+{patientLabTests.length > 0 && (
+<div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+<h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
+<FlaskConical className="w-4 h-4 text-purple-500" /> Lab Tests
+</h4>
+<div className="space-y-3">
+{patientLabTests.map(test => (
+<div key={test.id} className="flex items-center justify-between gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
+<div className="min-w-0 flex-1">
+<p className="text-xs font-bold text-slate-900 truncate">{test.testType}</p>
+<div className="flex items-center gap-2 mt-1">
+<span className={cn(
+"text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border",
+test.result ? "bg-green-50 text-green-600 border-green-100" : "bg-orange-50 text-orange-600 border-orange-100"
+)}>
+{test.result ? 'Completed' : 'Pending'}
+</span>
+<span className={cn(
+"text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border",
+test.paymentStatus === 'paid' && "bg-green-50 text-green-600 border-green-100",
+test.paymentStatus === 'partial' && "bg-blue-50 text-blue-600 border-blue-100",
+test.paymentStatus === 'pending' && "bg-slate-100 text-slate-500 border-slate-200",
+)}>
+{test.paymentStatus}
+</span>
+</div>
+</div>
+{test.result ? (
+<button
+onClick={() => setPrintTest(test)}
+className="shrink-0 text-xs font-bold text-blue-600 hover:text-blue-700 underline"
+>
+View Result
+</button>
+) : (
+<span className="shrink-0 text-[10px] text-slate-400 italic">Awaiting lab</span>
+)}
+</div>
+))}
+</div>
+</div>
+)}
 {letters.length > 0 && (
 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
 <h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
@@ -1448,6 +1501,9 @@ className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-e
 </AnimatePresence>
 {printLetter && (
 <LetterheadPrint letter={printLetter} patient={patient || undefined} onClose={() => setPrintLetter(null)} />
+)}
+{printTest && patient && (
+<LabReportPrint test={{ ...printTest, patient }} onClose={() => setPrintTest(null)} />
 )}
 {/* Global Routine Check-up Modal */}
 <AnimatePresence>
