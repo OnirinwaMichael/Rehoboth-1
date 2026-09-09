@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useMemo, memo } from 'react';
 import { supabase, handleSupabaseError } from '../lib/supabase';
-import { LabTest, Patient } from '../types';
+import { LabTest, Patient, LabTestCatalogItem } from '../types';
 import { toast } from 'sonner';
 import { FlaskConical, Search, CheckCircle, Clock, FileText, User, CreditCard, Save, X, LayoutDashboard, History, Beaker, CheckCircle2, Plus, Camera, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { LAB_TESTS } from '../data/hospitalData';
 import { logAction } from '../lib/audit';
 import { PatientHistory } from './PatientHistory';
 import { useFormDraft } from '../hooks/useFormDraft';
@@ -122,6 +121,41 @@ const { data: labFormRows, setData: setLabFormRows, clearDraft: clearLabRowsDraf
 const { data: result, setData: setResult, clearDraft: clearResultDraft } = useFormDraft('lab_result_notes', '');
 const [panelResults, setPanelResults] = useState<ComprehensivePanelResults>(emptyPanelResults());
 const [printTest, setPrintTest] = useState<(LabTest & { patient?: Patient }) | null>(null);
+const [testCatalog, setTestCatalog] = useState<LabTestCatalogItem[]>([]);
+const [newCatalogTest, setNewCatalogTest] = useState({ name: '', price: '' });
+const [editingCatalogId, setEditingCatalogId] = useState<string | null>(null);
+const [editingPrice, setEditingPrice] = useState('');
+const fetchTestCatalog = async () => {
+const { data, error } = await supabase.from('lab_test_catalog').select('*').order('name', { ascending: true });
+if (error) return handleSupabaseError(error, 'select', 'lab_test_catalog');
+setTestCatalog((data || []).map((r: any) => ({
+id: r.id, name: r.name, price: r.price, category: r.category, createdAt: r.created_at, updatedAt: r.updated_at,
+})));
+};
+useEffect(() => { fetchTestCatalog(); }, []);
+const handleAddCatalogTest = async (e: React.FormEvent) => {
+e.preventDefault();
+if (!newCatalogTest.name.trim()) {
+toast.error('Enter a test name.');
+return;
+}
+const { error } = await supabase.from('lab_test_catalog').insert({
+name: newCatalogTest.name.trim(),
+price: parseFloat(newCatalogTest.price) || 0,
+});
+if (error) return handleSupabaseError(error, 'insert', 'lab_test_catalog');
+await logAction(userId, 'ADD_LAB_TEST_CATALOG', `Added ${newCatalogTest.name} to test catalog`);
+toast.success('Test added to catalog!');
+setNewCatalogTest({ name: '', price: '' });
+fetchTestCatalog();
+};
+const handleUpdateCatalogPrice = async (id: string) => {
+const { error } = await supabase.from('lab_test_catalog').update({ price: parseFloat(editingPrice) || 0 }).eq('id', id);
+if (error) return handleSupabaseError(error, 'update', 'lab_test_catalog');
+toast.success('Price updated!');
+setEditingCatalogId(null);
+fetchTestCatalog();
+};
 const updatePanelField = (section: keyof ComprehensivePanelResults, key: string, value: string) => {
 setPanelResults(prev => ({ ...prev, [section]: { ...(prev[section] as any || {}), [key]: value } }));
 };
@@ -386,32 +420,62 @@ test.result ? "bg-green-100 text-green-600" : "bg-orange-100 text-orange-600"
 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
 <div className="flex items-center justify-between mb-8">
 <div>
-<h3 className="text-xl font-bold text-slate-900">Approved Test Catalog</h3>
-<p className="text-slate-500 text-sm">List of 100+ tests and scans recognized by the Nigerian medical system.</p>
+<h3 className="text-xl font-bold text-slate-900">Lab Test Catalog</h3>
+<p className="text-slate-500 text-sm">Set prices here — Doctor/Nurse recommendations auto-fill from this list.</p>
 </div>
 <div className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl font-bold text-sm">
-{LAB_TESTS.length} Tests Available
+{testCatalog.length} Tests
 </div>
 </div>
+<form onSubmit={handleAddCatalogTest} className="flex gap-3 mb-6 p-4 bg-slate-50 rounded-xl border border-slate-100">
+<input
+value={newCatalogTest.name}
+onChange={e => setNewCatalogTest({ ...newCatalogTest, name: e.target.value })}
+placeholder="New test name..."
+className="flex-1 p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+/>
+<input
+type="number"
+value={newCatalogTest.price}
+onChange={e => setNewCatalogTest({ ...newCatalogTest, price: e.target.value })}
+placeholder="Price (₦)"
+className="w-32 p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+/>
+<button type="submit" className="px-5 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 flex items-center gap-2">
+<Plus className="w-4 h-4" /> Add
+</button>
+</form>
 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-{LAB_TESTS.map((test, idx) => (
-<div key={idx} className="p-4 rounded-xl border border-slate-50 bg-slate-50/50 flex items-center justify-between group hover:border-blue-200 transition-all">
-<div className="flex items-center gap-3">
-<div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-blue-600 shadow-sm">
+{testCatalog.map((test) => (
+<div key={test.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 flex items-center justify-between group hover:border-blue-200 transition-all">
+<div className="flex items-center gap-3 min-w-0">
+<div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-blue-600 shadow-sm shrink-0">
 <FlaskConical className="w-4 h-4" />
 </div>
-<span className="text-sm font-medium text-slate-700">{test}</span>
+<div className="min-w-0">
+<p className="text-sm font-medium text-slate-700 truncate">{test.name}</p>
+{editingCatalogId === test.id ? (
+<div className="flex items-center gap-1 mt-1">
+<input
+type="number"
+autoFocus
+value={editingPrice}
+onChange={e => setEditingPrice(e.target.value)}
+onBlur={() => handleUpdateCatalogPrice(test.id)}
+onKeyDown={e => e.key === 'Enter' && handleUpdateCatalogPrice(test.id)}
+className="w-24 p-1 text-xs border border-blue-300 rounded outline-none"
+/>
 </div>
-<button 
-onClick={() => {
-setManualEntry({ ...manualEntry, testType: test });
-setView('manual');
-}}
-className="opacity-0 group-hover:opacity-100 p-2 bg-blue-600 text-white rounded-lg transition-all"
-title="Request this test"
+) : (
+<button
+onClick={() => { setEditingCatalogId(test.id); setEditingPrice(test.price.toString()); }}
+className="text-xs font-bold text-blue-600 hover:underline mt-0.5"
 >
-<Plus className="w-4 h-4" />
+₦{test.price.toLocaleString()} · edit
 </button>
+)}
+</div>
+</div>
 </div>
 ))}
 </div>
@@ -440,14 +504,22 @@ placeholder="Enter Patient Card ID"
 <label className="text-sm font-bold text-slate-700">Test / Scan Type</label>
 <select
 value={manualEntry.testType}
-onChange={e => setManualEntry({ ...manualEntry, testType: e.target.value })}
+onChange={e => {
+const picked = testCatalog.find(t => t.name === e.target.value);
+setManualEntry({
+...manualEntry,
+testType: e.target.value,
+price: picked ? picked.price.toString() : manualEntry.price,
+});
+}}
 className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
 >
 <option value="">Select a test...</option>
-{LAB_TESTS.map((test, i) => (
-<option key={i} value={test}>{test}</option>
+{testCatalog.map((test) => (
+<option key={test.id} value={test.name}>{test.name} — ₦{test.price.toLocaleString()}</option>
 ))}
 </select>
+<p className="text-[10px] text-slate-400">Price auto-fills from the catalog — you can still adjust it below for this specific entry.</p>
 </div>
 <div className="space-y-2">
 <label className="text-sm font-bold text-slate-700">Report Template</label>

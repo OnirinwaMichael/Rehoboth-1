@@ -136,10 +136,11 @@ setStats(prev => ({ ...prev, appointmentsToday: todayCount }));
 const fetchAllPatients = async () => {
 const { data, error } = await supabase
 .from('patients')
-.select('*')
-.order('created_at', { ascending: false });
+.select('*');
 if (error) return handleSupabaseError(error, 'select', 'patients');
-setAllPatients((data || []).map(patientFromRow));
+const sorted = (data || []).map(patientFromRow)
+.sort((a, b) => parseInt(a.cardId, 10) - parseInt(b.cardId, 10));
+setAllPatients(sorted);
 };
 const handleExportRegister = () => {
 if (allPatients.length === 0) {

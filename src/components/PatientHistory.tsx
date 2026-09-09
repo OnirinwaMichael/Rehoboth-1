@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, handleSupabaseError } from '../lib/supabase';
-import { Patient, MedicalRecord, LabTest, FinancialRecord, Visit, ClinicalLetter } from '../types';
+import { Patient, MedicalRecord, LabTest, FinancialRecord, Visit, ClinicalLetter, Prescription } from '../types';
 import { format } from 'date-fns';
-import { ClipboardList, FlaskConical, Receipt, Clock, User, Phone, MapPin, Calendar, Heart, Activity, ChevronRight, Search, X, FolderOpen, FileText } from 'lucide-react';
+import { ClipboardList, FlaskConical, Receipt, Clock, User, Phone, MapPin, Calendar, Heart, Activity, ChevronRight, Search, X, FolderOpen, FileText, Pill } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { logRecordAccess } from '../lib/audit';
@@ -13,6 +13,11 @@ const letterFromRow = (r: any): ClinicalLetter => ({
 id: r.id, patientId: r.patient_id, staffId: r.staff_id, letterType: r.letter_type,
 yourRef: r.your_ref, ourRef: r.our_ref, referredTo: r.referred_to, body: r.body,
 createdAt: r.created_at, updatedAt: r.updated_at,
+});
+const prescriptionFromRow = (r: any): Prescription => ({
+id: r.id, patientId: r.patient_id, recordId: r.record_id, staffId: r.staff_id,
+drugName: r.drug_name, drugPrice: r.drug_price, quantity: r.quantity,
+paymentStatus: r.payment_status, createdAt: r.created_at,
 });
 const patientFromRow = (r: any): Patient => ({
 cardId: r.card_id, name: r.name, gender: r.gender, dob: r.dob,
@@ -63,8 +68,9 @@ const [labTests, setLabTests] = useState<LabTest[]>([]);
 const [financialRecords, setFinancialRecords] = useState<FinancialRecord[]>([]);
 const [visits, setVisits] = useState<Visit[]>([]);
 const [letters, setLetters] = useState<ClinicalLetter[]>([]);
+const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
 const [loading, setLoading] = useState(true);
-const [activeTab, setActiveTab] = useState<'visits' | 'medical' | 'labs' | 'financial' | 'letters'>('visits');
+const [activeTab, setActiveTab] = useState<'visits' | 'medical' | 'labs' | 'prescriptions' | 'financial' | 'letters'>('visits');
 const [printTest, setPrintTest] = useState<LabTest | null>(null);
 const [printLetter, setPrintLetter] = useState<ClinicalLetter | null>(null);
 useEffect(() => {
@@ -74,13 +80,14 @@ setLoading(true);
 // gap the original app had (only writes were audited, not reads).
 logRecordAccess(user?.id, patientId);
 const fetchAll = async () => {
-const [patientRes, visitsRes, medicalRes, labsRes, financialRes, lettersRes] = await Promise.all([
+const [patientRes, visitsRes, medicalRes, labsRes, financialRes, lettersRes, prescriptionsRes] = await Promise.all([
 supabase.from('patients').select('*').eq('card_id', patientId).maybeSingle(),
 supabase.from('visits').select('*').eq('patient_id', patientId).order('timestamp', { ascending: false }),
 supabase.from('medical_records').select('*').eq('patient_id', patientId).order('created_at', { ascending: false }),
 supabase.from('lab_tests').select('*').eq('patient_id', patientId).order('created_at', { ascending: false }),
 supabase.from('financials').select('*').eq('patient_id', patientId).order('created_at', { ascending: false }),
 supabase.from('clinical_letters').select('*').eq('patient_id', patientId).order('created_at', { ascending: false }),
+supabase.from('prescriptions').select('*').eq('patient_id', patientId).order('created_at', { ascending: false }),
 ]);
 if (patientRes.error) handleSupabaseError(patientRes.error, 'select', 'patients');
 else if (patientRes.data) setPatient(patientFromRow(patientRes.data));
@@ -94,6 +101,8 @@ if (financialRes.error) handleSupabaseError(financialRes.error, 'select', 'finan
 else setFinancialRecords((financialRes.data || []).map(financialFromRow));
 if (lettersRes.error) handleSupabaseError(lettersRes.error, 'select', 'clinical_letters');
 else setLetters((lettersRes.data || []).map(letterFromRow));
+if (prescriptionsRes.error) handleSupabaseError(prescriptionsRes.error, 'select', 'prescriptions');
+else setPrescriptions((prescriptionsRes.data || []).map(prescriptionFromRow));
 setLoading(false);
 };
 fetchAll();
@@ -104,6 +113,7 @@ const channel = supabase
 .on('postgres_changes', { event: '*', schema: 'public', table: 'lab_tests', filter: `patient_id=eq.${patientId}` }, fetchAll)
 .on('postgres_changes', { event: '*', schema: 'public', table: 'financials', filter: `patient_id=eq.${patientId}` }, fetchAll)
 .on('postgres_changes', { event: '*', schema: 'public', table: 'clinical_letters', filter: `patient_id=eq.${patientId}` }, fetchAll)
+.on('postgres_changes', { event: '*', schema: 'public', table: 'prescriptions', filter: `patient_id=eq.${patientId}` }, fetchAll)
 .subscribe();
 return () => { supabase.removeChannel(channel); };
 }, [patientId]);
@@ -158,6 +168,7 @@ return (
 { id: 'visits', label: 'Consultations', icon: FolderOpen },
 { id: 'medical', label: 'Medical History', icon: ClipboardList },
 { id: 'labs', label: 'Lab Results', icon: FlaskConical },
+{ id: 'prescriptions', label: 'Prescriptions', icon: Pill },
 { id: 'letters', label: 'Letters', icon: FileText },
 { id: 'financial', label: 'Financial Records', icon: Receipt }
 ].map((tab) => (
@@ -466,6 +477,46 @@ Pending
 )}
 {printTest && patient && (
 <LabReportPrint test={{ ...printTest, patient }} onClose={() => setPrintTest(null)} />
+)}
+{activeTab === 'prescriptions' && (
+<motion.div
+key="prescriptions"
+initial={{ opacity: 0, y: 10 }}
+animate={{ opacity: 1, y: 0 }}
+exit={{ opacity: 0, y: -10 }}
+className="space-y-4"
+>
+{prescriptions.length === 0 ? (
+<div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
+<Pill className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+<p className="text-slate-400 font-medium">No prescriptions found.</p>
+</div>
+) : (
+<div className="grid grid-cols-1 gap-4">
+{prescriptions.map((rx) => (
+<div key={rx.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center">
+<div className="flex items-center gap-4 min-w-0">
+<div className="w-12 h-12 rounded-xl flex items-center justify-center bg-green-50 text-green-600 shrink-0">
+<Pill className="w-6 h-6" />
+</div>
+<div className="min-w-0">
+<p className="font-bold text-slate-900 truncate">{rx.drugName} × {rx.quantity}</p>
+<p className="text-xs text-slate-400">{format(new Date(rx.createdAt), 'MMM d, yyyy HH:mm')} · ₦{(rx.drugPrice * rx.quantity).toLocaleString()}</p>
+</div>
+</div>
+<span className={cn(
+"shrink-0 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border",
+rx.paymentStatus === 'paid' && "bg-green-50 text-green-600 border-green-100",
+rx.paymentStatus === 'partial' && "bg-blue-50 text-blue-600 border-blue-100",
+rx.paymentStatus === 'pending' && "bg-orange-50 text-orange-600 border-orange-100",
+)}>
+{rx.paymentStatus}
+</span>
+</div>
+))}
+</div>
+)}
+</motion.div>
 )}
 {activeTab === 'letters' && (
 <motion.div

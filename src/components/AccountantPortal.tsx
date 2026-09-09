@@ -190,9 +190,11 @@ if (error) return handleSupabaseError(error, 'select', 'expenses');
 setExpenses((data || []).map(expenseFromRow));
 };
 const fetchAllPatients = async () => {
-const { data, error } = await supabase.from('patients').select('*').order('created_at', { ascending: false });
+const { data, error } = await supabase.from('patients').select('*');
 if (error) return handleSupabaseError(error, 'select', 'patients');
-setAllPatients((data || []).map(patientFromRow));
+const sorted = (data || []).map(patientFromRow)
+.sort((a, b) => parseInt(a.cardId, 10) - parseInt(b.cardId, 10));
+setAllPatients(sorted);
 };
 const handleSearch = async (e: React.FormEvent) => {
 e.preventDefault();

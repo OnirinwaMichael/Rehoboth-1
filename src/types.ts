@@ -67,6 +67,14 @@ consultant?: string;
 provisionalDiagnosis?: string;
 natureOfSpecimen?: string;
 }
+export interface LabTestCatalogItem {
+id: string;
+name: string;
+price: number;
+category?: string;
+createdAt: string;
+updatedAt: string;
+}
 export interface Prescription {
 id: string;
 patientId: string;

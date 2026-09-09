@@ -28,9 +28,11 @@ return () => { supabase.removeChannel(channel); };
 }, []);
 const fetchRecent = async () => {
 const { data, error } = await supabase
-.from('patients').select('*').order('created_at', { ascending: false }).limit(10);
+.from('patients').select('*');
 if (error) return handleSupabaseError(error, 'select', 'patients');
-setRecentPatients((data || []).map(patientFromRow));
+const sorted = (data || []).map(patientFromRow)
+.sort((a, b) => parseInt(a.cardId, 10) - parseInt(b.cardId, 10));
+setRecentPatients(sorted);
 };
 const handleSearch = async (e: React.FormEvent) => {
 e.preventDefault();
@@ -87,7 +89,7 @@ Search
 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
 <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
 <History className="w-4 h-4 text-slate-400" />
-<h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Recent Patients</h3>
+<h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">All Patients (by Card ID)</h3>
 </div>
 <div className="divide-y divide-slate-50">
 {(searchTerm ? patients : recentPatients).map((p) => (

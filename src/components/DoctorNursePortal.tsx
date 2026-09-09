@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo, memo } from 'react';
 import { supabase, handleSupabaseError } from '../lib/supabase';
-import { Patient, MedicalRecord, UserRole, Visit, LabTest, ClinicalLetter, InventoryItem } from '../types';
+import { Patient, MedicalRecord, UserRole, Visit, LabTest, ClinicalLetter, InventoryItem, LabTestCatalogItem } from '../types';
 import { toast } from 'sonner';
 import { Search, Activity, ClipboardList, FlaskConical, Pill, Plus, Save, History, User, Heart, Thermometer, Droplets, Stethoscope, FileText, CreditCard, LayoutDashboard, Users as UsersIcon, ChevronDown, ChevronUp, Wind, X, AlertTriangle, FolderOpen, Camera } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
-import { LAB_TESTS, NAFDAC_DRUGS } from '../data/hospitalData';
+import { NAFDAC_DRUGS } from '../data/hospitalData';
 import { logAction, logRecordAccess } from '../lib/audit';
 import { useFormDraft } from '../hooks/useFormDraft';
 const patientFromRow = (r: any): Patient => ({
@@ -119,9 +119,20 @@ const filteredDrugs = useMemo(() =>
 drugCatalog.filter(d => d.name.toLowerCase().includes(drugSearch.toLowerCase())).slice(0, 8),
 [drugSearch, drugCatalog]
 );
+const [testCatalog, setTestCatalog] = useState<LabTestCatalogItem[]>([]);
+useEffect(() => {
+const fetchTestCatalog = async () => {
+const { data, error } = await supabase.from('lab_test_catalog').select('*').order('name', { ascending: true });
+if (error) return handleSupabaseError(error, 'select', 'lab_test_catalog');
+setTestCatalog((data || []).map((r: any) => ({
+id: r.id, name: r.name, price: r.price, category: r.category, createdAt: r.created_at, updatedAt: r.updated_at,
+})));
+};
+fetchTestCatalog();
+}, []);
 const filteredTests = useMemo(() => 
-LAB_TESTS.filter(t => t.toLowerCase().includes(testSearch.toLowerCase())).slice(0, 5),
-[testSearch]
+testCatalog.filter(t => t.name.toLowerCase().includes(testSearch.toLowerCase())).slice(0, 8),
+[testSearch, testCatalog]
 );
 const addDrug = (drug: InventoryItem) => {
 const existingIndex = formData.prescriptionItems.findIndex(p => p.drugId === drug.id);
@@ -141,9 +152,9 @@ const prescriptionTotal = useMemo(() =>
 formData.prescriptionItems.reduce((sum, p) => sum + (p.drugPrice * p.quantity), 0),
 [formData.prescriptionItems]
 );
-const addTest = (test: string) => {
-if (!formData.recommendedTests.some(t => t.name === test)) {
-setFormData({ ...formData, recommendedTests: [...formData.recommendedTests, { name: test, price: '' }] });
+const addTest = (test: LabTestCatalogItem) => {
+if (!formData.recommendedTests.some(t => t.name === test.name)) {
+setFormData({ ...formData, recommendedTests: [...formData.recommendedTests, { name: test.name, price: test.price.toString() }] });
 }
 setTestSearch('');
 };
@@ -1217,17 +1228,22 @@ className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring
 placeholder="Search approved tests & scans..."
 />
 {testSearch && (
-<div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
-{filteredTests.map((test, i) => (
+<div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+{filteredTests.length === 0 ? (
+<p className="px-4 py-3 text-sm text-slate-400">No matching tests in the catalog.</p>
+) : (
+filteredTests.map((test) => (
 <button
-key={i}
+key={test.id}
 type="button"
 onClick={() => addTest(test)}
-className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors font-medium"
+className="w-full flex items-center justify-between text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors"
 >
-{test}
+<span className="font-medium">{test.name}</span>
+<span className="text-xs font-bold text-slate-500">₦{test.price.toLocaleString()}</span>
 </button>
-))}
+))
+)}
 </div>
 )}
 </div>
@@ -1235,20 +1251,7 @@ className="w-full text-left px-4 py-2 text-sm hover:bg-slate-50 transition-color
 {formData.recommendedTests.map((test, index) => (
 <div key={index} className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
 <span className="flex-1 text-sm font-medium text-slate-700">{test.name}</span>
-<div className="flex items-center gap-2">
-<span className="text-sm font-bold text-slate-500">₦</span>
-<input
-type="number"
-value={test.price}
-onChange={e => {
-const newTests = [...formData.recommendedTests];
-newTests[index].price = e.target.value;
-setFormData({ ...formData, recommendedTests: newTests });
-}}
-className="w-24 p-1 text-sm border border-slate-300 rounded outline-none focus:border-blue-500"
-placeholder="Price"
-required
-/>
+<span className="text-sm font-bold text-slate-700">₦{(parseFloat(test.price) || 0).toLocaleString()}</span>
 <button
 type="button"
 onClick={() => {
@@ -1260,8 +1263,15 @@ className="p-1 text-red-500 hover:bg-red-50 rounded"
 <X className="w-4 h-4" />
 </button>
 </div>
-</div>
 ))}
+{formData.recommendedTests.length > 0 && (
+<div className="flex items-center justify-between px-2 pt-2 border-t border-slate-200">
+<span className="text-sm font-bold text-slate-500 uppercase tracking-wider">Tests Total</span>
+<span className="text-lg font-black text-purple-700">
+₦{formData.recommendedTests.reduce((sum, t) => sum + (parseFloat(t.price) || 0), 0).toLocaleString()}
+</span>
+</div>
+)}
 </div>
 </div>
 </div>
