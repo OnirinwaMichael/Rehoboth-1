@@ -11,7 +11,17 @@ const [data, setData] = useState<T>(() => {
 const saved = localStorage.getItem(`draft_${key}`);
 if (saved) {
 try {
-return JSON.parse(saved);
+const parsed = JSON.parse(saved);
+// Merge over initialData rather than replacing it outright — a
+// draft saved before a form's shape changed (e.g. a new field
+// added) would otherwise come back missing that field entirely,
+// crashing anything that assumes it exists (see e.g. an old
+// draft missing a newly-added array/object field).
+if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) &&
+typeof initialData === 'object' && initialData !== null && !Array.isArray(initialData)) {
+return { ...(initialData as object), ...parsed } as T;
+}
+return parsed;
 } catch (e) {
 console.error('Failed to parse draft:', e);
 }
