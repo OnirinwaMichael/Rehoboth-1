@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, handleSupabaseError } from '../lib/supabase';
-import { InventoryItem, MedicalRecord, Patient } from '../types';
+import { InventoryItem, MedicalRecord, Patient, Prescription } from '../types';
 import { toast } from 'sonner';
 import { Pill, Search, Plus, Trash2, Edit, Save, X, ClipboardList, FileText, User, Activity, DollarSign, LayoutDashboard, Package, AlertCircle, TrendingUp, History } from 'lucide-react';
 import { format } from 'date-fns';
@@ -19,12 +19,22 @@ const inventoryFromRow = (r: any): InventoryItem => ({
 id: r.id, name: r.name, price: r.price, stock: r.stock,
 category: r.category, lastUpdated: r.last_updated,
 });
+const prescriptionFromRow = (r: any): Prescription & { patient?: Patient } => ({
+id: r.id, patientId: r.patient_id, recordId: r.record_id, staffId: r.staff_id,
+drugName: r.drug_name, drugPrice: r.drug_price, quantity: r.quantity,
+paymentStatus: r.payment_status, createdAt: r.created_at,
+dosageMorning: r.dosage_morning, dosageAfternoon: r.dosage_afternoon, dosageNight: r.dosage_night,
+durationDays: r.duration_days, route: r.route, instructions: r.instructions,
+dispensed: r.dispensed, dispensedAt: r.dispensed_at, dispensedBy: r.dispensed_by,
+patient: r.patients ? patientFromRow(r.patients) : undefined,
+});
 interface Props {
 userId: string;
 }
 export const PharmacyPortal: React.FC<Props> = ({ userId }) => {
 const [inventory, setInventory] = useState<InventoryItem[]>([]);
 const [prescriptions, setPrescriptions] = useState<(MedicalRecord & { patient?: Patient })[]>([]);
+const [structuredRx, setStructuredRx] = useState<(Prescription & { patient?: Patient })[]>([]);
 const [loading, setLoading] = useState(true);
 const [view, setView] = useState<'dashboard' | 'inventory' | 'prescriptions'>('dashboard');
 const [isAddingDrug, setIsAddingDrug] = useState(false);
@@ -42,14 +52,24 @@ useEffect(() => {
 fetchInventory();
 fetchPrescriptionsFromRecords();
 fetchPrescriptionsFromVisits();
+fetchStructuredPrescriptions();
 const channel = supabase
 .channel('pharmacy-portal')
 .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, fetchInventory)
 .on('postgres_changes', { event: '*', schema: 'public', table: 'medical_records' }, fetchPrescriptionsFromRecords)
 .on('postgres_changes', { event: '*', schema: 'public', table: 'visits' }, fetchPrescriptionsFromVisits)
+.on('postgres_changes', { event: '*', schema: 'public', table: 'prescriptions' }, fetchStructuredPrescriptions)
 .subscribe();
 return () => { supabase.removeChannel(channel); };
 }, []);
+const fetchStructuredPrescriptions = async () => {
+const { data, error } = await supabase
+.from('prescriptions')
+.select('*, patients(*)')
+.order('created_at', { ascending: false });
+if (error) return handleSupabaseError(error, 'select', 'prescriptions');
+setStructuredRx((data || []).map(prescriptionFromRow));
+};
 const fetchInventory = async () => {
 const { data, error } = await supabase.from('inventory').select('*').order('name', { ascending: true });
 if (error) return handleSupabaseError(error, 'select', 'inventory');
@@ -192,6 +212,16 @@ if (error) return handleSupabaseError(error, 'update', table);
 await logAction(userId, 'DISPENSE_DRUGS', `Dispensed drugs for record ${record.id}`);
 toast.success('Prescription marked as dispensed!');
 };
+const handleDispenseStructured = async (rx: Prescription) => {
+const { error } = await supabase.from('prescriptions').update({
+dispensed: true,
+dispensed_at: new Date().toISOString(),
+dispensed_by: userId,
+}).eq('id', rx.id);
+if (error) return handleSupabaseError(error, 'update', 'prescriptions');
+await logAction(userId, 'DISPENSE_DRUGS', `Dispensed ${rx.drugName} for patient ${rx.patientId}`);
+toast.success('Marked as dispensed!');
+};
 return (
 <div className="space-y-8 max-w-7xl mx-auto">
 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -255,7 +285,9 @@ view === 'inventory' ? "bg-blue-600 text-white" : "bg-white text-slate-600 borde
 </div>
 <div>
 <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Pending Rx</p>
-<h4 className="text-3xl font-black text-slate-900">{stats.pendingPrescriptions}</h4>
+<h4 className="text-3xl font-black text-slate-900">
+{stats.pendingPrescriptions + structuredRx.filter(c => !c.dispensed).length}
+</h4>
 </div>
 </div>
 <div className="md:col-span-3 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
@@ -363,9 +395,68 @@ className="p-2 text-slate-400 hover:text-red-500 transition-colors"
 </div>
 </div>
 ) : (
+<div className="space-y-8">
 <div className="space-y-6">
 <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-<ClipboardList className="w-6 h-6 text-blue-600" /> Prescription Queue
+<Pill className="w-6 h-6 text-green-600" /> Prescriptions
+</h3>
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+{structuredRx.filter(rx => !rx.dispensed).map((rx) => (
+<div key={rx.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+<div className="flex justify-between items-start mb-4">
+<div className="flex items-center gap-3">
+<div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-600 font-bold">
+{rx.patient?.name.charAt(0)}
+</div>
+<div>
+<p className="font-bold text-slate-900">{rx.patient?.name}</p>
+<p className="text-[10px] text-slate-400">{rx.patientId}</p>
+</div>
+</div>
+<div className="text-right">
+<span className="text-[10px] text-slate-400 block">{format(new Date(rx.createdAt), 'HH:mm')}</span>
+<span className={cn(
+"text-[10px] font-bold uppercase",
+rx.paymentStatus === 'paid' ? "text-green-600" : rx.paymentStatus === 'partial' ? "text-blue-600" : "text-yellow-600"
+)}>
+{rx.paymentStatus}
+</span>
+</div>
+</div>
+<div className="space-y-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
+<div className="flex items-center justify-between">
+<p className="font-bold text-slate-900">{rx.drugName}</p>
+<span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 border border-purple-100">
+{rx.route}
+</span>
+</div>
+<p className="text-xs text-slate-600">
+{[rx.dosageMorning && `${rx.dosageMorning} morning`, rx.dosageAfternoon && `${rx.dosageAfternoon} afternoon`, rx.dosageNight && `${rx.dosageNight} night`].filter(Boolean).join(', ') || 'As directed'}
+{' · '}{rx.durationDays} day{rx.durationDays !== 1 ? 's' : ''} · {rx.quantity} units total
+</p>
+{rx.instructions && (
+<p className="text-xs text-slate-500 italic">Note: {rx.instructions}</p>
+)}
+</div>
+<button 
+onClick={() => handleDispenseStructured(rx)}
+className="w-full mt-4 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all text-sm"
+>
+Mark as Dispensed
+</button>
+</div>
+))}
+{structuredRx.filter(rx => !rx.dispensed).length === 0 && (
+<div className="col-span-full py-20 text-center bg-white rounded-2xl border border-dashed border-slate-200">
+<Pill className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+<p className="text-slate-400 font-medium">No pending prescriptions</p>
+</div>
+)}
+</div>
+</div>
+<div className="space-y-6">
+<h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+<ClipboardList className="w-6 h-6 text-slate-400" /> Older Prescriptions (Legacy Format)
 </h3>
 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 {prescriptions.filter(rx => !rx.dispensed).map((rx) => (
@@ -416,6 +507,7 @@ Mark as Dispensed
 <p className="text-slate-400 font-medium">No pending prescriptions</p>
 </div>
 )}
+</div>
 </div>
 </div>
 )}

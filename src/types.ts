@@ -85,6 +85,15 @@ drugPrice: number;
 quantity: number;
 paymentStatus: 'pending' | 'partial' | 'paid';
 createdAt: string;
+dosageMorning: number;
+dosageAfternoon: number;
+dosageNight: number;
+durationDays: number;
+route: 'Oral' | 'Injection' | 'Topical' | 'IV' | 'Other';
+instructions?: string;
+dispensed: boolean;
+dispensedAt?: string;
+dispensedBy?: string;
 }
 export interface BillingItem {
 id: string;

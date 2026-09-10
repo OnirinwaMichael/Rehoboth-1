@@ -120,6 +120,7 @@ const { data: labFormRows, setData: setLabFormRows, clearDraft: clearLabRowsDraf
 ]);
 const { data: result, setData: setResult, clearDraft: clearResultDraft } = useFormDraft('lab_result_notes', '');
 const [panelResults, setPanelResults] = useState<ComprehensivePanelResults>(emptyPanelResults());
+const [activeReportType, setActiveReportType] = useState<'legacy' | 'basic' | 'comprehensive'>('legacy');
 const [printTest, setPrintTest] = useState<(LabTest & { patient?: Patient }) | null>(null);
 const [testCatalog, setTestCatalog] = useState<LabTestCatalogItem[]>([]);
 const [newCatalogTest, setNewCatalogTest] = useState({ name: '', price: '' });
@@ -261,7 +262,7 @@ setLoading(false);
 };
 const handleSaveResult = async () => {
 if (!selectedTest) return;
-const isComprehensive = selectedTest.reportType === 'comprehensive';
+const isComprehensive = activeReportType === 'comprehensive';
 const validRows = labFormRows.filter(row => row.parameter || row.result);
 let finalResult = result;
 if (!isComprehensive && validRows.length > 0) {
@@ -276,6 +277,7 @@ toast.error('Please enter results');
 return;
 }
 const { error } = await supabase.from('lab_tests').update({
+report_type: activeReportType,
 result: finalResult || (isComprehensive ? 'See structured report' : finalResult),
 structured_results: isComprehensive ? null : validRows,
 panel_results: isComprehensive ? panelResults : null,
@@ -670,6 +672,7 @@ onDelete={(id) => setDeleteConfirmId(id)}
 onPrint={(t) => setPrintTest(t)}
 onSelect={(t) => {
 setSelectedTest(t);
+setActiveReportType(t.reportType || 'legacy');
 setResult(t.reportType === 'comprehensive' ? '' : (t.result || ''));
 if (t.structuredResults && t.structuredResults.length > 0) {
 setLabFormRows(t.structuredResults);
@@ -739,8 +742,21 @@ title="View Patient History"
 </button>
 </div>
 </div>
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Report Form Type</label>
+<select
+value={activeReportType}
+onChange={e => setActiveReportType(e.target.value as 'legacy' | 'basic' | 'comprehensive')}
+className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+>
+<option value="legacy">Free-form (legacy grid)</option>
+<option value="basic">Basic Lab Request Form</option>
+<option value="comprehensive">Comprehensive Lab Report</option>
+</select>
+<p className="text-[10px] text-slate-400">Pick whichever template matches this test — this can be changed regardless of how the test was requested.</p>
+</div>
 <div className="space-y-4">
-{selectedTest.reportType === 'comprehensive' ? (
+{activeReportType === 'comprehensive' ? (
 <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
 <p className="text-xs font-bold text-purple-600 uppercase tracking-wider">Comprehensive Lab Report — fill only the panels that apply</p>
 

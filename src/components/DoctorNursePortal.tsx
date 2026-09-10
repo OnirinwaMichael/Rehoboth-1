@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, memo } from 'react';
+import React, { useState, useEffect, useMemo, memo, useRef } from 'react';
 import { supabase, handleSupabaseError } from '../lib/supabase';
 import { Patient, MedicalRecord, UserRole, Visit, LabTest, ClinicalLetter, InventoryItem, LabTestCatalogItem } from '../types';
 import { toast } from 'sonner';
@@ -96,7 +96,7 @@ respiratoryRate: '',
 spo2: '',
 weight: '',
 diagnosis: '',
-prescriptionItems: [] as { drugId: string, drugName: string, drugPrice: number, quantity: number }[],
+prescriptionItems: [] as { drugId: string, drugName: string, drugPrice: number, route: 'Oral' | 'Injection' | 'Topical' | 'IV' | 'Other', morning: number, afternoon: number, night: number, durationDays: number, instructions: string }[],
 recommendedTests: [] as { name: string, price: string }[],
 admissionRecommended: false,
 cSectionRecommended: false,
@@ -105,6 +105,7 @@ paymentFee: ''
 const { data: formData, setData: setFormData, clearDraft: clearFormDraft } = useFormDraft('medical_assessment', initialFormData);
 const [drugSearch, setDrugSearch] = useState('');
 const [drugCatalog, setDrugCatalog] = useState<InventoryItem[]>([]);
+const drugSearchRef = useRef<HTMLInputElement>(null);
 const [testSearch, setTestSearch] = useState('');
 const [showHistory, setShowHistory] = useState(false);
 const [globalLabTests, setGlobalLabTests] = useState<(LabTest & { patient?: Patient })[]>([]);
@@ -139,20 +140,31 @@ testCatalog.filter(t => t.name.toLowerCase().includes(testSearch.toLowerCase()))
 );
 const addDrug = (drug: InventoryItem) => {
 const existingIndex = formData.prescriptionItems.findIndex(p => p.drugId === drug.id);
-if (existingIndex >= 0) {
-const updated = [...formData.prescriptionItems];
-updated[existingIndex] = { ...updated[existingIndex], quantity: updated[existingIndex].quantity + 1 };
-setFormData({ ...formData, prescriptionItems: updated });
-} else {
+if (existingIndex < 0) {
 setFormData({
 ...formData,
-prescriptionItems: [...formData.prescriptionItems, { drugId: drug.id, drugName: drug.name, drugPrice: drug.price, quantity: 1 }],
+prescriptionItems: [...formData.prescriptionItems, {
+drugId: drug.id, drugName: drug.name, drugPrice: drug.price,
+route: 'Oral', morning: 1, afternoon: 0, night: 0, durationDays: 1, instructions: '',
+}],
 });
 }
 setDrugSearch('');
+// Keep the keyboard/focus on the search box so the doctor can go
+// straight into typing the next drug without an extra tap.
+requestAnimationFrame(() => drugSearchRef.current?.focus());
+};
+const updatePrescriptionItem = (index: number, patch: Partial<typeof formData.prescriptionItems[number]>) => {
+const updated = [...formData.prescriptionItems];
+updated[index] = { ...updated[index], ...patch };
+setFormData({ ...formData, prescriptionItems: updated });
+};
+const prescriptionUnitsAndTotal = (item: typeof formData.prescriptionItems[number]) => {
+const units = (item.morning + item.afternoon + item.night) * item.durationDays;
+return { units, total: units * item.drugPrice };
 };
 const prescriptionTotal = useMemo(() =>
-formData.prescriptionItems.reduce((sum, p) => sum + (p.drugPrice * p.quantity), 0),
+formData.prescriptionItems.reduce((sum, p) => sum + prescriptionUnitsAndTotal(p).total, 0),
 [formData.prescriptionItems]
 );
 const addTest = (test: LabTestCatalogItem) => {
@@ -346,7 +358,14 @@ respiratory_rate: formData.respiratoryRate,
 spo2: formData.spo2,
 weight: formData.weight,
 diagnosis: formData.diagnosis,
-prescriptions: formData.prescriptionItems.map(p => `${p.drugName} x${p.quantity}`),
+prescriptions: formData.prescriptionItems.map(p => {
+const { units } = prescriptionUnitsAndTotal(p);
+const dosageParts = [];
+if (p.morning) dosageParts.push(`${p.morning} morning`);
+if (p.afternoon) dosageParts.push(`${p.afternoon} afternoon`);
+if (p.night) dosageParts.push(`${p.night} night`);
+return `${p.drugName} (${p.route}) — ${dosageParts.join(', ') || 'as directed'} for ${p.durationDays}d [${units} units]`;
+}),
 recommended_tests: formData.recommendedTests.map(t => t.name),
 admission_recommended: formData.admissionRecommended,
 c_section_recommended: formData.cSectionRecommended,
@@ -376,8 +395,14 @@ record_id: recordRow?.id,
 staff_id: userId,
 drug_name: p.drugName,
 drug_price: p.drugPrice,
-quantity: p.quantity,
+quantity: prescriptionUnitsAndTotal(p).units || 1,
 payment_status: 'pending',
+dosage_morning: p.morning,
+dosage_afternoon: p.afternoon,
+dosage_night: p.night,
+duration_days: p.durationDays,
+route: p.route,
+instructions: p.instructions || null,
 }))
 );
 if (presErr) throw presErr;
@@ -1201,10 +1226,11 @@ placeholder="Enter patient diagnosis..."
 <div className="space-y-2">
 <div className="relative">
 <input
+ref={drugSearchRef}
 value={drugSearch}
 onChange={e => setDrugSearch(e.target.value)}
 className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-placeholder="Search pharmacy drugs by name..."
+placeholder="Search pharmacy drugs & injections by name..."
 />
 {drugSearch && (
 <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
@@ -1226,26 +1252,18 @@ className="w-full flex items-center justify-between text-left px-4 py-2 text-sm 
 </div>
 )}
 </div>
-<div className="space-y-2">
+<div className="space-y-3">
 {formData.prescriptionItems.length === 0 ? (
-<p className="text-sm text-slate-400 italic p-3">Search and tap a drug above to add it — tap again to increase quantity.</p>
+<p className="text-sm text-slate-400 italic p-3">Search and tap a drug or injection above to add it — keep typing to add more.</p>
 ) : (
-formData.prescriptionItems.map((item, index) => (
-<div key={item.drugId} className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
-<span className="flex-1 text-sm font-medium text-slate-700">{item.drugName}</span>
-<span className="text-xs text-slate-400">₦{item.drugPrice.toLocaleString()} ×</span>
-<input
-type="number"
-min={1}
-value={item.quantity}
-onChange={e => {
-const updated = [...formData.prescriptionItems];
-updated[index] = { ...updated[index], quantity: Math.max(1, parseInt(e.target.value) || 1) };
-setFormData({ ...formData, prescriptionItems: updated });
-}}
-className="w-16 p-1 text-sm border border-slate-300 rounded outline-none focus:border-blue-500 text-center"
-/>
-<span className="text-sm font-bold text-slate-700 w-20 text-right">₦{(item.drugPrice * item.quantity).toLocaleString()}</span>
+formData.prescriptionItems.map((item, index) => {
+const { units, total } = prescriptionUnitsAndTotal(item);
+return (
+<div key={item.drugId} className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-3">
+<div className="flex items-center justify-between gap-2">
+<span className="text-sm font-bold text-slate-900">{item.drugName}</span>
+<div className="flex items-center gap-2">
+<span className="text-xs font-bold text-slate-500">₦{item.drugPrice.toLocaleString()}/unit</span>
 <button
 type="button"
 onClick={() => setFormData({ ...formData, prescriptionItems: formData.prescriptionItems.filter((_, i) => i !== index) })}
@@ -1254,7 +1272,72 @@ className="p-1 text-red-500 hover:bg-red-50 rounded"
 <X className="w-4 h-4" />
 </button>
 </div>
-))
+</div>
+<div className="flex items-center gap-2">
+<label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider shrink-0">Route</label>
+<select
+value={item.route}
+onChange={e => updatePrescriptionItem(index, { route: e.target.value as typeof item.route })}
+className="flex-1 p-2 text-xs border border-slate-200 rounded-lg outline-none focus:border-blue-500 bg-white"
+>
+<option value="Oral">Oral</option>
+<option value="Injection">Injection</option>
+<option value="Topical">Topical</option>
+<option value="IV">IV</option>
+<option value="Other">Other</option>
+</select>
+</div>
+<div className="grid grid-cols-4 gap-2">
+<div>
+<label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Morning</label>
+<input
+type="number" min={0}
+value={item.morning}
+onChange={e => updatePrescriptionItem(index, { morning: Math.max(0, parseInt(e.target.value) || 0) })}
+className="w-full p-2 text-sm text-center border border-slate-200 rounded-lg outline-none focus:border-blue-500"
+/>
+</div>
+<div>
+<label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Afternoon</label>
+<input
+type="number" min={0}
+value={item.afternoon}
+onChange={e => updatePrescriptionItem(index, { afternoon: Math.max(0, parseInt(e.target.value) || 0) })}
+className="w-full p-2 text-sm text-center border border-slate-200 rounded-lg outline-none focus:border-blue-500"
+/>
+</div>
+<div>
+<label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Night</label>
+<input
+type="number" min={0}
+value={item.night}
+onChange={e => updatePrescriptionItem(index, { night: Math.max(0, parseInt(e.target.value) || 0) })}
+className="w-full p-2 text-sm text-center border border-slate-200 rounded-lg outline-none focus:border-blue-500"
+/>
+</div>
+<div>
+<label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Days</label>
+<input
+type="number" min={1}
+value={item.durationDays}
+onChange={e => updatePrescriptionItem(index, { durationDays: Math.max(1, parseInt(e.target.value) || 1) })}
+className="w-full p-2 text-sm text-center border border-slate-200 rounded-lg outline-none focus:border-blue-500"
+/>
+</div>
+</div>
+<input
+value={item.instructions}
+onChange={e => updatePrescriptionItem(index, { instructions: e.target.value })}
+placeholder="Additional instructions for pharmacy (optional)..."
+className="w-full p-2 text-xs border border-slate-200 rounded-lg outline-none focus:border-blue-500"
+/>
+<div className="flex items-center justify-between pt-1 border-t border-slate-200 text-xs">
+<span className="text-slate-500">{units} unit{units !== 1 ? 's' : ''} total</span>
+<span className="font-bold text-slate-700">₦{total.toLocaleString()}</span>
+</div>
+</div>
+);
+})
 )}
 {formData.prescriptionItems.length > 0 && (
 <div className="flex items-center justify-between px-2 pt-2 border-t border-slate-200">
