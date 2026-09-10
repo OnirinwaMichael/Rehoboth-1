@@ -74,7 +74,7 @@ title="Remove Staff"
 </td>
 </tr>
 ));
-const LogItem = memo(({ log }: { log: AuditLog }) => (
+const LogItem = memo(({ log, staffName }: { log: AuditLog, staffName: string }) => (
 <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-2">
 <div className="flex justify-between items-start">
 <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{log.action}</span>
@@ -83,7 +83,7 @@ const LogItem = memo(({ log }: { log: AuditLog }) => (
 </span>
 </div>
 <p className="text-xs text-slate-700 font-medium">{log.details}</p>
-<p className="text-[10px] text-slate-400">Staff ID: {log.staffId}</p>
+<p className="text-[10px] text-slate-400">Staff: {staffName}</p>
 </div>
 ));
 export const CMDPortal = ({ showLogsOnly = false }: { showLogsOnly?: boolean }) => {
@@ -362,11 +362,16 @@ title="Remove Staff"
 </table>
 </div>
 ), [staff, selectedStaff]);
+const staffNameById = useMemo(() => {
+const map: Record<string, string> = {};
+staff.forEach(s => { map[s.uid] = s.name; });
+return map;
+}, [staff]);
 const auditLogList = useMemo(() => (
 <div className="flex-1 overflow-y-auto p-4 space-y-4">
 {showLogs ? (
 logs.map((log) => (
-<LogItem key={log.id} log={log} />
+<LogItem key={log.id} log={log} staffName={staffNameById[log.staffId] || 'Unknown Staff'} />
 ))
 ) : (
 <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-2">
@@ -378,7 +383,7 @@ logs.map((log) => (
 <p className="text-center text-slate-400 text-sm py-20">No logs recorded yet.</p>
 )}
 </div>
-), [logs, showLogs]);
+), [logs, showLogs, staffNameById]);
 return (
 <div className="space-y-8 max-w-7xl mx-auto">
 {!showLogsOnly && (

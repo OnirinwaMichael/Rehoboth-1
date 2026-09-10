@@ -73,6 +73,17 @@ const [loading, setLoading] = useState(true);
 const [activeTab, setActiveTab] = useState<'visits' | 'medical' | 'labs' | 'prescriptions' | 'financial' | 'letters'>('visits');
 const [printTest, setPrintTest] = useState<LabTest | null>(null);
 const [printLetter, setPrintLetter] = useState<ClinicalLetter | null>(null);
+const [staffNameById, setStaffNameById] = useState<Record<string, string>>({});
+useEffect(() => {
+const fetchStaffNames = async () => {
+const { data, error } = await supabase.from('users').select('id, name');
+if (error) return handleSupabaseError(error, 'select', 'users');
+const map: Record<string, string> = {};
+(data || []).forEach((u: any) => { map[u.id] = u.name; });
+setStaffNameById(map);
+};
+fetchStaffNames();
+}, []);
 useEffect(() => {
 if (!patientId) return;
 setLoading(true);
@@ -218,7 +229,7 @@ visits.map((visit) => (
 </div>
 <div className="text-right">
 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Recorded By</p>
-<p className="font-bold text-slate-900">Staff ID: {visit.staffId}</p>
+<p className="font-bold text-slate-900">Attended by: {staffNameById[visit.staffId] || 'Unknown Staff'}</p>
 </div>
 </div>
 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -298,7 +309,7 @@ medicalRecords.map((record) => (
 </div>
 <div className="text-right">
 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Recorded By</p>
-<p className="font-bold text-slate-900">Staff ID: {record.staffId}</p>
+<p className="font-bold text-slate-900">Attended by: {staffNameById[record.staffId] || 'Unknown Staff'}</p>
 </div>
 </div>
 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
