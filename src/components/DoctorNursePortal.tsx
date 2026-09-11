@@ -68,6 +68,10 @@ const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
 const [letters, setLetters] = useState<ClinicalLetter[]>([]);
 const [patientLabTests, setPatientLabTests] = useState<LabTest[]>([]);
 const [printTest, setPrintTest] = useState<LabTest | null>(null);
+const [continueRecord, setContinueRecord] = useState<MedicalRecord | null>(null);
+const [continueRxItems, setContinueRxItems] = useState<{ drugId: string, drugName: string, drugPrice: number, route: 'Oral' | 'Injection' | 'Topical' | 'IV' | 'Other', morning: number, afternoon: number, night: number, durationDays: number, instructions: string }[]>([]);
+const [continueDrugSearch, setContinueDrugSearch] = useState('');
+const [continueNote, setContinueNote] = useState('');
 const [showLetterModal, setShowLetterModal] = useState(false);
 const [printLetter, setPrintLetter] = useState<ClinicalLetter | null>(null);
 const [letterDraft, setLetterDraft] = useState({
@@ -162,6 +166,76 @@ setFormData({ ...formData, prescriptionItems: updated });
 const prescriptionUnitsAndTotal = (item: typeof formData.prescriptionItems[number]) => {
 const units = (item.morning + item.afternoon + item.night) * item.durationDays;
 return { units, total: units * item.drugPrice };
+};
+const continueFilteredDrugs = useMemo(() =>
+drugCatalog.filter(d => d.name.toLowerCase().includes(continueDrugSearch.toLowerCase())).slice(0, 8),
+[continueDrugSearch, drugCatalog]
+);
+const addContinueDrug = (drug: InventoryItem) => {
+if (!continueRxItems.some(p => p.drugId === drug.id)) {
+setContinueRxItems([...continueRxItems, {
+drugId: drug.id, drugName: drug.name, drugPrice: drug.price,
+route: 'Oral', morning: 1, afternoon: 0, night: 0, durationDays: 1, instructions: '',
+}]);
+}
+setContinueDrugSearch('');
+};
+const updateContinueRxItem = (index: number, patch: Partial<typeof continueRxItems[number]>) => {
+const updated = [...continueRxItems];
+updated[index] = { ...updated[index], ...patch };
+setContinueRxItems(updated);
+};
+// Consultations where at least one recommended test is still awaiting
+// a result — these are what a doctor/nurse can "continue" straight
+// into prescribing off, without re-entering vitals from scratch.
+const openConsultations = useMemo(() => {
+const recordIdsWithPendingTests = new Set(
+patientLabTests.filter(t => !t.result && t.recordId).map(t => t.recordId)
+);
+return records.filter(r => recordIdsWithPendingTests.has(r.id));
+}, [records, patientLabTests]);
+const handleContinueSubmit = async () => {
+if (!continueRecord || !patient) return;
+if (continueRxItems.length === 0 && !continueNote.trim()) {
+toast.error('Add a prescription or a follow-up note before saving.');
+return;
+}
+try {
+if (continueRxItems.length > 0) {
+const { error: presErr } = await supabase.from('prescriptions').insert(
+continueRxItems.map(p => ({
+patient_id: patient.cardId,
+record_id: continueRecord.id,
+staff_id: userId,
+drug_name: p.drugName,
+drug_price: p.drugPrice,
+quantity: prescriptionUnitsAndTotal(p).units || 1,
+payment_status: 'pending',
+dosage_morning: p.morning,
+dosage_afternoon: p.afternoon,
+dosage_night: p.night,
+duration_days: p.durationDays,
+route: p.route,
+instructions: p.instructions || null,
+}))
+);
+if (presErr) throw presErr;
+await logAction(userId, 'CREATE_PRESCRIPTION', `Follow-up prescription (${continueRxItems.length} drug(s)) for patient ${patient.cardId}`);
+}
+if (continueNote.trim()) {
+const { error: noteErr } = await supabase.from('medical_records').update({
+diagnosis: `${continueRecord.diagnosis || ''}\n\n[Follow-up ${format(new Date(), 'MMM d, yyyy HH:mm')}]: ${continueNote.trim()}`.trim(),
+}).eq('id', continueRecord.id);
+if (noteErr) throw noteErr;
+await logAction(userId, 'UPDATE_DIAGNOSIS', `Added follow-up note to record ${continueRecord.id}`);
+}
+toast.success('Consultation continued successfully!');
+setContinueRecord(null);
+setContinueRxItems([]);
+setContinueNote('');
+} catch (error) {
+handleSupabaseError(error, 'insert', 'prescriptions');
+}
 };
 const prescriptionTotal = useMemo(() =>
 formData.prescriptionItems.reduce((sum, p) => sum + prescriptionUnitsAndTotal(p).total, 0),
@@ -678,6 +752,28 @@ className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-50 text
 </div>
 </div>
 </div>
+{openConsultations.length > 0 && (
+<div className="bg-amber-50 border border-amber-200 p-5 rounded-2xl space-y-3">
+<h4 className="font-bold text-amber-800 flex items-center gap-2 text-sm">
+<ClipboardList className="w-4 h-4" /> Open Consultation{openConsultations.length !== 1 ? 's' : ''} — Test Results Pending
+</h4>
+{openConsultations.map(rec => (
+<div key={rec.id} className="flex items-center justify-between gap-3 bg-white p-3 rounded-xl border border-amber-100">
+<div className="min-w-0">
+<p className="text-xs font-bold text-slate-900 truncate">{rec.diagnosis || 'No diagnosis yet'}</p>
+<p className="text-[10px] text-slate-400">{format(new Date(rec.createdAt), 'MMM d, yyyy HH:mm')}</p>
+</div>
+<button
+onClick={() => { setContinueRecord(rec); setContinueRxItems([]); setContinueNote(''); }}
+className="shrink-0 px-4 py-2 bg-amber-600 text-white rounded-lg font-bold text-xs hover:bg-amber-700"
+>
+Continue
+</button>
+</div>
+))}
+<p className="text-[10px] text-amber-600">Continue lets you review results and prescribe once they're in, without starting a new consultation.</p>
+</div>
+)}
 {patientLabTests.length > 0 && (
 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
 <h4 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
@@ -1588,6 +1684,135 @@ className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-e
 {printTest && patient && (
 <LabReportPrint test={{ ...printTest, patient }} onClose={() => setPrintTest(null)} />
 )}
+{/* Continue Consultation Modal */}
+<AnimatePresence>
+{continueRecord && patient && (
+<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+<motion.div
+initial={{ opacity: 0, scale: 0.95 }}
+animate={{ opacity: 1, scale: 1 }}
+exit={{ opacity: 0, scale: 0.95 }}
+className="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-lg overflow-hidden my-8 max-h-[90vh] flex flex-col"
+>
+<div className="p-6 border-b border-slate-100 flex items-center justify-between bg-amber-50 shrink-0">
+<div>
+<h3 className="font-bold text-slate-900">Continue Consultation — {patient.name}</h3>
+<p className="text-xs text-slate-500">{format(new Date(continueRecord.createdAt), 'MMM d, yyyy HH:mm')}</p>
+</div>
+<button onClick={() => setContinueRecord(null)} className="p-2 hover:bg-amber-100 rounded-lg transition-colors">
+<X className="w-4 h-4" />
+</button>
+</div>
+<div className="p-6 space-y-5 overflow-y-auto">
+<div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+<p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Original Diagnosis</p>
+<p className="text-sm text-slate-700 whitespace-pre-wrap">{continueRecord.diagnosis || 'None recorded'}</p>
+</div>
+{patientLabTests.filter(t => t.recordId === continueRecord.id).length > 0 && (
+<div>
+<p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Test Results</p>
+<div className="space-y-2">
+{patientLabTests.filter(t => t.recordId === continueRecord.id).map(t => (
+<div key={t.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-100">
+<span className="text-xs font-medium text-slate-700">{t.testType}</span>
+{t.result ? (
+<button onClick={() => setPrintTest(t)} className="text-xs font-bold text-blue-600 underline">View Result</button>
+) : (
+<span className="text-[10px] text-orange-500 italic">Still pending</span>
+)}
+</div>
+))}
+</div>
+</div>
+)}
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Follow-up Note (optional)</label>
+<textarea
+value={continueNote}
+onChange={e => setContinueNote(e.target.value)}
+className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm min-h-[70px]"
+placeholder="Add a note based on the results (appended to the diagnosis)..."
+/>
+</div>
+<div className="space-y-3">
+<label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+<Pill className="w-4 h-4 text-green-500" /> Prescribe Based on Results
+</label>
+<div className="relative">
+<input
+value={continueDrugSearch}
+onChange={e => setContinueDrugSearch(e.target.value)}
+className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+placeholder="Search pharmacy drugs & injections by name..."
+/>
+{continueDrugSearch && (
+<div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-56 overflow-y-auto">
+{continueFilteredDrugs.length === 0 ? (
+<p className="px-4 py-3 text-sm text-slate-400">No matching drugs.</p>
+) : (
+continueFilteredDrugs.map(drug => (
+<button
+key={drug.id}
+type="button"
+onClick={() => addContinueDrug(drug)}
+className="w-full flex items-center justify-between text-left px-4 py-2 text-sm hover:bg-slate-50"
+>
+<span className="font-medium">{drug.name}</span>
+<span className="text-xs font-bold text-slate-500">₦{drug.price.toLocaleString()}</span>
+</button>
+))
+)}
+</div>
+)}
+</div>
+{continueRxItems.map((item, index) => {
+const { units, total } = prescriptionUnitsAndTotal(item);
+return (
+<div key={item.drugId} className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+<div className="flex items-center justify-between">
+<span className="text-sm font-bold text-slate-900">{item.drugName}</span>
+<button onClick={() => setContinueRxItems(continueRxItems.filter((_, i) => i !== index))} className="p-1 text-red-500 hover:bg-red-50 rounded">
+<X className="w-4 h-4" />
+</button>
+</div>
+<select
+value={item.route}
+onChange={e => updateContinueRxItem(index, { route: e.target.value as typeof item.route })}
+className="w-full p-2 text-xs border border-slate-200 rounded-lg outline-none bg-white"
+>
+<option value="Oral">Oral</option>
+<option value="Injection">Injection</option>
+<option value="Topical">Topical</option>
+<option value="IV">IV</option>
+<option value="Other">Other</option>
+</select>
+<div className="grid grid-cols-4 gap-2">
+<input type="number" min={0} value={item.morning} onChange={e => updateContinueRxItem(index, { morning: Math.max(0, parseInt(e.target.value) || 0) })} placeholder="AM" className="p-2 text-sm text-center border border-slate-200 rounded-lg outline-none" />
+<input type="number" min={0} value={item.afternoon} onChange={e => updateContinueRxItem(index, { afternoon: Math.max(0, parseInt(e.target.value) || 0) })} placeholder="PM" className="p-2 text-sm text-center border border-slate-200 rounded-lg outline-none" />
+<input type="number" min={0} value={item.night} onChange={e => updateContinueRxItem(index, { night: Math.max(0, parseInt(e.target.value) || 0) })} placeholder="Night" className="p-2 text-sm text-center border border-slate-200 rounded-lg outline-none" />
+<input type="number" min={1} value={item.durationDays} onChange={e => updateContinueRxItem(index, { durationDays: Math.max(1, parseInt(e.target.value) || 1) })} placeholder="Days" className="p-2 text-sm text-center border border-slate-200 rounded-lg outline-none" />
+</div>
+<div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200">
+<span className="text-slate-500">{units} units</span>
+<span className="font-bold text-slate-700">₦{total.toLocaleString()}</span>
+</div>
+</div>
+);
+})}
+</div>
+</div>
+<div className="p-6 border-t border-slate-100 shrink-0">
+<button
+onClick={handleContinueSubmit}
+className="w-full bg-amber-600 text-white py-3 rounded-xl font-bold hover:bg-amber-700 transition-all flex items-center justify-center gap-2"
+>
+<Save className="w-4 h-4" /> Save & Continue
+</button>
+</div>
+</motion.div>
+</div>
+)}
+</AnimatePresence>
 {/* Global Routine Check-up Modal */}
 <AnimatePresence>
 {showGlobalConsultation && (
