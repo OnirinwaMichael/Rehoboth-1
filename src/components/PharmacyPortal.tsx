@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { NAFDAC_DRUGS } from '../data/hospitalData';
 import { logAction } from '../lib/audit';
 const patientFromRow = (r: any): Patient => ({
-cardId: r.card_id, name: r.name, gender: r.gender, dob: r.dob,
+cardId: r.card_id, name: r.name, gender: r.gender,
 stateOfOrigin: r.state_of_origin, age: r.age, occupation: r.occupation,
 address: r.address, phone: r.phone, nextOfKin: r.next_of_kin,
 relationship: r.relationship, nokAddress: r.nok_address, nokPhone: r.nok_phone,

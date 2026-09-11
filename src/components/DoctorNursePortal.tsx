@@ -9,7 +9,7 @@ import { NAFDAC_DRUGS } from '../data/hospitalData';
 import { logAction, logRecordAccess } from '../lib/audit';
 import { useFormDraft } from '../hooks/useFormDraft';
 const patientFromRow = (r: any): Patient => ({
-cardId: r.card_id, name: r.name, gender: r.gender, dob: r.dob,
+cardId: r.card_id, name: r.name, gender: r.gender,
 stateOfOrigin: r.state_of_origin, age: r.age, occupation: r.occupation,
 address: r.address, phone: r.phone, nextOfKin: r.next_of_kin,
 relationship: r.relationship, nokAddress: r.nok_address, nokPhone: r.nok_phone,
@@ -280,6 +280,33 @@ const { count: todayRecords } = await supabase
 .lt('created_at', `${today}T23:59:59.999`);
 setStats({ totalPatients: totalPatients || 0, todayRecords: todayRecords || 0 });
 };
+const [searchSuggestions, setSearchSuggestions] = useState<Patient[]>([]);
+useEffect(() => {
+if (!searchId.trim() || searchId.trim().length < 2) {
+setSearchSuggestions([]);
+return;
+}
+const timeout = setTimeout(async () => {
+const { data, error } = await supabase
+.from('patients')
+.select('*')
+.or(`name.ilike.%${searchId.trim()}%,card_id.ilike.%${searchId.trim()}%`)
+.limit(8);
+if (error) return handleSupabaseError(error, 'select', 'patients');
+setSearchSuggestions((data || []).map(patientFromRow));
+}, 250);
+return () => clearTimeout(timeout);
+}, [searchId]);
+const selectPatientDirectly = async (p: Patient) => {
+setSearchSuggestions([]);
+setSearchId('');
+setPatient(p);
+setView('consultations');
+setIsNewConsultation(true);
+setSelectedVisit(null);
+await logAction(userId, 'SEARCH_PATIENT', `Selected patient ${p.name} (${p.cardId})`);
+await logRecordAccess(userId, p.cardId);
+};
 const handleSearch = async (e: React.FormEvent) => {
 e.preventDefault();
 setLoading(true);
@@ -530,8 +557,26 @@ className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all
 value={searchId}
 onChange={e => setSearchId(e.target.value)}
 className="pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none w-48 sm:w-64"
-placeholder="Enter Card ID"
+placeholder="Search by name or Card ID"
 />
+{searchSuggestions.length > 0 && (
+<div className="absolute z-20 top-full mt-1 w-72 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-72 overflow-y-auto">
+{searchSuggestions.map(p => (
+<button
+key={p.cardId}
+type="button"
+onClick={() => selectPatientDirectly(p)}
+className="w-full flex items-center justify-between text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0"
+>
+<div className="min-w-0">
+<p className="font-bold text-slate-900 truncate">{p.name}</p>
+<p className="text-[10px] text-slate-400">{p.age}y · {p.gender}</p>
+</div>
+<span className="text-xs font-bold text-blue-600 shrink-0 ml-2">{p.cardId}</span>
+</button>
+))}
+</div>
+)}
 </div>
 <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700 transition-all">
 Search

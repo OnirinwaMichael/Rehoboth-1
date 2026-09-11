@@ -11,14 +11,12 @@ import { PatientHistory } from './PatientHistory';
 import { useFormDraft } from '../hooks/useFormDraft';
 import { ConfirmModal } from './ConfirmModal';
 import { LabReportPrint } from './LabReportPrint';
+import { LabReportEditor } from './LabReportEditor';
 import {
-  LAB_REQUEST_FIELDS, HAEMATOLOGY_FIELDS, WIDAL_FIELDS, WIDAL_SIGNIFICANT_TITRE,
-  URINALYSIS_FIELDS, PARASITOLOGY_FIELDS, SEMEN_ANALYSIS_FIELDS, BIOCHEMISTRY_FIELDS,
-  CULTURE_SPECIMEN_TYPES, MICROSCOPY_FINDINGS, BLOOD_TRANSFUSION_FIELDS, SENSITIVITY_ANTIBIOTICS,
-  emptyPanelResults, ComprehensivePanelResults,
+  LAB_REQUEST_FIELDS, emptyPanelResults, ComprehensivePanelResults,
 } from '../data/labReportTemplates';
 const patientFromRow = (r: any): Patient => ({
-cardId: r.card_id, name: r.name, gender: r.gender, dob: r.dob,
+cardId: r.card_id, name: r.name, gender: r.gender,
 stateOfOrigin: r.state_of_origin, age: r.age, occupation: r.occupation,
 address: r.address, phone: r.phone, nextOfKin: r.next_of_kin,
 relationship: r.relationship, nokAddress: r.nok_address, nokPhone: r.nok_phone,
@@ -123,6 +121,23 @@ const [panelResults, setPanelResults] = useState<ComprehensivePanelResults>(empt
 const [activeReportType, setActiveReportType] = useState<'legacy' | 'basic' | 'comprehensive'>('legacy');
 const [printTest, setPrintTest] = useState<(LabTest & { patient?: Patient }) | null>(null);
 const [testCatalog, setTestCatalog] = useState<LabTestCatalogItem[]>([]);
+const [manualPatientSuggestions, setManualPatientSuggestions] = useState<Patient[]>([]);
+useEffect(() => {
+if (!manualEntry.patientId.trim() || manualEntry.patientId.trim().length < 2) {
+setManualPatientSuggestions([]);
+return;
+}
+const timeout = setTimeout(async () => {
+const { data, error } = await supabase
+.from('patients')
+.select('*')
+.or(`name.ilike.%${manualEntry.patientId.trim()}%,card_id.ilike.%${manualEntry.patientId.trim()}%`)
+.limit(8);
+if (error) return handleSupabaseError(error, 'select', 'patients');
+setManualPatientSuggestions((data || []).map(patientFromRow));
+}, 250);
+return () => clearTimeout(timeout);
+}, [manualEntry.patientId]);
 const [newCatalogTest, setNewCatalogTest] = useState({ name: '', price: '' });
 const [editingCatalogId, setEditingCatalogId] = useState<string | null>(null);
 const [editingPrice, setEditingPrice] = useState('');
@@ -491,15 +506,33 @@ className="text-xs font-bold text-blue-600 hover:underline mt-0.5"
 </div>
 <div className="p-8 space-y-6">
 <div className="space-y-2">
-<label className="text-sm font-bold text-slate-700">Patient Card ID</label>
+<label className="text-sm font-bold text-slate-700">Patient</label>
 <div className="relative">
 <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
 <input
 value={manualEntry.patientId}
 onChange={e => setManualEntry({ ...manualEntry, patientId: e.target.value })}
 className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
-placeholder="Enter Patient Card ID"
+placeholder="Search by name or Card ID"
 />
+{manualPatientSuggestions.length > 0 && (
+<div className="absolute z-20 top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-56 overflow-y-auto">
+{manualPatientSuggestions.map(p => (
+<button
+key={p.cardId}
+type="button"
+onClick={() => { setManualEntry({ ...manualEntry, patientId: p.cardId }); setManualPatientSuggestions([]); }}
+className="w-full flex items-center justify-between text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0"
+>
+<div className="min-w-0">
+<p className="font-bold text-slate-900 truncate">{p.name}</p>
+<p className="text-[10px] text-slate-400">{p.age}y · {p.gender}</p>
+</div>
+<span className="text-xs font-bold text-blue-600 shrink-0 ml-2">{p.cardId}</span>
+</button>
+))}
+</div>
+)}
 </div>
 </div>
 <div className="space-y-2">
@@ -757,157 +790,16 @@ className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring
 </div>
 <div className="space-y-4">
 {activeReportType === 'comprehensive' ? (
-<div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-<p className="text-xs font-bold text-purple-600 uppercase tracking-wider">Comprehensive Lab Report — fill only the panels that apply</p>
-
-<details className="border border-slate-200 rounded-xl p-3" open>
-<summary className="text-sm font-bold text-slate-700 cursor-pointer">Haematology / BGS</summary>
-<div className="grid grid-cols-2 gap-2 mt-3">
-{HAEMATOLOGY_FIELDS.map(f => (
-<div key={f.key}>
-<label className="text-[10px] font-bold text-slate-500">{f.label}</label>
-<input value={panelResults.haematology?.[f.key] || ''} onChange={e => updatePanelField('haematology', f.key, e.target.value)}
-className="w-full p-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500" />
-</div>
-))}
-</div>
-</details>
-
-<details className="border border-slate-200 rounded-xl p-3">
-<summary className="text-sm font-bold text-slate-700 cursor-pointer">Widal Test <span className="text-[10px] font-normal text-slate-400">({WIDAL_SIGNIFICANT_TITRE})</span></summary>
-<div className="grid grid-cols-2 gap-2 mt-3">
-{WIDAL_FIELDS.map(f => (
-<div key={f.key}>
-<label className="text-[10px] font-bold text-slate-500">{f.label}</label>
-<input value={panelResults.widal?.[f.key] || ''} onChange={e => updatePanelField('widal', f.key, e.target.value)}
-className="w-full p-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500" />
-</div>
-))}
-</div>
-</details>
-
-<details className="border border-slate-200 rounded-xl p-3">
-<summary className="text-sm font-bold text-slate-700 cursor-pointer">Urinalysis</summary>
-<div className="grid grid-cols-2 gap-2 mt-3">
-{URINALYSIS_FIELDS.map(f => (
-<div key={f.key}>
-<label className="text-[10px] font-bold text-slate-500">{f.label}</label>
-<input value={panelResults.urinalysis?.[f.key] || ''} onChange={e => updatePanelField('urinalysis', f.key, e.target.value)}
-className="w-full p-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500" />
-</div>
-))}
-</div>
-</details>
-
-<details className="border border-slate-200 rounded-xl p-3">
-<summary className="text-sm font-bold text-slate-700 cursor-pointer">Parasitology</summary>
-<div className="grid grid-cols-2 gap-2 mt-3">
-{PARASITOLOGY_FIELDS.map(f => (
-<div key={f.key}>
-<label className="text-[10px] font-bold text-slate-500">{f.label}</label>
-<input value={panelResults.parasitology?.[f.key] || ''} onChange={e => updatePanelField('parasitology', f.key, e.target.value)}
-className="w-full p-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500" />
-</div>
-))}
-</div>
-</details>
-
-<details className="border border-slate-200 rounded-xl p-3">
-<summary className="text-sm font-bold text-slate-700 cursor-pointer">Semen Analysis</summary>
-<div className="grid grid-cols-2 gap-2 mt-3">
-{SEMEN_ANALYSIS_FIELDS.map(f => (
-<div key={f.key}>
-<label className="text-[10px] font-bold text-slate-500">{f.label}</label>
-<input value={panelResults.semenAnalysis?.[f.key] || ''} onChange={e => updatePanelField('semenAnalysis', f.key, e.target.value)}
-className="w-full p-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500" />
-</div>
-))}
-</div>
-</details>
-
-<details className="border border-slate-200 rounded-xl p-3">
-<summary className="text-sm font-bold text-slate-700 cursor-pointer">Biochemistry</summary>
-<div className="grid grid-cols-2 gap-2 mt-3">
-{BIOCHEMISTRY_FIELDS.map(f => (
-<div key={f.key}>
-<label className="text-[10px] font-bold text-slate-500">{f.label}</label>
-<input value={panelResults.biochemistry?.[f.key] || ''} onChange={e => updatePanelField('biochemistry', f.key, e.target.value)}
-className="w-full p-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500" />
-</div>
-))}
-</div>
-</details>
-
-<details className="border border-slate-200 rounded-xl p-3">
-<summary className="text-sm font-bold text-slate-700 cursor-pointer">Culture / Microscopy</summary>
-<div className="overflow-x-auto mt-3">
-<table className="text-[10px] border-collapse w-full">
-<thead>
-<tr>
-<th className="border border-slate-200 px-1 py-1 bg-slate-50">Specimen</th>
-{MICROSCOPY_FINDINGS.map(f => (
-<th key={f} className="border border-slate-200 px-1 py-1 bg-slate-50 whitespace-nowrap">{f}</th>
-))}
-</tr>
-</thead>
-<tbody>
-{CULTURE_SPECIMEN_TYPES.map(spec => (
-<tr key={spec}>
-<td className="border border-slate-200 px-1 py-1 font-semibold whitespace-nowrap">{spec}</td>
-{MICROSCOPY_FINDINGS.map(f => (
-<td key={f} className="border border-slate-200 p-0.5">
-<input value={panelResults.cultureMicroscopy?.[spec]?.[f] || ''} onChange={e => updateCultureCell(spec, f, e.target.value)}
-className="w-12 p-1 text-[10px] outline-none focus:ring-1 focus:ring-blue-500 rounded" />
-</td>
-))}
-</tr>
-))}
-</tbody>
-</table>
-</div>
-</details>
-
-<details className="border border-slate-200 rounded-xl p-3">
-<summary className="text-sm font-bold text-slate-700 cursor-pointer">Blood Transfusion</summary>
-<div className="grid grid-cols-2 gap-2 mt-3">
-{BLOOD_TRANSFUSION_FIELDS.map(f => (
-<div key={f.key}>
-<label className="text-[10px] font-bold text-slate-500">{f.label}</label>
-<input value={panelResults.bloodTransfusion?.[f.key] || ''} onChange={e => updatePanelField('bloodTransfusion', f.key, e.target.value)}
-className="w-full p-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500" />
-</div>
-))}
-</div>
-</details>
-
-<details className="border border-slate-200 rounded-xl p-3">
-<summary className="text-sm font-bold text-slate-700 cursor-pointer">Gram's Reaction — Sensitivity Pattern</summary>
-<div className="grid grid-cols-2 gap-2 mt-3">
-{SENSITIVITY_ANTIBIOTICS.map(ab => (
-<div key={ab} className="flex items-center gap-1">
-<span className="text-[10px] font-bold text-slate-500 flex-1">{ab}</span>
-<select value={panelResults.sensitivity?.[ab]?.result || ''} onChange={e => updateSensitivity(ab, 'result', e.target.value)}
-className="text-[10px] border border-slate-200 rounded p-1 outline-none">
-<option value="">-</option>
-<option value="S">S</option>
-<option value="R">R</option>
-</select>
-<input value={panelResults.sensitivity?.[ab]?.rate || ''} onChange={e => updateSensitivity(ab, 'rate', e.target.value)}
-placeholder="Rate" className="w-14 text-[10px] p-1 border border-slate-200 rounded outline-none" />
-</div>
-))}
-</div>
-</details>
-
-<div className="space-y-2">
-<label className="text-sm font-bold text-slate-700">Additional Notes</label>
-<textarea
-value={result}
-onChange={e => setResult(e.target.value)}
-className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none min-h-[80px]"
-placeholder="Any additional observations..."
+<div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+<LabReportEditor
+test={selectedTest}
+panelResults={panelResults}
+onUpdatePanelField={updatePanelField}
+onUpdateSensitivity={updateSensitivity}
+onUpdateCultureCell={updateCultureCell}
+notes={result}
+onNotesChange={setResult}
 />
-</div>
 </div>
 ) : (
 <>

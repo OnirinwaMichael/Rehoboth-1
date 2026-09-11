@@ -13,14 +13,14 @@ import { Download } from 'lucide-react';
 // and every other component, working with the same camelCase field
 // names as before — only these functions know about snake_case) ---
 const patientFromRow = (r: any): Patient => ({
-cardId: r.card_id, name: r.name, gender: r.gender, dob: r.dob,
+cardId: r.card_id, name: r.name, gender: r.gender,
 stateOfOrigin: r.state_of_origin, age: r.age, occupation: r.occupation,
 address: r.address, phone: r.phone, nextOfKin: r.next_of_kin,
 relationship: r.relationship, nokAddress: r.nok_address, nokPhone: r.nok_phone,
 category: r.category, createdAt: r.created_at, registrationType: r.registration_type || 'fresh',
 });
 const patientToRow = (p: any) => ({
-name: p.name, gender: p.gender, dob: p.dob, state_of_origin: p.stateOfOrigin,
+name: p.name, gender: p.gender, state_of_origin: p.stateOfOrigin,
 age: p.age, occupation: p.occupation, address: p.address, phone: p.phone,
 next_of_kin: p.nextOfKin, relationship: p.relationship, nok_address: p.nokAddress,
 nok_phone: p.nokPhone, category: p.category,
@@ -84,7 +84,7 @@ const [exporting, setExporting] = useState(false);
 const initialFormData = {
 name: '',
 gender: 'male' as 'male' | 'female',
-dob: '',
+
 stateOfOrigin: '',
 age: '',
 occupation: '',
@@ -284,7 +284,7 @@ await logAction(userId, 'UPDATE_PATIENT', `Updated patient ${formData.name} with
 toast.success('Patient updated successfully!');
 setEditingPatient(null);
 setFormData({
-name: '', gender: 'male', dob: '', stateOfOrigin: '', age: '',
+name: '', gender: 'male', stateOfOrigin: '', age: '',
 occupation: '', address: '', phone: '', nextOfKin: '',
 relationship: '', nokAddress: '', nokPhone: '', category: 'single card'
 });
@@ -515,18 +515,6 @@ className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring
 </select>
 </div>
 <div className="space-y-2">
-<label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-<Calendar className="w-4 h-4" /> Date of Birth
-</label>
-<input
-type="date"
-required
-value={formData.dob}
-onChange={e => setFormData({ ...formData, dob: e.target.value })}
-className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
-/>
-</div>
-<div className="space-y-2">
 <label className="text-sm font-semibold text-slate-700">Age</label>
 <input
 type="number"
@@ -621,7 +609,7 @@ type="button"
 onClick={() => {
 setEditingPatient(null);
 setFormData({
-name: '', gender: 'male', dob: '', stateOfOrigin: '', age: '',
+name: '', gender: 'male', stateOfOrigin: '', age: '',
 occupation: '', address: '', phone: '', nextOfKin: '',
 relationship: '', nokAddress: '', nokPhone: '', category: 'single card'
 });
@@ -875,7 +863,7 @@ title="Full History"
 onClick={() => {
 setEditingPatient(p);
 setFormData({
-name: p.name, gender: p.gender, dob: p.dob, stateOfOrigin: p.stateOfOrigin, age: p.age.toString(),
+name: p.name, gender: p.gender, stateOfOrigin: p.stateOfOrigin, age: p.age.toString(),
 occupation: p.occupation, address: p.address, phone: p.phone, nextOfKin: p.nextOfKin,
 relationship: p.relationship, nokAddress: p.nokAddress, nokPhone: p.nokPhone, category: p.category
 });

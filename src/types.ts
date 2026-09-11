@@ -12,7 +12,6 @@ export interface Patient {
 cardId: string;
 name: string;
 gender: 'male' | 'female';
-dob: string;
 stateOfOrigin: string;
 age: number;
 occupation: string;
