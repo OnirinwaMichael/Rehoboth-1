@@ -163,7 +163,7 @@ return (
 </span>
 </div>
 <div className="flex items-center gap-4 text-slate-400 text-sm font-medium">
-<span className="flex items-center gap-1.5"><User className="w-4 h-4" /> {patient.gender}, {patient.age}yrs</span>
+<span className="flex items-center gap-1.5"><User className="w-4 h-4" /> {patient.gender}, {patient.age}</span>
 <span className="flex items-center gap-1.5"><Phone className="w-4 h-4" /> {patient.phone}</span>
 <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4" /> {patient.address}</span>
 </div>

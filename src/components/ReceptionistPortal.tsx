@@ -206,7 +206,6 @@ const { error } = await supabase.from('patients').insert({
 card_id: cardId,
 registration_type: registrationType,
 ...patientToRow(formData),
-age: parseInt(formData.age),
 });
 if (error) {
 // Postgres unique_violation — someone already holds this card_id
@@ -283,7 +282,7 @@ setLoading(true);
 try {
 const { error } = await supabase
 .from('patients')
-.update({ ...patientToRow(formData), age: parseInt(formData.age), card_id: newCardId })
+.update({ ...patientToRow(formData), card_id: newCardId })
 .eq('card_id', editingPatient.cardId);
 if (error) {
 if ((error as any).code === '23505') {
@@ -548,12 +547,12 @@ className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring
 <div className="space-y-2">
 <label className="text-sm font-semibold text-slate-700">Age</label>
 <input
-type="number"
+type="text"
 required
 value={formData.age}
 onChange={e => setFormData({ ...formData, age: e.target.value })}
 className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
-placeholder="25"
+placeholder="e.g. 25, 3 months, 2 weeks, 90+"
 />
 </div>
 <div className="space-y-2">
@@ -896,7 +895,7 @@ onClick={() => {
 setEditingPatient(p);
 setEditCardId(p.cardId);
 setFormData({
-name: p.name, gender: p.gender, stateOfOrigin: p.stateOfOrigin, age: p.age.toString(),
+name: p.name, gender: p.gender, stateOfOrigin: p.stateOfOrigin, age: p.age,
 occupation: p.occupation, address: p.address, phone: p.phone, nextOfKin: p.nextOfKin,
 relationship: p.relationship, nokAddress: p.nokAddress, nokPhone: p.nokPhone, category: p.category
 });

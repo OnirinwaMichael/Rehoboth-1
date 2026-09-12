@@ -13,7 +13,7 @@ cardId: string;
 name: string;
 gender: 'male' | 'female';
 stateOfOrigin: string;
-age: number;
+age: string;
 occupation: string;
 address: string;
 phone: string;

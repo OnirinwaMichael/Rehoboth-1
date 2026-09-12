@@ -75,7 +75,7 @@ export const LabReportPrint: React.FC<Props> = ({ test, onClose }) => {
           <div className="grid grid-cols-2 gap-x-6 mb-3 border border-slate-300 rounded-lg p-3">
             <FieldRow label="Patient's Name" value={test.patient?.name} />
             <FieldRow label="Card No" value={test.patientId} />
-            <FieldRow label="Age" value={test.patient ? String(test.patient.age) : ''} />
+            <FieldRow label="Age" value={test.patient?.age} />
             <FieldRow label="Sex" value={test.patient?.gender} />
             <FieldRow label="Clinic No" value={pr.clinicNo} />
             <FieldRow label="Clinician" value={pr.clinician} />

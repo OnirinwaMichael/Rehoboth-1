@@ -570,7 +570,7 @@ className="w-full flex items-center justify-between text-left px-4 py-2 text-sm 
 >
 <div className="min-w-0">
 <p className="font-bold text-slate-900 truncate">{p.name}</p>
-<p className="text-[10px] text-slate-400">{p.age}y · {p.gender}</p>
+<p className="text-[10px] text-slate-400">{p.age} · {p.gender}</p>
 </div>
 <span className="text-xs font-bold text-blue-600 shrink-0 ml-2">{p.cardId}</span>
 </button>
@@ -742,7 +742,7 @@ No lab tests found.
 </div>
 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
 <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Age</p>
-<p className="font-bold text-slate-700">{patient.age} years</p>
+<p className="font-bold text-slate-700">{patient.age}</p>
 </div>
 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
 <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Category</p>
