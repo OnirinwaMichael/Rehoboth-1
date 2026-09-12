@@ -65,6 +65,7 @@ const [view, setView] = useState<'dashboard' | 'register' | 'appointments' | 'di
 const [allPatients, setAllPatients] = useState<Patient[]>([]);
 const [expandedPatientId, setExpandedPatientId] = useState<string | null>(null);
 const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
+const [editCardId, setEditCardId] = useState('');
 const [searchQuery, setSearchQuery] = useState('');
 const [stats, setStats] = useState({
 total: 0,
@@ -139,7 +140,7 @@ const { data, error } = await supabase
 .select('*');
 if (error) return handleSupabaseError(error, 'select', 'patients');
 const sorted = (data || []).map(patientFromRow)
-.sort((a, b) => parseInt(a.cardId, 10) - parseInt(b.cardId, 10));
+.sort((a, b) => a.cardId.localeCompare(b.cardId, undefined, { numeric: true, sensitivity: 'base' }));
 setAllPatients(sorted);
 };
 const handleExportRegister = () => {
@@ -273,16 +274,29 @@ fetchAppointments();
 const handleEditPatient = async (e: React.FormEvent) => {
 e.preventDefault();
 if (!editingPatient) return;
+const newCardId = editCardId.trim();
+if (!newCardId) {
+toast.error('Card ID cannot be empty.');
+return;
+}
 setLoading(true);
 try {
 const { error } = await supabase
 .from('patients')
-.update({ ...patientToRow(formData), age: parseInt(formData.age) })
+.update({ ...patientToRow(formData), age: parseInt(formData.age), card_id: newCardId })
 .eq('card_id', editingPatient.cardId);
-if (error) throw error;
-await logAction(userId, 'UPDATE_PATIENT', `Updated patient ${formData.name} with Card ID ${editingPatient.cardId}`);
+if (error) {
+if ((error as any).code === '23505') {
+toast.error(`Card ID "${newCardId}" is already in use by another patient. Please choose a different number.`);
+setLoading(false);
+return;
+}
+throw error;
+}
+await logAction(userId, 'UPDATE_PATIENT', `Updated patient ${formData.name}${newCardId !== editingPatient.cardId ? ` (Card ID changed from ${editingPatient.cardId} to ${newCardId})` : ` with Card ID ${editingPatient.cardId}`}`);
 toast.success('Patient updated successfully!');
 setEditingPatient(null);
+setEditCardId('');
 setFormData({
 name: '', gender: 'male', stateOfOrigin: '', age: '',
 occupation: '', address: '', phone: '', nextOfKin: '',
@@ -475,6 +489,23 @@ className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring
 )}
 </div>
 )}
+{editingPatient && (
+<div className="space-y-2 pb-2 border-b border-slate-100">
+<label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+<CreditCard className="w-4 h-4" /> Card ID
+</label>
+<input
+required
+value={editCardId}
+onChange={e => setEditCardId(e.target.value)}
+className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono"
+placeholder="e.g. 000045"
+/>
+{editCardId !== editingPatient.cardId && (
+<p className="text-xs text-amber-600">This will change the patient's registration number everywhere — all their records move with it.</p>
+)}
+</div>
+)}
 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 <div className="space-y-2">
 <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
@@ -608,6 +639,7 @@ className="flex-1 bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover
 type="button"
 onClick={() => {
 setEditingPatient(null);
+setEditCardId('');
 setFormData({
 name: '', gender: 'male', stateOfOrigin: '', age: '',
 occupation: '', address: '', phone: '', nextOfKin: '',
@@ -862,6 +894,7 @@ title="Full History"
 <button 
 onClick={() => {
 setEditingPatient(p);
+setEditCardId(p.cardId);
 setFormData({
 name: p.name, gender: p.gender, stateOfOrigin: p.stateOfOrigin, age: p.age.toString(),
 occupation: p.occupation, address: p.address, phone: p.phone, nextOfKin: p.nextOfKin,

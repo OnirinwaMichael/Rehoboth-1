@@ -31,7 +31,7 @@ const { data, error } = await supabase
 .from('patients').select('*');
 if (error) return handleSupabaseError(error, 'select', 'patients');
 const sorted = (data || []).map(patientFromRow)
-.sort((a, b) => parseInt(a.cardId, 10) - parseInt(b.cardId, 10));
+.sort((a, b) => a.cardId.localeCompare(b.cardId, undefined, { numeric: true, sensitivity: 'base' }));
 setRecentPatients(sorted);
 };
 const handleSearch = async (e: React.FormEvent) => {
