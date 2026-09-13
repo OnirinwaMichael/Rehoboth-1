@@ -48,6 +48,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { PatientHistory } from './PatientHistory';
 import { LetterheadPrint } from './LetterheadPrint';
 import { LabReportPrint } from './LabReportPrint';
+import { VoiceDictationButton } from './VoiceDictationButton';
+import { parseSpokenAmount } from '../hooks/useVoiceDictation';
 interface Props {
 role: UserRole;
 userId: string;
@@ -1350,14 +1352,17 @@ placeholder="e.g. 70"
 {/* Diagnosis & Treatment */}
 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
 <div className="space-y-4">
-<h4 className="font-bold text-slate-900 flex items-center gap-2">
+<h4 className="font-bold text-slate-900 flex items-center justify-between gap-2">
+<span className="flex items-center gap-2">
 <FileText className="w-4 h-4 text-blue-500" /> Diagnosis
+</span>
+<VoiceDictationButton onFinalResult={text => setFormData({ ...formData, diagnosis: (formData.diagnosis ? formData.diagnosis + ' ' : '') + text })} />
 </h4>
 <textarea
 value={formData.diagnosis}
 onChange={e => setFormData({ ...formData, diagnosis: e.target.value })}
 className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none min-h-[150px]"
-placeholder="Enter patient diagnosis..."
+placeholder="Enter patient diagnosis, or tap the mic to dictate..."
 />
 </div>
 <div className="space-y-4">
@@ -1365,16 +1370,17 @@ placeholder="Enter patient diagnosis..."
 <Pill className="w-4 h-4 text-green-500" /> Prescriptions
 </h4>
 <div className="space-y-2">
-<div className="relative">
+<div className="relative flex items-center gap-2">
 <input
 ref={drugSearchRef}
 value={drugSearch}
 onChange={e => setDrugSearch(e.target.value)}
-className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+className="flex-1 p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
 placeholder="Search pharmacy drugs & injections by name..."
 />
+<VoiceDictationButton size="md" onFinalResult={text => setDrugSearch(text)} />
 {drugSearch && (
-<div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+<div className="absolute z-10 w-full mt-1 top-full bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
 {filteredDrugs.length === 0 ? (
 <p className="px-4 py-3 text-sm text-slate-400">No matching drugs in pharmacy inventory.</p>
 ) : (
@@ -1466,12 +1472,15 @@ className="w-full p-2 text-sm text-center border border-slate-200 rounded-lg out
 />
 </div>
 </div>
+<div className="flex items-center gap-2">
 <input
 value={item.instructions}
 onChange={e => updatePrescriptionItem(index, { instructions: e.target.value })}
 placeholder="Additional instructions for pharmacy (optional)..."
-className="w-full p-2 text-xs border border-slate-200 rounded-lg outline-none focus:border-blue-500"
+className="flex-1 p-2 text-xs border border-slate-200 rounded-lg outline-none focus:border-blue-500"
 />
+<VoiceDictationButton onFinalResult={text => updatePrescriptionItem(index, { instructions: (item.instructions ? item.instructions + ' ' : '') + text })} />
+</div>
 <div className="flex items-center justify-between pt-1 border-t border-slate-200 text-xs">
 <span className="text-slate-500">{units} unit{units !== 1 ? 's' : ''} total</span>
 <span className="font-bold text-slate-700">₦{total.toLocaleString()}</span>
@@ -1497,15 +1506,16 @@ className="w-full p-2 text-xs border border-slate-200 rounded-lg outline-none fo
 <FlaskConical className="w-4 h-4 text-purple-500" /> Lab/Scan Recommendations
 </h4>
 <div className="space-y-2">
-<div className="relative">
+<div className="relative flex items-center gap-2">
 <input
 value={testSearch}
 onChange={e => setTestSearch(e.target.value)}
-className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+className="flex-1 p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
 placeholder="Search approved tests & scans..."
 />
+<VoiceDictationButton size="md" onFinalResult={text => setTestSearch(text)} />
 {testSearch && (
-<div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+<div className="absolute z-10 w-full mt-1 top-full bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
 {filteredTests.length === 0 ? (
 <p className="px-4 py-3 text-sm text-slate-400">No matching tests in the catalog.</p>
 ) : (
@@ -1553,15 +1563,25 @@ className="p-1 text-red-500 hover:bg-red-50 rounded"
 </div>
 </div>
 <div className="space-y-4">
-<h4 className="font-bold text-slate-900 flex items-center gap-2">
+<h4 className="font-bold text-slate-900 flex items-center justify-between gap-2">
+<span className="flex items-center gap-2">
 <CreditCard className="w-4 h-4 text-orange-500" /> Consultation/Treatment Fee
+</span>
+<VoiceDictationButton onFinalResult={text => {
+const parsed = parseSpokenAmount(text);
+if (parsed) {
+setFormData({ ...formData, paymentFee: parsed });
+} else {
+toast.error(`Couldn't understand "${text}" as an amount — please type it in.`);
+}
+}} />
 </h4>
 <input
 type="number"
 value={formData.paymentFee}
 onChange={e => setFormData({ ...formData, paymentFee: e.target.value })}
 className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-lg"
-placeholder="₦ 0.00"
+placeholder="₦ 0.00 — or tap the mic and say an amount"
 />
 </div>
 </div>
@@ -1771,7 +1791,10 @@ className="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-l
 </div>
 )}
 <div className="space-y-2">
-<label className="text-sm font-bold text-slate-700">Follow-up Note (optional)</label>
+<label className="text-sm font-bold text-slate-700 flex items-center justify-between">
+Follow-up Note (optional)
+<VoiceDictationButton onFinalResult={text => setContinueNote((continueNote ? continueNote + ' ' : '') + text)} />
+</label>
 <textarea
 value={continueNote}
 onChange={e => setContinueNote(e.target.value)}
@@ -1783,15 +1806,16 @@ placeholder="Add a note based on the results (appended to the diagnosis)..."
 <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
 <Pill className="w-4 h-4 text-green-500" /> Prescribe Based on Results
 </label>
-<div className="relative">
+<div className="relative flex items-center gap-2">
 <input
 value={continueDrugSearch}
 onChange={e => setContinueDrugSearch(e.target.value)}
-className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+className="flex-1 p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
 placeholder="Search pharmacy drugs & injections by name..."
 />
+<VoiceDictationButton size="md" onFinalResult={text => setContinueDrugSearch(text)} />
 {continueDrugSearch && (
-<div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-56 overflow-y-auto">
+<div className="absolute z-10 w-full mt-1 top-full bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-56 overflow-y-auto">
 {continueFilteredDrugs.length === 0 ? (
 <p className="px-4 py-3 text-sm text-slate-400">No matching drugs.</p>
 ) : (
