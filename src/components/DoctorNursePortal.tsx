@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, memo, useRef } from 'react';
 import { supabase, handleSupabaseError } from '../lib/supabase';
-import { Patient, MedicalRecord, UserRole, Visit, LabTest, ClinicalLetter, InventoryItem, LabTestCatalogItem } from '../types';
+import { Patient, MedicalRecord, UserRole, Visit, LabTest, ClinicalLetter, InventoryItem, LabTestCatalogItem, Admission } from '../types';
 import { toast } from 'sonner';
 import { Search, Activity, ClipboardList, FlaskConical, Pill, Plus, Save, History, User, Heart, Thermometer, Droplets, Stethoscope, FileText, CreditCard, LayoutDashboard, Users as UsersIcon, ChevronDown, ChevronUp, Wind, X, AlertTriangle, FolderOpen, Camera } from 'lucide-react';
 import { format } from 'date-fns';
@@ -39,6 +39,10 @@ paymentStatus: r.payment_status, createdAt: r.created_at,
 reportType: r.report_type || 'legacy', requestDetails: r.request_details || undefined,
 panelResults: r.panel_results || undefined,
 });
+const admissionFromRow = (r: any): Admission => ({
+id: r.id, patientId: r.patient_id, admittedAt: r.admitted_at, admittedBy: r.admitted_by,
+reason: r.reason, dischargedAt: r.discharged_at, dischargedBy: r.discharged_by, createdAt: r.created_at,
+});
 const letterFromRow = (r: any): ClinicalLetter => ({
 id: r.id, patientId: r.patient_id, staffId: r.staff_id, letterType: r.letter_type,
 yourRef: r.your_ref, ourRef: r.our_ref, referredTo: r.referred_to, body: r.body,
@@ -47,6 +51,8 @@ createdAt: r.created_at, updatedAt: r.updated_at,
 import { motion, AnimatePresence } from 'motion/react';
 import { PatientHistory } from './PatientHistory';
 import { LetterheadPrint } from './LetterheadPrint';
+import { DrugChartSheet } from './DrugChartSheet';
+import { VitalSignsSheet } from './VitalSignsSheet';
 import { LabReportPrint } from './LabReportPrint';
 import { VoiceDictationButton } from './VoiceDictationButton';
 import { parseSpokenAmount } from '../hooks/useVoiceDictation';
@@ -70,6 +76,9 @@ const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
 const [letters, setLetters] = useState<ClinicalLetter[]>([]);
 const [patientLabTests, setPatientLabTests] = useState<LabTest[]>([]);
 const [printTest, setPrintTest] = useState<LabTest | null>(null);
+const [activeAdmission, setActiveAdmission] = useState<Admission | null>(null);
+const [showDrugChart, setShowDrugChart] = useState(false);
+const [showVitalSigns, setShowVitalSigns] = useState(false);
 const [continueRecord, setContinueRecord] = useState<MedicalRecord | null>(null);
 const [continueRxItems, setContinueRxItems] = useState<{ drugId: string, drugName: string, drugPrice: number, route: 'Oral' | 'Injection' | 'Topical' | 'IV' | 'Other', morning: number, afternoon: number, night: number, durationDays: number, instructions: string }[]>([]);
 const [continueDrugSearch, setContinueDrugSearch] = useState('');
@@ -365,6 +374,14 @@ const { data: labsData, error: labsErr } = await supabase
 .order('created_at', { ascending: false });
 if (labsErr) return handleSupabaseError(labsErr, 'select', 'lab_tests');
 setPatientLabTests((labsData || []).map(labTestFromRow));
+const { data: admissionData, error: admissionErr } = await supabase
+.from('admissions')
+.select('*')
+.eq('patient_id', patient.cardId)
+.is('discharged_at', null)
+.maybeSingle();
+if (admissionErr) return handleSupabaseError(admissionErr, 'select', 'admissions');
+setActiveAdmission(admissionData ? admissionFromRow(admissionData) : null);
 };
 fetchRecordsAndVisits();
 const channel = supabase
@@ -373,9 +390,33 @@ const channel = supabase
 .on('postgres_changes', { event: '*', schema: 'public', table: 'visits', filter: `patient_id=eq.${patient.cardId}` }, fetchRecordsAndVisits)
 .on('postgres_changes', { event: '*', schema: 'public', table: 'clinical_letters', filter: `patient_id=eq.${patient.cardId}` }, fetchRecordsAndVisits)
 .on('postgres_changes', { event: '*', schema: 'public', table: 'lab_tests', filter: `patient_id=eq.${patient.cardId}` }, fetchRecordsAndVisits)
+.on('postgres_changes', { event: '*', schema: 'public', table: 'admissions', filter: `patient_id=eq.${patient.cardId}` }, fetchRecordsAndVisits)
 .subscribe();
 return () => { supabase.removeChannel(channel); };
 }, [patient]);
+const handleAdmitPatient = async () => {
+if (!patient) return;
+const reason = window.prompt('Reason for admission (optional):') || null;
+const { error } = await supabase.from('admissions').insert({
+patient_id: patient.cardId,
+admitted_by: userId,
+reason,
+});
+if (error) return handleSupabaseError(error, 'insert', 'admissions');
+await logAction(userId, 'ADMIT_PATIENT', `Admitted patient ${patient.cardId}`);
+toast.success(`${patient.name} has been admitted.`);
+};
+const handleDischargePatient = async () => {
+if (!patient || !activeAdmission) return;
+if (!window.confirm(`Discharge ${patient.name}? This ends their current admission.`)) return;
+const { error } = await supabase.from('admissions').update({
+discharged_at: new Date().toISOString(),
+discharged_by: userId,
+}).eq('id', activeAdmission.id);
+if (error) return handleSupabaseError(error, 'update', 'admissions');
+await logAction(userId, 'DISCHARGE_PATIENT', `Discharged patient ${patient.cardId}`);
+toast.success(`${patient.name} has been discharged.`);
+};
 const handleSaveLetter = async (e: React.FormEvent) => {
 e.preventDefault();
 if (!patient) return;
@@ -786,6 +827,39 @@ className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-50 text
 >
 <FileText className="w-4 h-4" /> Diagnosis / Referral Letter
 </button>
+{activeAdmission ? (
+<>
+<div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-center">
+<p className="text-[10px] font-black uppercase tracking-widest text-amber-700">Currently Admitted</p>
+<p className="text-[10px] text-amber-600">since {format(new Date(activeAdmission.admittedAt), 'MMM d, yyyy HH:mm')}</p>
+</div>
+<button
+onClick={() => setShowDrugChart(true)}
+className="w-full flex items-center justify-center gap-2 py-3 bg-purple-50 text-purple-700 rounded-xl font-bold hover:bg-purple-100 transition-all border border-purple-100"
+>
+<Pill className="w-4 h-4" /> Drug Chart
+</button>
+<button
+onClick={() => setShowVitalSigns(true)}
+className="w-full flex items-center justify-center gap-2 py-3 bg-rose-50 text-rose-700 rounded-xl font-bold hover:bg-rose-100 transition-all border border-rose-100"
+>
+<Activity className="w-4 h-4" /> Vital Signs
+</button>
+<button
+onClick={handleDischargePatient}
+className="w-full flex items-center justify-center gap-2 py-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-900 transition-all"
+>
+Discharge Patient
+</button>
+</>
+) : (
+<button
+onClick={handleAdmitPatient}
+className="w-full flex items-center justify-center gap-2 py-3 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 transition-all"
+>
+Admit Patient
+</button>
+)}
 </div>
 <div className="mt-6 pt-6 border-t border-slate-100 space-y-2">
 <p className="text-xs font-bold text-slate-400 uppercase">Address</p>
@@ -1748,6 +1822,12 @@ className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-e
 )}
 {printTest && patient && (
 <LabReportPrint test={{ ...printTest, patient }} onClose={() => setPrintTest(null)} />
+)}
+{showDrugChart && patient && activeAdmission && (
+<DrugChartSheet patient={patient} admission={activeAdmission} userId={userId} onClose={() => setShowDrugChart(false)} />
+)}
+{showVitalSigns && patient && activeAdmission && (
+<VitalSignsSheet patient={patient} admission={activeAdmission} userId={userId} onClose={() => setShowVitalSigns(false)} />
 )}
 {/* Continue Consultation Modal */}
 <AnimatePresence>
