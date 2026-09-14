@@ -1,7 +1,8 @@
 import React from 'react';
 import { LabTest, Patient } from '../types';
 import { format } from 'date-fns';
-import { Printer, X } from 'lucide-react';
+import { Printer } from 'lucide-react';
+import { FullScreenSheet } from './FullScreenSheet';
 import {
   LAB_REQUEST_FIELDS, HAEMATOLOGY_FIELDS, WIDAL_FIELDS, WIDAL_SIGNIFICANT_TITRE,
   URINALYSIS_FIELDS, PARASITOLOGY_FIELDS, SEMEN_ANALYSIS_FIELDS, BIOCHEMISTRY_FIELDS,
@@ -32,24 +33,20 @@ export const LabReportPrint: React.FC<Props> = ({ test, onClose }) => {
   const pr = test.panelResults || {};
 
   return (
-    <div className="fixed inset-0 z-[60] bg-slate-900/70 backdrop-blur-sm flex items-start justify-center p-4 overflow-y-auto print:p-0 print:bg-white print:static">
-      <div className="w-full max-w-[210mm] bg-white rounded-xl shadow-2xl print:shadow-none print:rounded-none my-6">
-        {/* Toolbar — hidden when printing */}
-        <div className="print:hidden flex items-center justify-between p-4 border-b border-slate-100 sticky top-0 bg-white rounded-t-xl">
-          <p className="font-bold text-slate-900">Report Preview</p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => window.print()}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700"
-            >
-              <Printer className="w-4 h-4" /> Print / Save as PDF
-            </button>
-            <button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
+    <FullScreenSheet
+      title="Lab Report"
+      subtitle={`${test.patient?.name || test.patientId} · ${test.testType}`}
+      onClose={onClose}
+      headerActions={
+        <button
+          onClick={() => window.print()}
+          className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700"
+        >
+          <Printer className="w-4 h-4" /> Print / Save as PDF
+        </button>
+      }
+    >
+      <div className="max-w-[210mm] mx-auto">
         {/* Printable sheet */}
         <div className="p-8 print:p-6 text-slate-900" id="lab-report-print-area">
           {/* Letterhead */}
@@ -235,6 +232,6 @@ export const LabReportPrint: React.FC<Props> = ({ test, onClose }) => {
           </div>
         </div>
       </div>
-    </div>
+    </FullScreenSheet>
   );
 };

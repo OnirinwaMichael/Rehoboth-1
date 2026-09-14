@@ -733,16 +733,19 @@ No test requests found.
 <AnimatePresence mode="wait">
 {selectedTest ? (
 <motion.div
-initial={{ opacity: 0, x: 20 }}
-animate={{ opacity: 1, x: 0 }}
-exit={{ opacity: 0, x: 20 }}
-className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden sticky top-8"
+initial={{ opacity: 0 }}
+animate={{ opacity: 1 }}
+exit={{ opacity: 0 }}
+className="fixed inset-0 z-[70] bg-white flex flex-col"
 >
-<div className="p-6 border-b border-slate-100 bg-slate-900 text-white flex items-center justify-between">
-<h3 className="font-bold flex items-center gap-2">
-<FileText className="w-5 h-5 text-blue-400" /> Record Result
+<div className="shrink-0 p-4 border-b border-slate-100 bg-slate-900 text-white flex items-center justify-between shadow-sm">
+<div className="min-w-0">
+<h3 className="font-bold flex items-center gap-2 truncate">
+<FileText className="w-5 h-5 text-blue-400 shrink-0" /> Record Result
 </h3>
-<div className="flex items-center gap-1">
+<p className="text-[11px] text-slate-400 truncate">{selectedTest.patient?.name || selectedTest.patientId} · {selectedTest.testType}</p>
+</div>
+<div className="flex items-center gap-1 shrink-0">
 <button
 onClick={() => setPrintTest(selectedTest)}
 className="px-3 py-1.5 text-xs font-bold bg-white/10 hover:bg-white/20 rounded-lg"
@@ -755,7 +758,7 @@ Print
 </button>
 </div>
 </div>
-<div className="p-6 space-y-6">
+<div className="flex-1 overflow-y-auto p-6 space-y-6 max-w-3xl w-full mx-auto">
 <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Patient Details</p>
 <div className="flex justify-between items-center">
@@ -790,7 +793,7 @@ className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring
 </div>
 <div className="space-y-4">
 {activeReportType === 'comprehensive' ? (
-<div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+<div className="space-y-3">
 <LabReportEditor
 test={selectedTest}
 panelResults={panelResults}

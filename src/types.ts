@@ -74,6 +74,93 @@ category?: string;
 createdAt: string;
 updatedAt: string;
 }
+export interface Admission {
+id: string;
+patientId: string;
+admittedAt: string;
+admittedBy: string;
+reason?: string;
+dischargedAt?: string;
+dischargedBy?: string;
+createdAt: string;
+}
+export interface DrugChartEntry {
+id: string;
+admissionId: string;
+patientId: string;
+entryDate: string;
+drugName: string;
+dose?: string;
+timeGiven?: string;
+administeredBy: string;
+notes?: string;
+createdAt: string;
+}
+export interface VitalSignEntry {
+id: string;
+admissionId: string;
+patientId: string;
+entryDate: string;
+timeOfDay: 'Night' | 'Morning' | 'Afternoon';
+temperature?: string;
+pulse?: string;
+respiration?: string;
+bloodPressure?: string;
+recordedBy: string;
+createdAt: string;
+}
+export interface AntenatalFollowup {
+id: string;
+patientId: string;
+visitDate: string;
+heightOfFundus?: string;
+presentationPosition?: string;
+foetalHeart?: string;
+bloodPressure?: string;
+urineTest?: string;
+weight?: string;
+hgbPcv?: string;
+remarks?: string;
+treatment?: string;
+recordedBy: string;
+createdAt: string;
+}
+export interface PreviousPregnancy {
+year?: string;
+duration?: string;
+complication?: string;
+whereDelivered?: string;
+babyAliveOrDeath?: string;
+ageAtDeath?: string;
+}
+export interface AntenatalBooking {
+id: string;
+patientId: string;
+inPatientNo?: string;
+tribe?: string;
+husbandOccupation?: string;
+pastMedicalHistory?: string;
+lmp?: string;
+edd?: string;
+gravida?: string;
+para?: string;
+noAlive?: string;
+noDead?: string;
+abortion?: string;
+previousPregnancies: PreviousPregnancy[];
+historyPresentPregnancy?: string;
+examinationBreast?: string;
+examinationHeight?: string;
+examinationCvs?: string;
+examinationPelvis?: string;
+examinationAbdomen?: string;
+examinationShape?: string;
+examinationSize?: string;
+generalAppearance?: string;
+createdBy: string;
+updatedAt: string;
+createdAt: string;
+}
 export interface Prescription {
 id: string;
 patientId: string;

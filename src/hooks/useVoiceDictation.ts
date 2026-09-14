@@ -1,13 +1,54 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 
 // Wraps the browser's built-in speech recognition (Web Speech API).
-// Works well on Android Chrome; support on iOS Safari is inconsistent
-// or absent, so isSupported lets callers hide/disable the mic button
-// gracefully instead of crashing.
+// Works well on Android Chrome; support on iOS/desktop Safari varies
+// and Firefox has none, so isSupported lets callers hide/disable the
+// mic button gracefully instead of crashing.
+//
+// Two known rough edges of the free browser engine, addressed here:
+// 1. It stops after a short pause even with continuous=true (an
+//    implementation quirk, not a setting) - we auto-restart it
+//    behind the scenes so a long dictation doesn't get cut off
+//    mid-sentence. The person sees one uninterrupted session.
+// 2. It never inserts punctuation on its own - there is no "auto
+//    punctuation" mode to turn on. The only way to get punctuation
+//    at all is for the person to say it, so we recognize spoken
+//    punctuation words ("comma", "full stop", "new line", etc.) and
+//    convert them to the actual marks.
+const PUNCTUATION_WORDS: [RegExp, string][] = [
+  [/\bnew paragraph\b/gi, '\n\n'],
+  [/\bnew line\b/gi, '\n'],
+  [/\bfull stop\b/gi, '.'],
+  [/\bperiod\b/gi, '.'],
+  [/\bcomma\b/gi, ','],
+  [/\bquestion mark\b/gi, '?'],
+  [/\bexclamation mark\b/gi, '!'],
+  [/\bcolon\b/gi, ':'],
+  [/\bsemi ?colon\b/gi, ';'],
+  [/\bopen bracket\b/gi, '('],
+  [/\bclose bracket\b/gi, ')'],
+  [/\bdash\b/gi, '-'],
+];
+
+function applySpokenPunctuation(raw: string): string {
+  let text = raw;
+  for (const [pattern, mark] of PUNCTUATION_WORDS) {
+    text = text.replace(pattern, mark);
+  }
+  // Clean up: no space before punctuation, single space after, no
+  // duplicate spaces left over from word removal.
+  text = text.replace(/\s+([,.!?;:])/g, '$1');
+  text = text.replace(/([,.!?;:])(?=\S)/g, '$1 ');
+  text = text.replace(/\s{2,}/g, ' ');
+  text = text.replace(/\s+\n/g, '\n').replace(/\n\s+/g, '\n');
+  return text.trim();
+}
+
 export function useVoiceDictation(onFinalResult: (text: string) => void) {
   const [isListening, setIsListening] = useState(false);
   const [interimText, setInterimText] = useState('');
   const recognitionRef = useRef<any>(null);
+  const intentionalStopRef = useRef(false);
   const onResultRef = useRef(onFinalResult);
   onResultRef.current = onFinalResult;
 
@@ -19,12 +60,12 @@ export function useVoiceDictation(onFinalResult: (text: string) => void) {
 
   useEffect(() => {
     return () => {
+      intentionalStopRef.current = true;
       recognitionRef.current?.stop?.();
     };
   }, []);
 
-  const startListening = useCallback(() => {
-    if (!isSupported) return;
+  const createRecognition = useCallback(() => {
     const recognition = new SpeechRecognitionCtor();
     recognition.continuous = true;
     recognition.interimResults = true;
@@ -35,28 +76,52 @@ export function useVoiceDictation(onFinalResult: (text: string) => void) {
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
-          onResultRef.current(transcript.trim());
+          const punctuated = applySpokenPunctuation(transcript.trim());
+          if (punctuated) onResultRef.current(punctuated);
         } else {
           interim += transcript;
         }
       }
       setInterimText(interim);
     };
-    recognition.onerror = () => {
-      setIsListening(false);
-      setInterimText('');
+    recognition.onerror = (event: any) => {
+      // 'no-speech' fires often during natural pauses - not a real
+      // error, the auto-restart in onend handles it seamlessly.
+      if (event.error !== 'no-speech') {
+        intentionalStopRef.current = true;
+        setIsListening(false);
+        setInterimText('');
+      }
     };
     recognition.onend = () => {
-      setIsListening(false);
-      setInterimText('');
+      if (intentionalStopRef.current) {
+        setIsListening(false);
+        setInterimText('');
+        return;
+      }
+      // Engine stopped on its own (its internal pause-detection) -
+      // restart immediately so the session feels continuous.
+      try {
+        recognition.start();
+      } catch {
+        setIsListening(false);
+        setInterimText('');
+      }
     };
+    return recognition;
+  }, [SpeechRecognitionCtor]);
 
+  const startListening = useCallback(() => {
+    if (!isSupported) return;
+    intentionalStopRef.current = false;
+    const recognition = createRecognition();
     recognitionRef.current = recognition;
     recognition.start();
     setIsListening(true);
-  }, [isSupported, SpeechRecognitionCtor]);
+  }, [isSupported, createRecognition]);
 
   const stopListening = useCallback(() => {
+    intentionalStopRef.current = true;
     recognitionRef.current?.stop?.();
     setIsListening(false);
     setInterimText('');
