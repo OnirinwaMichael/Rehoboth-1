@@ -135,11 +135,25 @@ const todayCount = mapped.filter(a => a.date === today && a.status === 'schedule
 setStats(prev => ({ ...prev, appointmentsToday: todayCount }));
 };
 const fetchAllPatients = async () => {
+// A plain select('*') is silently capped by PostgREST's default max-rows
+// setting (commonly 1000). With 3000+ patients on file, that cap was
+// cutting the result off before rows outside the earliest card_id range
+// were ever returned. Page through with .range() until a page comes
+// back short, so every patient is loaded regardless of table size.
+const pageSize = 1000;
+let from = 0;
+let allRows: any[] = [];
+while (true) {
 const { data, error } = await supabase
 .from('patients')
-.select('*');
+.select('*')
+.range(from, from + pageSize - 1);
 if (error) return handleSupabaseError(error, 'select', 'patients');
-const sorted = (data || []).map(patientFromRow)
+allRows = allRows.concat(data || []);
+if (!data || data.length < pageSize) break;
+from += pageSize;
+}
+const sorted = allRows.map(patientFromRow)
 .sort((a, b) => a.cardId.localeCompare(b.cardId, undefined, { numeric: true, sensitivity: 'base' }));
 setAllPatients(sorted);
 };

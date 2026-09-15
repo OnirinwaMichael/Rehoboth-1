@@ -27,10 +27,22 @@ const channel = supabase
 return () => { supabase.removeChannel(channel); };
 }, []);
 const fetchRecent = async () => {
+// See ReceptionistPortal.fetchAllPatients — same PostgREST default
+// row-cap issue, fixed the same way with paged .range() reads.
+const pageSize = 1000;
+let from = 0;
+let allRows: any[] = [];
+while (true) {
 const { data, error } = await supabase
-.from('patients').select('*');
+.from('patients')
+.select('*')
+.range(from, from + pageSize - 1);
 if (error) return handleSupabaseError(error, 'select', 'patients');
-const sorted = (data || []).map(patientFromRow)
+allRows = allRows.concat(data || []);
+if (!data || data.length < pageSize) break;
+from += pageSize;
+}
+const sorted = allRows.map(patientFromRow)
 .sort((a, b) => a.cardId.localeCompare(b.cardId, undefined, { numeric: true, sensitivity: 'base' }));
 setRecentPatients(sorted);
 };
