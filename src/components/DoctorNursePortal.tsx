@@ -53,6 +53,8 @@ import { PatientHistory } from './PatientHistory';
 import { LetterheadPrint } from './LetterheadPrint';
 import { DrugChartSheet } from './DrugChartSheet';
 import { VitalSignsSheet } from './VitalSignsSheet';
+import { AntenatalFollowupSheet } from './AntenatalFollowupSheet';
+import { AntenatalBookingSheet } from './AntenatalBookingSheet';
 import { LabReportPrint } from './LabReportPrint';
 import { VoiceDictationButton } from './VoiceDictationButton';
 import { parseSpokenAmount } from '../hooks/useVoiceDictation';
@@ -79,6 +81,8 @@ const [printTest, setPrintTest] = useState<LabTest | null>(null);
 const [activeAdmission, setActiveAdmission] = useState<Admission | null>(null);
 const [showDrugChart, setShowDrugChart] = useState(false);
 const [showVitalSigns, setShowVitalSigns] = useState(false);
+const [showAntenatalBooking, setShowAntenatalBooking] = useState(false);
+const [showAntenatalFollowup, setShowAntenatalFollowup] = useState(false);
 const [continueRecord, setContinueRecord] = useState<MedicalRecord | null>(null);
 const [continueRxItems, setContinueRxItems] = useState<{ drugId: string, drugName: string, drugPrice: number, route: 'Oral' | 'Injection' | 'Topical' | 'IV' | 'Other', morning: number, afternoon: number, night: number, durationDays: number, instructions: string }[]>([]);
 const [continueDrugSearch, setContinueDrugSearch] = useState('');
@@ -859,6 +863,22 @@ className="w-full flex items-center justify-center gap-2 py-3 bg-amber-500 text-
 >
 Admit Patient
 </button>
+)}
+{patient.category === 'antenatal' && (
+<>
+<button
+onClick={() => setShowAntenatalBooking(true)}
+className="w-full flex items-center justify-center gap-2 py-3 bg-pink-50 text-pink-700 rounded-xl font-bold hover:bg-pink-100 transition-all border border-pink-100"
+>
+Antenatal Booking
+</button>
+<button
+onClick={() => setShowAntenatalFollowup(true)}
+className="w-full flex items-center justify-center gap-2 py-3 bg-pink-50 text-pink-700 rounded-xl font-bold hover:bg-pink-100 transition-all border border-pink-100"
+>
+Antenatal Follow-up
+</button>
+</>
 )}
 </div>
 <div className="mt-6 pt-6 border-t border-slate-100 space-y-2">
@@ -1828,6 +1848,12 @@ className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-e
 )}
 {showVitalSigns && patient && activeAdmission && (
 <VitalSignsSheet patient={patient} admission={activeAdmission} userId={userId} onClose={() => setShowVitalSigns(false)} />
+)}
+{showAntenatalBooking && patient && (
+<AntenatalBookingSheet patient={patient} userId={userId} onClose={() => setShowAntenatalBooking(false)} />
+)}
+{showAntenatalFollowup && patient && (
+<AntenatalFollowupSheet patient={patient} userId={userId} onClose={() => setShowAntenatalFollowup(false)} />
 )}
 {/* Continue Consultation Modal */}
 <AnimatePresence>
