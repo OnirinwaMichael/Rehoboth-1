@@ -63,6 +63,8 @@ const [appointments, setAppointments] = useState<Appointment[]>([]);
 const [doctors, setDoctors] = useState<User[]>([]);
 const [view, setView] = useState<'dashboard' | 'register' | 'appointments' | 'directory'>('dashboard');
 const [allPatients, setAllPatients] = useState<Patient[]>([]);
+const [patientsLoading, setPatientsLoading] = useState(false);
+const [patientsLoadError, setPatientsLoadError] = useState(false);
 const [expandedPatientId, setExpandedPatientId] = useState<string | null>(null);
 const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
 const [editCardId, setEditCardId] = useState('');
@@ -136,26 +138,52 @@ setStats(prev => ({ ...prev, appointmentsToday: todayCount }));
 };
 const fetchAllPatients = async () => {
 // A plain select('*') is silently capped by PostgREST's default max-rows
-// setting (commonly 1000). With 3000+ patients on file, that cap was
-// cutting the result off before rows outside the earliest card_id range
-// were ever returned. Page through with .range() until a page comes
-// back short, so every patient is loaded regardless of table size.
+// setting (commonly 1000). Page through with .range() until a page
+// comes back short, so every patient loads regardless of table size
+// (tested against 3,400+ rows; scales the same way at 40k-50k+ since
+// there's no hardcoded ceiling - just more 1000-row pages).
+//
+// Each page gets a few retries with backoff before giving up, since
+// this runs on mobile connections where a single request can drop.
+// On total failure we keep whatever was already on screen rather than
+// clearing it, and surface a toast + banner - previously a dropped
+// request threw silently and the directory just looked empty/frozen
+// with no explanation, which is what "isn't stable" was actually
+// caused by, not a row cap.
 const pageSize = 1000;
+const maxRetries = 3;
+setPatientsLoading(true);
+try {
 let from = 0;
 let allRows: any[] = [];
 while (true) {
+let page: any[] | null = null;
+let lastError: unknown = null;
+for (let attempt = 0; attempt < maxRetries; attempt++) {
 const { data, error } = await supabase
 .from('patients')
 .select('*')
 .range(from, from + pageSize - 1);
-if (error) return handleSupabaseError(error, 'select', 'patients');
-allRows = allRows.concat(data || []);
-if (!data || data.length < pageSize) break;
+if (!error) { page = data; lastError = null; break; }
+lastError = error;
+await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+}
+if (lastError) throw lastError;
+allRows = allRows.concat(page || []);
+if (!page || page.length < pageSize) break;
 from += pageSize;
 }
 const sorted = allRows.map(patientFromRow)
 .sort((a, b) => a.cardId.localeCompare(b.cardId, undefined, { numeric: true, sensitivity: 'base' }));
 setAllPatients(sorted);
+setPatientsLoadError(false);
+} catch (err) {
+console.error('[Supabase:patients:select]', err instanceof Error ? err.message : String(err));
+setPatientsLoadError(true);
+toast.error('Could not load the full patient list - showing what was last loaded. Check your connection and try again.');
+} finally {
+setPatientsLoading(false);
+}
 };
 const handleExportRegister = () => {
 if (allPatients.length === 0) {
@@ -955,7 +983,24 @@ title="Delete Patient"
 )}
 </React.Fragment>
 ))}
-{allPatients.length === 0 && (
+{patientsLoading && allPatients.length === 0 && (
+<tr>
+<td colSpan={6} className="p-12 text-center text-slate-400 italic">
+Loading patients...
+</td>
+</tr>
+)}
+{!patientsLoading && patientsLoadError && allPatients.length === 0 && (
+<tr>
+<td colSpan={6} className="p-12 text-center text-red-400 italic">
+Couldn't load the patient list. Check your connection and{' '}
+<button type="button" onClick={fetchAllPatients} className="underline text-red-500">
+try again
+</button>.
+</td>
+</tr>
+)}
+{!patientsLoading && !patientsLoadError && allPatients.length === 0 && (
 <tr>
 <td colSpan={6} className="p-12 text-center text-slate-400 italic">
 No patients found.

@@ -5,6 +5,7 @@ import { Search, User, Phone, CreditCard, ChevronRight, History, Activity, X } f
 import { cn } from '../lib/utils';
 import { PatientHistory } from './PatientHistory';
 import { motion, AnimatePresence } from 'motion/react';
+import { toast } from 'sonner';
 const patientFromRow = (r: any): Patient => ({
 cardId: r.card_id, name: r.name, gender: r.gender,
 stateOfOrigin: r.state_of_origin, age: r.age, occupation: r.occupation,
@@ -28,19 +29,35 @@ return () => { supabase.removeChannel(channel); };
 }, []);
 const fetchRecent = async () => {
 // See ReceptionistPortal.fetchAllPatients — same PostgREST default
-// row-cap issue, fixed the same way with paged .range() reads.
+// row-cap issue, fixed the same way with paged .range() reads, plus
+// per-page retries so a dropped mobile connection doesn't silently
+// wipe the list (it previously threw mid-loop with no user feedback).
 const pageSize = 1000;
+const maxRetries = 3;
 let from = 0;
 let allRows: any[] = [];
+try {
 while (true) {
+let page: any[] | null = null;
+let lastError: unknown = null;
+for (let attempt = 0; attempt < maxRetries; attempt++) {
 const { data, error } = await supabase
 .from('patients')
 .select('*')
 .range(from, from + pageSize - 1);
-if (error) return handleSupabaseError(error, 'select', 'patients');
-allRows = allRows.concat(data || []);
-if (!data || data.length < pageSize) break;
+if (!error) { page = data; lastError = null; break; }
+lastError = error;
+await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+}
+if (lastError) throw lastError;
+allRows = allRows.concat(page || []);
+if (!page || page.length < pageSize) break;
 from += pageSize;
+}
+} catch (err) {
+console.error('[Supabase:patients:select]', err instanceof Error ? err.message : String(err));
+toast.error('Could not load the full patient list - showing what was last loaded.');
+return;
 }
 const sorted = allRows.map(patientFromRow)
 .sort((a, b) => a.cardId.localeCompare(b.cardId, undefined, { numeric: true, sensitivity: 'base' }));
