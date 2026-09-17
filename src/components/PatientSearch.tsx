@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase, handleSupabaseError } from '../lib/supabase';
+import { supabase, handleSupabaseError, fetchAllRows } from '../lib/supabase';
 import { Patient } from '../types';
 import { Search, User, Phone, CreditCard, ChevronRight, History, Activity, X } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -28,34 +28,9 @@ const channel = supabase
 return () => { supabase.removeChannel(channel); };
 }, []);
 const fetchRecent = async () => {
-// See ReceptionistPortal.fetchAllPatients — same PostgREST default
-// row-cap issue, fixed the same way with paged .range() reads, plus
-// per-page retries so a dropped mobile connection doesn't silently
-// wipe the list (it previously threw mid-loop with no user feedback).
-const pageSize = 1000;
-const maxRetries = 3;
-let from = 0;
-let allRows: any[] = [];
-try {
-while (true) {
-let page: any[] | null = null;
-let lastError: unknown = null;
-for (let attempt = 0; attempt < maxRetries; attempt++) {
-const { data, error } = await supabase
-.from('patients')
-.select('*')
-.range(from, from + pageSize - 1);
-if (!error) { page = data; lastError = null; break; }
-lastError = error;
-await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
-}
-if (lastError) throw lastError;
-allRows = allRows.concat(page || []);
-if (!page || page.length < pageSize) break;
-from += pageSize;
-}
-} catch (err) {
-console.error('[Supabase:patients:select]', err instanceof Error ? err.message : String(err));
+const { data: allRows, error } = await fetchAllRows<any>('patients');
+if (error) {
+console.error('[Supabase:patients:select]', error instanceof Error ? error.message : String(error));
 toast.error('Could not load the full patient list - showing what was last loaded.');
 return;
 }

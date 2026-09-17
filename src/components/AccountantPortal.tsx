@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, memo } from 'react';
-import { supabase, handleSupabaseError } from '../lib/supabase';
+import { supabase, handleSupabaseError, fetchAllRows } from '../lib/supabase';
 import { FinancialRecord, Patient, MedicalRecord, Visit, Expense, BillingItem } from '../types';
 import { toast } from 'sonner';
 import { Receipt, Search, Plus, DollarSign, CreditCard, Banknote, User, CheckCircle, Clock, History, FileText, Save, X, LayoutDashboard, Wallet, ArrowUpRight, Trash2, User as UserIcon, FileSpreadsheet, TrendingDown, TrendingUp } from 'lucide-react';
@@ -155,22 +155,24 @@ const channel = supabase
 return () => { supabase.removeChannel(channel); };
 }, []);
 const fetchFinancials = async () => {
-const { data, error } = await supabase
-.from('financials')
-.select('*, patients(*)')
-.order('created_at', { ascending: false });
+const { data: rows, error } = await fetchAllRows<any>('financials', q =>
+q.select('*, patients(*)').order('created_at', { ascending: false })
+);
 if (error) {
 handleSupabaseError(error, 'select', 'financials');
 setLoading(false);
 return;
 }
-const recordsWithPatients = (data || []).map((row: any) => ({
+const recordsWithPatients = rows.map((row: any) => ({
 ...financialFromRow(row),
 patient: row.patients ? patientFromRow(row.patients) : undefined,
 }));
 setRecords(recordsWithPatients);
-const { data: expensesData } = await supabase.from('expenses').select('*').order('created_at', { ascending: false });
-const mappedExpenses = (expensesData || []).map(expenseFromRow);
+const { data: expensesRows, error: expensesError } = await fetchAllRows<any>('expenses', q =>
+q.select('*').order('created_at', { ascending: false })
+);
+if (expensesError) handleSupabaseError(expensesError, 'select', 'expenses');
+const mappedExpenses = expensesRows.map(expenseFromRow);
 const today = new Date().toISOString().split('T')[0];
 const totalRev = recordsWithPatients.reduce((acc, r) => acc + r.paidAmount, 0);
 const todayRev = recordsWithPatients.filter(r => r.createdAt.startsWith(today)).reduce((acc, r) => acc + r.paidAmount, 0);
@@ -185,14 +187,16 @@ netProfit: totalRev - totalExp,
 setLoading(false);
 };
 const fetchExpenses = async () => {
-const { data, error } = await supabase.from('expenses').select('*').order('created_at', { ascending: false });
+const { data: rows, error } = await fetchAllRows<any>('expenses', q =>
+q.select('*').order('created_at', { ascending: false })
+);
 if (error) return handleSupabaseError(error, 'select', 'expenses');
-setExpenses((data || []).map(expenseFromRow));
+setExpenses(rows.map(expenseFromRow));
 };
 const fetchAllPatients = async () => {
-const { data, error } = await supabase.from('patients').select('*');
-if (error) return handleSupabaseError(error, 'select', 'patients');
-const sorted = (data || []).map(patientFromRow)
+const { data: rows, error } = await fetchAllRows<any>('patients');
+if (error) { handleSupabaseError(error, 'select', 'patients'); return; }
+const sorted = rows.map(patientFromRow)
 .sort((a, b) => a.cardId.localeCompare(b.cardId, undefined, { numeric: true, sensitivity: 'base' }));
 setAllPatients(sorted);
 };

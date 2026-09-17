@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, memo } from 'react';
-import { supabase, handleSupabaseError } from '../lib/supabase';
+import { supabase, handleSupabaseError, fetchAllRows } from '../lib/supabase';
 import { Patient, Appointment, User } from '../types';
 import { toast } from 'sonner';
 import { UserPlus, Search, CreditCard, User as UserIcon, Phone, MapPin, Calendar, Briefcase, Heart, LayoutDashboard, Users as UsersIcon, History, X, Clock, Plus, Edit, Trash2, CheckCircle, AlertCircle } from 'lucide-react';
@@ -137,53 +137,20 @@ const todayCount = mapped.filter(a => a.date === today && a.status === 'schedule
 setStats(prev => ({ ...prev, appointmentsToday: todayCount }));
 };
 const fetchAllPatients = async () => {
-// A plain select('*') is silently capped by PostgREST's default max-rows
-// setting (commonly 1000). Page through with .range() until a page
-// comes back short, so every patient loads regardless of table size
-// (tested against 3,400+ rows; scales the same way at 40k-50k+ since
-// there's no hardcoded ceiling - just more 1000-row pages).
-//
-// Each page gets a few retries with backoff before giving up, since
-// this runs on mobile connections where a single request can drop.
-// On total failure we keep whatever was already on screen rather than
-// clearing it, and surface a toast + banner - previously a dropped
-// request threw silently and the directory just looked empty/frozen
-// with no explanation, which is what "isn't stable" was actually
-// caused by, not a row cap.
-const pageSize = 1000;
-const maxRetries = 3;
 setPatientsLoading(true);
-try {
-let from = 0;
-let allRows: any[] = [];
-while (true) {
-let page: any[] | null = null;
-let lastError: unknown = null;
-for (let attempt = 0; attempt < maxRetries; attempt++) {
-const { data, error } = await supabase
-.from('patients')
-.select('*')
-.range(from, from + pageSize - 1);
-if (!error) { page = data; lastError = null; break; }
-lastError = error;
-await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
-}
-if (lastError) throw lastError;
-allRows = allRows.concat(page || []);
-if (!page || page.length < pageSize) break;
-from += pageSize;
+const { data: allRows, error } = await fetchAllRows<any>('patients');
+if (error) {
+console.error('[Supabase:patients:select]', error instanceof Error ? error.message : String(error));
+setPatientsLoadError(true);
+toast.error('Could not load the full patient list - showing what was last loaded. Check your connection and try again.');
+setPatientsLoading(false);
+return;
 }
 const sorted = allRows.map(patientFromRow)
 .sort((a, b) => a.cardId.localeCompare(b.cardId, undefined, { numeric: true, sensitivity: 'base' }));
 setAllPatients(sorted);
 setPatientsLoadError(false);
-} catch (err) {
-console.error('[Supabase:patients:select]', err instanceof Error ? err.message : String(err));
-setPatientsLoadError(true);
-toast.error('Could not load the full patient list - showing what was last loaded. Check your connection and try again.');
-} finally {
 setPatientsLoading(false);
-}
 };
 const handleExportRegister = () => {
 if (allPatients.length === 0) {
