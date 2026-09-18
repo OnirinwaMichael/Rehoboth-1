@@ -83,6 +83,20 @@ const [appointmentToDelete, setAppointmentToDelete] = useState<string | null>(nu
 const [entryMode, setEntryMode] = useState<'auto' | 'manual'>('auto');
 const [manualCardId, setManualCardId] = useState('');
 const [directoryFilter, setDirectoryFilter] = useState<'all' | 'fresh' | 'old'>('all');
+const [directoryPage, setDirectoryPage] = useState(1);
+const DIRECTORY_PAGE_SIZE = 50;
+useEffect(() => { setDirectoryPage(1); }, [searchQuery, directoryFilter]);
+const filteredDirectoryPatients = useMemo(() => {
+const q = searchQuery.toLowerCase();
+return allPatients
+.filter(p => p.name.toLowerCase().includes(q) || p.cardId.includes(searchQuery))
+.filter(p => directoryFilter === 'all' || p.registrationType === directoryFilter);
+}, [allPatients, searchQuery, directoryFilter]);
+const directoryPageCount = Math.max(1, Math.ceil(filteredDirectoryPatients.length / DIRECTORY_PAGE_SIZE));
+const pagedDirectoryPatients = useMemo(() => {
+const start = (directoryPage - 1) * DIRECTORY_PAGE_SIZE;
+return filteredDirectoryPatients.slice(start, start + DIRECTORY_PAGE_SIZE);
+}, [filteredDirectoryPatients, directoryPage]);
 const [exporting, setExporting] = useState(false);
 const initialFormData = {
 name: '',
@@ -857,9 +871,7 @@ directoryFilter === key ? "bg-blue-600 text-white" : "bg-white text-slate-500 bo
 </tr>
 </thead>
 <tbody className="divide-y divide-slate-50">
-{allPatients
-.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.cardId.includes(searchQuery))
-.filter(p => directoryFilter === 'all' || p.registrationType === directoryFilter)
+{pagedDirectoryPatients
 .map((p) => (
 <React.Fragment key={p.cardId}>
 <tr className="hover:bg-slate-50/50 transition-colors">
@@ -974,9 +986,44 @@ No patients found.
 </td>
 </tr>
 )}
+{!patientsLoading && !patientsLoadError && allPatients.length > 0 && filteredDirectoryPatients.length === 0 && (
+<tr>
+<td colSpan={6} className="p-12 text-center text-slate-400 italic">
+No patients match your search.
+</td>
+</tr>
+)}
 </tbody>
 </table>
 </div>
+{filteredDirectoryPatients.length > 0 && (
+<div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 text-sm text-slate-500">
+<span>
+Showing {(directoryPage - 1) * DIRECTORY_PAGE_SIZE + 1}
+{'-'}
+{Math.min(directoryPage * DIRECTORY_PAGE_SIZE, filteredDirectoryPatients.length)} of {filteredDirectoryPatients.length}
+</span>
+<div className="flex items-center gap-2">
+<button
+type="button"
+onClick={() => setDirectoryPage(p => Math.max(1, p - 1))}
+disabled={directoryPage === 1}
+className="px-3 py-1.5 rounded-lg border border-slate-200 font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+>
+Prev
+</button>
+<span className="font-semibold text-slate-600">Page {directoryPage} of {directoryPageCount}</span>
+<button
+type="button"
+onClick={() => setDirectoryPage(p => Math.min(directoryPageCount, p + 1))}
+disabled={directoryPage === directoryPageCount}
+className="px-3 py-1.5 rounded-lg border border-slate-200 font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+>
+Next
+</button>
+</div>
+</div>
+)}
 </div>
 </div>
 )}
