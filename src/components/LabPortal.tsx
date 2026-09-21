@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo, memo } from 'react';
 import { supabase, handleSupabaseError } from '../lib/supabase';
-import { LabTest, Patient, LabTestCatalogItem } from '../types';
+import { LabTest, Patient, LabTestCatalogItem, LabResource } from '../types';
 import { toast } from 'sonner';
-import { FlaskConical, Search, CheckCircle, Clock, FileText, User, CreditCard, Save, X, LayoutDashboard, History, Beaker, CheckCircle2, Plus, Camera, Trash2 } from 'lucide-react';
+import { FlaskConical, Search, CheckCircle, Clock, FileText, User, CreditCard, Save, X, LayoutDashboard, History, Beaker, CheckCircle2, Plus, Camera, Trash2, Package } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { logAction } from '../lib/audit';
+import { useAuth } from '../lib/auth';
 import { PatientHistory } from './PatientHistory';
 import { useFormDraft } from '../hooks/useFormDraft';
 import { ConfirmModal } from './ConfirmModal';
@@ -98,12 +99,13 @@ title="Delete Lab Result"
 </tr>
 ));
 export const LabPortal: React.FC<Props> = ({ userId }) => {
+const { user } = useAuth();
 const [tests, setTests] = useState<(LabTest & { patient?: Patient })[]>([]);
 const [loading, setLoading] = useState(true);
 const [selectedTest, setSelectedTest] = useState<(LabTest & { patient?: Patient }) | null>(null);
 const [imageUrl, setImageUrl] = useState('');
 const [showImageUpload, setShowImageUpload] = useState(false);
-const [view, setView] = useState<'dashboard' | 'queue' | 'catalog' | 'manual'>('dashboard');
+const [view, setView] = useState<'dashboard' | 'queue' | 'catalog' | 'manual' | 'resources'>('dashboard');
 const { data: manualEntry, setData: setManualEntry, clearDraft: clearManualDraft } = useFormDraft('lab_manual_entry', {
 patientId: '',
 testType: '',
@@ -147,11 +149,13 @@ return () => clearTimeout(timeout);
 const [newCatalogTest, setNewCatalogTest] = useState({ name: '', price: '' });
 const [editingCatalogId, setEditingCatalogId] = useState<string | null>(null);
 const [editingPrice, setEditingPrice] = useState('');
+const [deletingCatalogTest, setDeletingCatalogTest] = useState<LabTestCatalogItem | null>(null);
 const fetchTestCatalog = async () => {
 const { data, error } = await supabase.from('lab_test_catalog').select('*').order('name', { ascending: true });
 if (error) return handleSupabaseError(error, 'select', 'lab_test_catalog');
 setTestCatalog((data || []).map((r: any) => ({
 id: r.id, name: r.name, price: r.price, category: r.category, createdAt: r.created_at, updatedAt: r.updated_at,
+linkedResourceId: r.linked_resource_id, resourceQtyPerTest: r.resource_qty_per_test ?? 1,
 })));
 };
 useEffect(() => { fetchTestCatalog(); }, []);
@@ -177,6 +181,92 @@ if (error) return handleSupabaseError(error, 'update', 'lab_test_catalog');
 toast.success('Price updated!');
 setEditingCatalogId(null);
 fetchTestCatalog();
+};
+const handleDeleteCatalogTest = async () => {
+if (!deletingCatalogTest) return;
+const { error } = await supabase.from('lab_test_catalog').delete().eq('id', deletingCatalogTest.id);
+if (error) return handleSupabaseError(error, 'delete', 'lab_test_catalog');
+await logAction(userId, 'DELETE_LAB_TEST_CATALOG', `Removed ${deletingCatalogTest.name} from test catalog`);
+toast.success('Test removed from catalog.');
+setDeletingCatalogTest(null);
+fetchTestCatalog();
+};
+const handleLinkCatalogResource = async (testId: string, resourceId: string, qty: number) => {
+const { error } = await supabase.from('lab_test_catalog').update({
+linked_resource_id: resourceId || null,
+resource_qty_per_test: qty || 1,
+}).eq('id', testId);
+if (error) return handleSupabaseError(error, 'update', 'lab_test_catalog');
+toast.success('Resource link updated!');
+fetchTestCatalog();
+};
+// --- Lab resources (consumables: strips, reagents, swabs, etc.) ---
+const [resources, setResources] = useState<LabResource[]>([]);
+const [resourceSearch, setResourceSearch] = useState('');
+const filteredResources = useMemo(() => {
+const q = resourceSearch.trim().toLowerCase();
+if (!q) return resources;
+return resources.filter(r => r.name.toLowerCase().includes(q) || (r.category || '').toLowerCase().includes(q));
+}, [resources, resourceSearch]);
+const [isAddingResource, setIsAddingResource] = useState(false);
+const [editingResource, setEditingResource] = useState<LabResource | null>(null);
+const [deletingResource, setDeletingResource] = useState<LabResource | null>(null);
+const [resourceForm, setResourceForm] = useState({ name: '', unit: 'strips', stock: '', lowStockThreshold: '10' });
+const fetchResources = async () => {
+const { data, error } = await supabase.from('lab_resources').select('*').order('name', { ascending: true });
+if (error) return handleSupabaseError(error, 'select', 'lab_resources');
+setResources((data || []).map((r: any) => ({
+id: r.id, name: r.name, unit: r.unit, stock: r.stock, lowStockThreshold: r.low_stock_threshold,
+category: r.category, createdAt: r.created_at, updatedAt: r.updated_at,
+})));
+};
+useEffect(() => { fetchResources(); }, []);
+useEffect(() => {
+const channel = supabase
+.channel('lab-portal-resources')
+.on('postgres_changes', { event: '*', schema: 'public', table: 'lab_resources' }, () => {
+fetchResources();
+})
+.subscribe();
+return () => { supabase.removeChannel(channel); };
+}, []);
+const handleSaveResource = async (e: React.FormEvent) => {
+e.preventDefault();
+if (!resourceForm.name.trim()) { toast.error('Enter a resource name.'); return; }
+const resourceData = {
+name: resourceForm.name.trim(),
+unit: resourceForm.unit.trim() || 'units',
+stock: parseInt(resourceForm.stock, 10) || 0,
+low_stock_threshold: parseInt(resourceForm.lowStockThreshold, 10) || 10,
+};
+try {
+if (editingResource) {
+const { error } = await supabase.from('lab_resources').update(resourceData).eq('id', editingResource.id);
+if (error) throw error;
+await logAction(userId, 'UPDATE_LAB_RESOURCE', `Updated lab resource: ${resourceData.name}`);
+toast.success('Resource updated!');
+} else {
+const { error } = await supabase.from('lab_resources').insert(resourceData);
+if (error) throw error;
+await logAction(userId, 'ADD_LAB_RESOURCE', `Added lab resource: ${resourceData.name}`);
+toast.success('Resource added!');
+}
+setResourceForm({ name: '', unit: 'strips', stock: '', lowStockThreshold: '10' });
+setIsAddingResource(false);
+setEditingResource(null);
+fetchResources();
+} catch (error) {
+handleSupabaseError(error, editingResource ? 'update' : 'insert', 'lab_resources');
+}
+};
+const handleDeleteResource = async () => {
+if (!deletingResource) return;
+const { error } = await supabase.from('lab_resources').delete().eq('id', deletingResource.id);
+if (error) return handleSupabaseError(error, 'delete', 'lab_resources');
+await logAction(userId, 'DELETE_LAB_RESOURCE', `Deleted lab resource: ${deletingResource.name}`);
+toast.success('Resource deleted.');
+setDeletingResource(null);
+fetchResources();
 };
 const updatePanelField = (section: keyof ComprehensivePanelResults, key: string, value: string) => {
 setPanelResults(prev => ({ ...prev, [section]: { ...(prev[section] as any || {}), [key]: value } }));
@@ -363,6 +453,15 @@ view === 'catalog' ? "bg-blue-600 text-white" : "bg-white text-slate-600 border 
 >
 <Beaker className="w-4 h-4" /> Test Catalog
 </button>
+<button
+onClick={() => setView('resources')}
+className={cn(
+"flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all",
+view === 'resources' ? "bg-blue-600 text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+)}
+>
+<Package className="w-4 h-4" /> Resources
+</button>
 <button 
 onClick={() => setView('manual')}
 className={cn(
@@ -482,7 +581,8 @@ className="w-32 p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-b
 </form>
 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 {filteredTestCatalog.map((test) => (
-<div key={test.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 flex items-center justify-between group hover:border-blue-200 transition-all">
+<div key={test.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 group hover:border-blue-200 transition-all">
+<div className="flex items-center justify-between gap-3 mb-3">
 <div className="flex items-center gap-3 min-w-0">
 <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-blue-600 shadow-sm shrink-0">
 <FlaskConical className="w-4 h-4" />
@@ -511,6 +611,39 @@ className="text-xs font-bold text-blue-600 hover:underline mt-0.5"
 )}
 </div>
 </div>
+{(user?.role === 'CMD' || user?.role === 'Lab') && (
+<button
+onClick={() => setDeletingCatalogTest(test)}
+className="p-2 text-slate-300 hover:text-red-600 transition-colors shrink-0 opacity-0 group-hover:opacity-100"
+title="Remove test from catalog"
+>
+<Trash2 className="w-4 h-4" />
+</button>
+)}
+</div>
+<div className="flex items-center gap-2 pt-3 border-t border-slate-100">
+<Package className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+<select
+value={test.linkedResourceId || ''}
+onChange={e => handleLinkCatalogResource(test.id, e.target.value, test.resourceQtyPerTest)}
+className="flex-1 min-w-0 text-xs p-1.5 rounded-lg border border-slate-200 outline-none bg-white text-slate-600"
+>
+<option value="">No resource used</option>
+{resources.map(r => (
+<option key={r.id} value={r.id}>{r.name}</option>
+))}
+</select>
+{test.linkedResourceId && (
+<input
+type="number"
+min="1"
+value={test.resourceQtyPerTest}
+onChange={e => handleLinkCatalogResource(test.id, test.linkedResourceId!, parseInt(e.target.value, 10) || 1)}
+className="w-14 text-xs p-1.5 rounded-lg border border-slate-200 outline-none text-center"
+title="Units consumed per test"
+/>
+)}
+</div>
 </div>
 ))}
 </div>
@@ -519,6 +652,168 @@ className="text-xs font-bold text-blue-600 hover:underline mt-0.5"
 {testCatalog.length === 0 ? 'No tests in the catalog yet.' : 'No tests match your search.'}
 </p>
 )}
+</div>
+) : view === 'resources' ? (
+<div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
+<div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+<div>
+<h3 className="text-xl font-bold text-slate-900">Lab Resources</h3>
+<p className="text-slate-500 text-sm">Consumables like test strips and reagents — stock auto-deducts when a linked test is resulted.</p>
+</div>
+<div className="flex items-center gap-3">
+<div className="relative w-64">
+<Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+<input
+type="text"
+placeholder="Search resources..."
+value={resourceSearch}
+onChange={(e) => setResourceSearch(e.target.value)}
+className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+/>
+</div>
+<button
+onClick={() => {
+setEditingResource(null);
+setResourceForm({ name: '', unit: 'strips', stock: '', lowStockThreshold: '10' });
+setIsAddingResource(true);
+}}
+className="bg-blue-600 text-white px-5 py-2 rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center gap-2 whitespace-nowrap"
+>
+<Plus className="w-4 h-4" /> Add Resource
+</button>
+</div>
+</div>
+<div className="overflow-x-auto">
+<table className="w-full text-left text-sm">
+<thead>
+<tr className="border-b border-slate-100 text-slate-400 uppercase text-xs tracking-wider">
+<th className="px-4 py-3">Resource</th>
+<th className="px-4 py-3">Category</th>
+<th className="px-4 py-3">Stock</th>
+<th className="px-4 py-3">Unit</th>
+<th className="px-4 py-3">Actions</th>
+</tr>
+</thead>
+<tbody>
+{filteredResources.map((item) => (
+<tr key={item.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+<td className="px-4 py-4 font-medium text-slate-700">{item.name}</td>
+<td className="px-4 py-4 text-slate-500">{item.category || '—'}</td>
+<td className={cn("px-4 py-4 font-bold", item.stock < item.lowStockThreshold ? "text-red-500" : "text-slate-700")}>
+{item.stock}
+{item.stock < item.lowStockThreshold && (
+<span className="ml-2 text-xs font-bold bg-red-50 text-red-500 px-2 py-0.5 rounded-full">Low</span>
+)}
+</td>
+<td className="px-4 py-4 text-slate-500">{item.unit}</td>
+<td className="px-4 py-4">
+<div className="flex gap-2">
+<button
+onClick={() => {
+setEditingResource(item);
+setResourceForm({
+name: item.name,
+unit: item.unit,
+stock: item.stock.toString(),
+lowStockThreshold: item.lowStockThreshold.toString(),
+});
+setIsAddingResource(true);
+}}
+className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+>
+<Save className="w-4 h-4" />
+</button>
+<button
+onClick={() => setDeletingResource(item)}
+className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+>
+<Trash2 className="w-4 h-4" />
+</button>
+</div>
+</td>
+</tr>
+))}
+{filteredResources.length === 0 && (
+<tr>
+<td colSpan={5} className="p-12 text-center text-slate-400 italic">
+{resources.length === 0 ? 'No lab resources yet.' : 'No resources match your search.'}
+</td>
+</tr>
+)}
+</tbody>
+</table>
+</div>
+{isAddingResource && (
+<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+<div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+<div className="p-6 border-b border-slate-100 bg-slate-900 text-white flex items-center justify-between">
+<h3 className="text-lg font-bold flex items-center gap-2">
+<Package className="w-5 h-5 text-blue-400" /> {editingResource ? 'Edit Resource' : 'Add Resource'}
+</h3>
+<button onClick={() => { setIsAddingResource(false); setEditingResource(null); }} className="p-1 hover:bg-white/10 rounded-lg">
+<X className="w-5 h-5" />
+</button>
+</div>
+<form onSubmit={handleSaveResource} className="p-6 space-y-4">
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Name</label>
+<input
+required
+value={resourceForm.name}
+onChange={e => setResourceForm({ ...resourceForm, name: e.target.value })}
+className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold"
+placeholder="e.g. Malaria RDT Strips"
+/>
+</div>
+<div className="grid grid-cols-2 gap-4">
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Unit</label>
+<input
+value={resourceForm.unit}
+onChange={e => setResourceForm({ ...resourceForm, unit: e.target.value })}
+className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold"
+placeholder="strips, vials, swabs..."
+/>
+</div>
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Stock</label>
+<input
+type="number"
+required
+min="0"
+value={resourceForm.stock}
+onChange={e => setResourceForm({ ...resourceForm, stock: e.target.value })}
+className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold"
+placeholder="0"
+/>
+</div>
+</div>
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Low Stock Alert Threshold</label>
+<input
+type="number"
+min="0"
+value={resourceForm.lowStockThreshold}
+onChange={e => setResourceForm({ ...resourceForm, lowStockThreshold: e.target.value })}
+className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold"
+placeholder="10"
+/>
+</div>
+<button type="submit" className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all">
+{editingResource ? 'Update Resource' : 'Save Resource'}
+</button>
+</form>
+</div>
+</div>
+)}
+<ConfirmModal
+isOpen={!!deletingResource}
+title="Delete Resource"
+message={`Delete "${deletingResource?.name}" from lab resources? Any test currently linked to it will stop deducting stock automatically.`}
+confirmText="Delete"
+onConfirm={handleDeleteResource}
+onCancel={() => setDeletingResource(null)}
+/>
 </div>
 ) : view === 'manual' ? (
 <div className="max-w-2xl mx-auto">
@@ -1018,6 +1313,14 @@ setDeleteConfirmId(null);
 }
 }}
 onCancel={() => setDeleteConfirmId(null)}
+/>
+<ConfirmModal
+isOpen={!!deletingCatalogTest}
+title="Remove Test From Catalog"
+message={`Remove "${deletingCatalogTest?.name}" from the test catalog? It will no longer appear as an option when ordering new lab tests, but existing lab records referencing it are unaffected.`}
+confirmText="Remove"
+onConfirm={handleDeleteCatalogTest}
+onCancel={() => setDeletingCatalogTest(null)}
 />
 {printTest && (
 <LabReportPrint test={printTest} onClose={() => setPrintTest(null)} />

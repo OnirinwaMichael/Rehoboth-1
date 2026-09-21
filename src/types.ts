@@ -73,6 +73,18 @@ price: number;
 category?: string;
 createdAt: string;
 updatedAt: string;
+linkedResourceId?: string | null;
+resourceQtyPerTest: number;
+}
+export interface LabResource {
+id: string;
+name: string;
+unit: string;
+stock: number;
+lowStockThreshold: number;
+category?: string;
+createdAt: string;
+updatedAt: string;
 }
 export interface Admission {
 id: string;
