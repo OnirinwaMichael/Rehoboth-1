@@ -121,6 +121,12 @@ const [panelResults, setPanelResults] = useState<ComprehensivePanelResults>(empt
 const [activeReportType, setActiveReportType] = useState<'legacy' | 'basic' | 'comprehensive'>('legacy');
 const [printTest, setPrintTest] = useState<(LabTest & { patient?: Patient }) | null>(null);
 const [testCatalog, setTestCatalog] = useState<LabTestCatalogItem[]>([]);
+const [catalogSearch, setCatalogSearch] = useState('');
+const filteredTestCatalog = useMemo(() => {
+const q = catalogSearch.trim().toLowerCase();
+if (!q) return testCatalog;
+return testCatalog.filter(test => test.name.toLowerCase().includes(q));
+}, [testCatalog, catalogSearch]);
 const [manualPatientSuggestions, setManualPatientSuggestions] = useState<Patient[]>([]);
 useEffect(() => {
 if (!manualEntry.patientId.trim() || manualEntry.patientId.trim().length < 2) {
@@ -435,13 +441,25 @@ test.result ? "bg-green-100 text-green-600" : "bg-orange-100 text-orange-600"
 </div>
 ) : view === 'catalog' ? (
 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
-<div className="flex items-center justify-between mb-8">
+<div className="flex items-center justify-between mb-8 flex-wrap gap-4">
 <div>
 <h3 className="text-xl font-bold text-slate-900">Lab Test Catalog</h3>
 <p className="text-slate-500 text-sm">Set prices here — Doctor/Nurse recommendations auto-fill from this list.</p>
 </div>
-<div className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl font-bold text-sm">
+<div className="flex items-center gap-3">
+<div className="relative w-64">
+<Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+<input
+type="text"
+placeholder="Search tests..."
+value={catalogSearch}
+onChange={(e) => setCatalogSearch(e.target.value)}
+className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+/>
+</div>
+<div className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl font-bold text-sm whitespace-nowrap">
 {testCatalog.length} Tests
+</div>
 </div>
 </div>
 <form onSubmit={handleAddCatalogTest} className="flex gap-3 mb-6 p-4 bg-slate-50 rounded-xl border border-slate-100">
@@ -463,7 +481,7 @@ className="w-32 p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-b
 </button>
 </form>
 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-{testCatalog.map((test) => (
+{filteredTestCatalog.map((test) => (
 <div key={test.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 flex items-center justify-between group hover:border-blue-200 transition-all">
 <div className="flex items-center gap-3 min-w-0">
 <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-blue-600 shadow-sm shrink-0">
@@ -496,6 +514,11 @@ className="text-xs font-bold text-blue-600 hover:underline mt-0.5"
 </div>
 ))}
 </div>
+{filteredTestCatalog.length === 0 && (
+<p className="text-center text-slate-400 py-10">
+{testCatalog.length === 0 ? 'No tests in the catalog yet.' : 'No tests match your search.'}
+</p>
+)}
 </div>
 ) : view === 'manual' ? (
 <div className="max-w-2xl mx-auto">

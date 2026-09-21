@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase, handleSupabaseError } from '../lib/supabase';
 import { InventoryItem, MedicalRecord, Patient, Prescription } from '../types';
 import { toast } from 'sonner';
@@ -33,6 +33,14 @@ userId: string;
 }
 export const PharmacyPortal: React.FC<Props> = ({ userId }) => {
 const [inventory, setInventory] = useState<InventoryItem[]>([]);
+const [inventorySearch, setInventorySearch] = useState('');
+const filteredInventory = useMemo(() => {
+const q = inventorySearch.trim().toLowerCase();
+if (!q) return inventory;
+return inventory.filter(item =>
+item.name.toLowerCase().includes(q) || (item.category || '').toLowerCase().includes(q)
+);
+}, [inventory, inventorySearch]);
 const [prescriptions, setPrescriptions] = useState<(MedicalRecord & { patient?: Patient })[]>([]);
 const [structuredRx, setStructuredRx] = useState<(Prescription & { patient?: Patient })[]>([]);
 const [loading, setLoading] = useState(true);
@@ -319,10 +327,21 @@ Rx
 </div>
 ) : view === 'inventory' ? (
 <div className="space-y-6">
-<div className="flex items-center justify-between">
+<div className="flex items-center justify-between flex-wrap gap-4">
 <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
 <Package className="w-6 h-6 text-blue-600" /> Drug Inventory
 </h3>
+<div className="flex items-center gap-3">
+<div className="relative w-64">
+<Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+<input
+type="text"
+placeholder="Search drugs..."
+value={inventorySearch}
+onChange={(e) => setInventorySearch(e.target.value)}
+className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+/>
+</div>
 <button
 onClick={() => {
 setEditingDrug(null);
@@ -333,6 +352,7 @@ className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-7
 >
 <Plus className="w-4 h-4" /> Add Drug
 </button>
+</div>
 </div>
 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
 <div className="overflow-x-auto">
@@ -347,7 +367,7 @@ className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-7
 </tr>
 </thead>
 <tbody className="divide-y divide-slate-50">
-{inventory.map((item) => (
+{filteredInventory.map((item) => (
 <tr key={item.id} className="hover:bg-slate-50 transition-colors">
 <td className="px-6 py-4 font-bold text-slate-900">{item.name}</td>
 <td className="px-6 py-4">
@@ -389,6 +409,13 @@ className="p-2 text-slate-400 hover:text-red-500 transition-colors"
 </td>
 </tr>
 ))}
+{filteredInventory.length === 0 && (
+<tr>
+<td colSpan={5} className="p-12 text-center text-slate-400 italic">
+{inventory.length === 0 ? 'No drugs in inventory.' : 'No drugs match your search.'}
+</td>
+</tr>
+)}
 </tbody>
 </table>
 </div>
