@@ -54,7 +54,8 @@ pendingPrescriptions: 0
 });
 const [drugForm, setDrugForm] = useState({
 name: '',
-price: ''
+price: '',
+stock: ''
 });
 useEffect(() => {
 fetchInventory();
@@ -178,7 +179,7 @@ try {
 const drugData = {
 name: drugForm.name,
 price: parseFloat(drugForm.price),
-stock: editingDrug ? undefined : 50, // preserve existing stock on edit
+stock: parseInt(drugForm.stock, 10) || 0,
 category: 'General',
 last_updated: new Date().toISOString(),
 };
@@ -193,7 +194,7 @@ if (error) throw error;
 await logAction(userId, 'ADD_INVENTORY', `Added new drug: ${drugData.name}`);
 toast.success('Drug added successfully!');
 }
-setDrugForm({ name: '', price: '' });
+setDrugForm({ name: '', price: '', stock: '' });
 setIsAddingDrug(false);
 setEditingDrug(null);
 } catch (error) {
@@ -345,7 +346,7 @@ className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2
 <button
 onClick={() => {
 setEditingDrug(null);
-setDrugForm({ name: '', price: '' });
+setDrugForm({ name: '', price: '', stock: '50' });
 setIsAddingDrug(true);
 }}
 className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center gap-2"
@@ -391,7 +392,8 @@ onClick={() => {
 setEditingDrug(item);
 setDrugForm({
 name: item.name,
-price: item.price.toString()
+price: item.price.toString(),
+stock: (item.stock || 0).toString()
 });
 setIsAddingDrug(true);
 }}
@@ -576,6 +578,18 @@ value={drugForm.price}
 onChange={e => setDrugForm({ ...drugForm, price: e.target.value })}
 className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold"
 placeholder="0.00"
+/>
+</div>
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Stock (units in hand)</label>
+<input
+type="number"
+required
+min="0"
+value={drugForm.stock}
+onChange={e => setDrugForm({ ...drugForm, stock: e.target.value })}
+className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold"
+placeholder="0"
 />
 </div>
 <button
