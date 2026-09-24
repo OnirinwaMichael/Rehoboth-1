@@ -225,6 +225,69 @@ const { count, error } = await supabase
 if (error) return handleSupabaseError(error, 'select', 'financials');
 setStats(prev => ({ ...prev, pendingBills: count || 0 }));
 };
+// Real trend data for the dashboard sparklines — derived from data
+// already fetched (allPatients/appointments), no extra round trips.
+const last7DaysRegistrations = useMemo(() => {
+const days: { label: string; count: number }[] = [];
+for (let i = 6; i >= 0; i--) {
+const d = new Date();
+d.setDate(d.getDate() - i);
+const key = format(d, 'yyyy-MM-dd');
+days.push({ label: format(d, 'EEE'), count: allPatients.filter(p => p.createdAt.startsWith(key)).length });
+}
+return days;
+}, [allPatients]);
+const registrationsTrendPct = useMemo(() => {
+let thisWeek = 0, prevWeek = 0;
+for (let i = 0; i <= 13; i++) {
+const d = new Date();
+d.setDate(d.getDate() - i);
+const key = format(d, 'yyyy-MM-dd');
+const count = allPatients.filter(p => p.createdAt.startsWith(key)).length;
+if (i <= 6) thisWeek += count; else prevWeek += count;
+}
+if (prevWeek === 0) return thisWeek > 0 ? 100 : 0;
+return Math.round(((thisWeek - prevWeek) / prevWeek) * 100);
+}, [allPatients]);
+const last7DaysAppointments = useMemo(() => {
+const days: { label: string; count: number }[] = [];
+for (let i = 6; i >= 0; i--) {
+const d = new Date();
+d.setDate(d.getDate() - i);
+const key = format(d, 'yyyy-MM-dd');
+days.push({ label: format(d, 'EEE'), count: appointments.filter(a => a.date === key && a.status === 'scheduled').length });
+}
+return days;
+}, [appointments]);
+const appointmentsTrendPct = useMemo(() => {
+const today = last7DaysAppointments[6]?.count ?? 0;
+const yesterday = last7DaysAppointments[5]?.count ?? 0;
+if (yesterday === 0) return today > 0 ? 100 : 0;
+return Math.round(((today - yesterday) / yesterday) * 100);
+}, [last7DaysAppointments]);
+const patientsByCategory = useMemo(() => {
+const counts: Record<string, number> = {};
+allPatients.forEach(p => { counts[p.category] = (counts[p.category] || 0) + 1; });
+const colors: Record<string, string> = {
+'single card': '#0d9488', 'family card': '#7c3aed', 'antenatal': '#f97316', "children's card": '#0ea5e9',
+};
+const labels: Record<string, string> = {
+'single card': 'Single Card', 'family card': 'Family Card', 'antenatal': 'Antenatal', "children's card": "Children's Card",
+};
+const total = allPatients.length || 1;
+const circumference = 2 * Math.PI * 70;
+let cumulative = 0;
+return Object.entries(counts)
+.map(([key, count]) => ({ key, label: labels[key] || key, count, color: colors[key] || '#64748b', pct: Math.round((count / total) * 100) }))
+.sort((a, b) => b.count - a.count)
+.map(seg => {
+const length = (seg.count / total) * circumference;
+const dasharray = `${length} ${circumference - length}`;
+const dashoffset = -cumulative;
+cumulative += length;
+return { ...seg, dasharray, dashoffset };
+});
+}, [allPatients]);
 const fetchAppointments = async () => {
 const { data, error } = await supabase
 .from('appointments')
@@ -476,17 +539,36 @@ view === 'appointments' ? 'Book and manage patient appointments.' :
 </div>
 {view === 'dashboard' && (
 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
-<div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600">
-<UsersIcon className="w-8 h-8" />
+<div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+<div className="flex items-center justify-between mb-4">
+<div className="flex items-center gap-2">
+<span className="w-8 h-8 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center">
+<UsersIcon className="w-4 h-4" />
+</span>
+<p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Patients</p>
 </div>
-<div>
-<p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Total Patients</p>
+</div>
+<div className="flex items-end justify-between gap-4">
 <h4 className="text-3xl font-black text-slate-900">{stats.total}</h4>
+<div className="flex items-end gap-0.5 h-8">
+{last7DaysRegistrations.map((d, i) => {
+const max = Math.max(...last7DaysRegistrations.map(x => x.count), 1);
+return (
+<div key={i} className={cn("w-1.5 rounded-sm", i === 6 ? "bg-teal-500" : "bg-slate-200")}
+style={{ height: `${Math.max((d.count / max) * 100, 8)}%` }} title={`${d.label}: ${d.count}`} />
+);
+})}
+</div>
+</div>
+<div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50 text-xs">
+<span className="text-slate-400">vs last week</span>
+<span className={cn("flex items-center gap-1 font-bold px-1.5 py-0.5 rounded-full", registrationsTrendPct >= 0 ? "text-teal-600 bg-teal-50" : "text-red-500 bg-red-50")}>
+{registrationsTrendPct >= 0 ? '↑' : '↓'} {Math.abs(registrationsTrendPct)}%
+</span>
 </div>
 </div>
 <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
-<div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center text-green-600">
+<div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center text-emerald-600">
 <UserPlus className="w-8 h-8" />
 </div>
 <div>
@@ -494,13 +576,32 @@ view === 'appointments' ? 'Book and manage patient appointments.' :
 <h4 className="text-3xl font-black text-slate-900">{stats.today}</h4>
 </div>
 </div>
-<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
-<div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center text-purple-600">
-<Calendar className="w-8 h-8" />
+<div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+<div className="flex items-center justify-between mb-4">
+<div className="flex items-center gap-2">
+<span className="w-8 h-8 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center">
+<Calendar className="w-4 h-4" />
+</span>
+<p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Today's Appts</p>
 </div>
-<div>
-<p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Today's Appts</p>
+</div>
+<div className="flex items-end justify-between gap-4">
 <h4 className="text-3xl font-black text-slate-900">{stats.appointmentsToday}</h4>
+<div className="flex items-end gap-0.5 h-8">
+{last7DaysAppointments.map((d, i) => {
+const max = Math.max(...last7DaysAppointments.map(x => x.count), 1);
+return (
+<div key={i} className={cn("w-1.5 rounded-sm", i === 6 ? "bg-violet-500" : "bg-slate-200")}
+style={{ height: `${Math.max((d.count / max) * 100, 8)}%` }} title={`${d.label}: ${d.count}`} />
+);
+})}
+</div>
+</div>
+<div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50 text-xs">
+<span className="text-slate-400">vs yesterday</span>
+<span className={cn("flex items-center gap-1 font-bold px-1.5 py-0.5 rounded-full", appointmentsTrendPct >= 0 ? "text-violet-600 bg-violet-50" : "text-red-500 bg-red-50")}>
+{appointmentsTrendPct >= 0 ? '↑' : '↓'} {Math.abs(appointmentsTrendPct)}%
+</span>
 </div>
 </div>
 <button
@@ -560,11 +661,11 @@ className="p-5 rounded-xl border border-slate-100 bg-orange-50/50 hover:bg-orang
 </button>
 </div>
 </div>
-<div className="lg:col-span-4 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+<div className="lg:col-span-3 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
 <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
 <History className="w-5 h-5 text-slate-400" /> Recent Activity
 </h3>
-<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 {patients.map((p, idx) => (
 <button 
 key={idx} 
@@ -585,6 +686,45 @@ className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 text-left hover
 </button>
 ))}
 </div>
+</div>
+<div className="lg:col-span-1 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+<h3 className="font-bold text-slate-900 mb-6">Patients by Category</h3>
+{allPatients.length === 0 ? (
+<p className="text-sm text-slate-400 text-center py-8">No patients yet.</p>
+) : (
+<>
+<div className="relative w-44 h-44 mx-auto mb-6">
+<svg viewBox="0 0 200 200" className="w-full h-full -rotate-90">
+{patientsByCategory.map(seg => (
+<circle
+key={seg.key}
+cx="100" cy="100" r="70"
+fill="none"
+stroke={seg.color}
+strokeWidth="24"
+strokeDasharray={seg.dasharray}
+strokeDashoffset={seg.dashoffset}
+/>
+))}
+</svg>
+<div className="absolute inset-0 flex flex-col items-center justify-center">
+<span className="text-2xl font-black text-slate-900">{allPatients.length}</span>
+<span className="text-[10px] text-slate-400 uppercase tracking-wider">Total</span>
+</div>
+</div>
+<div className="space-y-2">
+{patientsByCategory.map(seg => (
+<div key={seg.key} className="flex items-center justify-between text-xs">
+<div className="flex items-center gap-2 min-w-0">
+<span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
+<span className="text-slate-600 truncate capitalize">{seg.label}</span>
+</div>
+<span className="font-bold text-slate-900 shrink-0">{seg.pct}%</span>
+</div>
+))}
+</div>
+</>
+)}
 </div>
 </div>
 )}

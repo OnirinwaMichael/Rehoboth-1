@@ -33,24 +33,24 @@ if (user.mustChangePassword) {
 return <ForcePasswordChange onDone={() => window.location.reload()} />;
 }
 const menuItems = [
-{ icon: LayoutDashboard, label: 'Overview', role: ['CMD', 'Doctor', 'Nurse', 'Lab', 'Pharmacy'] },
-{ icon: Search, label: 'Patient Search', role: ['CMD', 'Doctor', 'Nurse', 'Lab', 'Pharmacy'] },
-{ icon: Activity, label: 'Clinical Board', role: ['CMD', 'Doctor', 'Nurse', 'Lab', 'Pharmacy'] },
-{ icon: LayoutDashboard, label: 'Dashboard', role: ['CMD', 'Receptionist'] },
-{ icon: UserPlus, label: 'Patient Registration', role: ['CMD', 'Receptionist'] },
-{ icon: Calendar, label: 'Appointment', role: ['CMD', 'Receptionist'] },
-{ icon: Users, label: 'Patient Directory', role: ['CMD', 'Receptionist'] },
-{ icon: UserSearch, label: 'Patients', role: ['CMD', 'Receptionist'] },
-{ icon: Wallet, label: 'Finance', role: ['CMD', 'Receptionist'] },
-{ icon: CheckCircle, label: 'Reconciliation', role: ['CMD', 'Receptionist'] },
-{ icon: TrendingDown, label: 'Expenses', role: ['CMD', 'Receptionist'] },
-{ icon: FileSpreadsheet, label: 'Reports', role: ['CMD', 'Receptionist'] },
-{ icon: ClipboardList, label: 'Doctor Portal', role: ['CMD', 'Doctor'] },
-{ icon: Activity, label: 'Nurse Portal', role: ['CMD', 'Nurse'] },
-{ icon: FlaskConical, label: 'Laboratory', role: ['CMD', 'Lab'] },
-{ icon: Pill, label: 'Pharmacy', role: ['CMD', 'Pharmacy'] },
-{ icon: ShieldCheck, label: 'Staff Management', role: ['CMD'] },
-{ icon: History, label: 'Audit Logs', role: ['CMD'] },
+{ icon: LayoutDashboard, label: 'Overview', role: ['CMD', 'Doctor', 'Nurse', 'Lab', 'Pharmacy'], color: 'text-slate-300 bg-slate-700' },
+{ icon: Search, label: 'Patient Search', role: ['CMD', 'Doctor', 'Nurse', 'Lab', 'Pharmacy'], color: 'text-blue-400 bg-blue-500/10' },
+{ icon: Activity, label: 'Clinical Board', role: ['CMD', 'Doctor', 'Nurse', 'Lab', 'Pharmacy'], color: 'text-purple-400 bg-purple-500/10' },
+{ icon: LayoutDashboard, label: 'Dashboard', role: ['CMD', 'Receptionist'], color: 'text-blue-400 bg-blue-500/10', group: 'Overview' },
+{ icon: UserPlus, label: 'Patient Registration', role: ['CMD', 'Receptionist'], color: 'text-emerald-400 bg-emerald-500/10', group: 'Patients' },
+{ icon: Calendar, label: 'Appointment', role: ['CMD', 'Receptionist'], color: 'text-violet-400 bg-violet-500/10', group: 'Patients' },
+{ icon: Users, label: 'Patient Directory', role: ['CMD', 'Receptionist'], color: 'text-cyan-400 bg-cyan-500/10', group: 'Patients' },
+{ icon: UserSearch, label: 'Patients', role: ['CMD', 'Receptionist'], color: 'text-indigo-400 bg-indigo-500/10', group: 'Patients' },
+{ icon: Wallet, label: 'Finance', role: ['CMD', 'Receptionist'], color: 'text-orange-400 bg-orange-500/10', group: 'Finance' },
+{ icon: CheckCircle, label: 'Reconciliation', role: ['CMD', 'Receptionist'], color: 'text-teal-400 bg-teal-500/10', group: 'Finance' },
+{ icon: TrendingDown, label: 'Expenses', role: ['CMD', 'Receptionist'], color: 'text-rose-400 bg-rose-500/10', group: 'Finance' },
+{ icon: FileSpreadsheet, label: 'Reports', role: ['CMD', 'Receptionist'], color: 'text-pink-400 bg-pink-500/10', group: 'Finance' },
+{ icon: ClipboardList, label: 'Doctor Portal', role: ['CMD', 'Doctor'], color: 'text-blue-400 bg-blue-500/10' },
+{ icon: Activity, label: 'Nurse Portal', role: ['CMD', 'Nurse'], color: 'text-rose-400 bg-rose-500/10' },
+{ icon: FlaskConical, label: 'Laboratory', role: ['CMD', 'Lab'], color: 'text-amber-400 bg-amber-500/10' },
+{ icon: Pill, label: 'Pharmacy', role: ['CMD', 'Pharmacy'], color: 'text-emerald-400 bg-emerald-500/10' },
+{ icon: ShieldCheck, label: 'Staff Management', role: ['CMD'], color: 'text-slate-300 bg-slate-700' },
+{ icon: History, label: 'Audit Logs', role: ['CMD'], color: 'text-slate-300 bg-slate-700' },
 ];
 return (
 <div className="min-h-screen bg-slate-50 flex relative">
@@ -63,25 +63,36 @@ isSidebarOpen ? "w-64" : "w-20"
 <Activity className="w-8 h-8 text-blue-400 shrink-0" />
 {isSidebarOpen && <span className="font-bold text-lg truncate">Rehoboth Clinic</span>}
 </div>
-<nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-{menuItems.filter(item => item.role.includes(user.role)).map((item, idx) => (
+<nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+{(() => {
+const items = menuItems.filter(item => item.role.includes(user.role));
+let lastGroup: string | undefined = undefined;
+return items.map((item, idx) => {
+const showGroupLabel = isSidebarOpen && item.group && item.group !== lastGroup;
+lastGroup = item.group;
+return (
+<React.Fragment key={idx}>
+{showGroupLabel && (
+<p className="px-3 pt-4 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider">{item.group}</p>
+)}
 <button
-key={idx}
 onClick={() => setCurrentView(item.label)}
 className={cn(
-"w-full flex items-center gap-4 p-3 rounded-xl transition-all group",
+"w-full flex items-center gap-3 p-2.5 rounded-xl transition-all group",
 currentView === item.label
-? "bg-blue-600 text-white shadow-lg shadow-blue-900/20"
-: "text-slate-400 hover:bg-slate-800 hover:text-white"
+? "bg-slate-800 text-white"
+: "text-slate-400 hover:bg-slate-800/60 hover:text-white"
 )}
 >
-<item.icon className={cn(
-"w-6 h-6 shrink-0 transition-colors",
-currentView === item.label ? "text-white" : "group-hover:text-blue-400"
-)} />
-{isSidebarOpen && <span className="font-medium">{item.label}</span>}
+<span className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-colors", item.color)}>
+<item.icon className="w-4 h-4" />
+</span>
+{isSidebarOpen && <span className="font-medium text-sm truncate">{item.label}</span>}
 </button>
-))}
+</React.Fragment>
+);
+});
+})()}
 </nav>
 <div className="p-4 border-t border-slate-800 space-y-2">
 <button
