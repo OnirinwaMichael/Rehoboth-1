@@ -24,6 +24,7 @@ nokPhone: string;
 category: 'single card' | 'family card' | 'antenatal' | "children's card";
 createdAt: string;
 registrationType: 'fresh' | 'old';
+antenatalStatus?: 'new' | 'returning' | null;
 }
 export interface Vitals {
 bloodPressure?: string;
@@ -243,6 +244,14 @@ reconciled?: boolean;
 reconciledAt?: string;
 reconciledBy?: string;
 createdAt: string;
+referenceType?: string | null;
+}
+export interface RegistrationFeeSettings {
+singleCardPrice: number;
+familyCardPrice: number;
+antenatalNewPrice: number;
+antenatalReturningPrice: number;
+updatedAt: string;
 }
 export interface InventoryItem {
 id: string;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
-import { LogOut, LayoutDashboard, Users, ClipboardList, FlaskConical, Receipt, Pill, ShieldCheck, Activity, Search, Menu, Settings, History, Calendar } from 'lucide-react';
+import { LogOut, LayoutDashboard, Users, ClipboardList, FlaskConical, Pill, ShieldCheck, Activity, Search, Menu, Settings, History, Calendar, UserPlus, UserSearch, Wallet, CheckCircle, TrendingDown, FileSpreadsheet } from 'lucide-react';
 import { cn } from './lib/utils';
 import { format } from 'date-fns';
 import { AuthProvider, useAuth } from './lib/auth';
@@ -10,7 +10,7 @@ import { ForcePasswordChange } from './components/ForcePasswordChange';
 import { ReceptionistPortal } from './components/ReceptionistPortal';
 import { DoctorNursePortal } from './components/DoctorNursePortal';
 import { LabPortal } from './components/LabPortal';
-import { AccountantPortal } from './components/AccountantPortal';
+import { FinancePortal } from './components/FinancePortal';
 import { PharmacyPortal } from './components/PharmacyPortal';
 import { CMDPortal } from './components/CMDPortal';
 import { ProfileSettings } from './components/ProfileSettings';
@@ -33,15 +33,22 @@ if (user.mustChangePassword) {
 return <ForcePasswordChange onDone={() => window.location.reload()} />;
 }
 const menuItems = [
-{ icon: LayoutDashboard, label: 'Overview', role: ['CMD', 'Doctor', 'Nurse', 'Lab', 'Accountant', 'Receptionist', 'Pharmacy'] },
-{ icon: Search, label: 'Patient Search', role: ['CMD', 'Doctor', 'Nurse', 'Lab', 'Accountant', 'Receptionist', 'Pharmacy'] },
-{ icon: Activity, label: 'Clinical Board', role: ['CMD', 'Doctor', 'Nurse', 'Lab', 'Accountant', 'Receptionist', 'Pharmacy'] },
-{ icon: Users, label: 'Receptionist Portal', role: ['CMD', 'Receptionist'] },
+{ icon: LayoutDashboard, label: 'Overview', role: ['CMD', 'Doctor', 'Nurse', 'Lab', 'Pharmacy'] },
+{ icon: Search, label: 'Patient Search', role: ['CMD', 'Doctor', 'Nurse', 'Lab', 'Pharmacy'] },
+{ icon: Activity, label: 'Clinical Board', role: ['CMD', 'Doctor', 'Nurse', 'Lab', 'Pharmacy'] },
+{ icon: LayoutDashboard, label: 'Dashboard', role: ['CMD', 'Receptionist'] },
+{ icon: UserPlus, label: 'Patient Registration', role: ['CMD', 'Receptionist'] },
+{ icon: Calendar, label: 'Appointment', role: ['CMD', 'Receptionist'] },
+{ icon: Users, label: 'Patient Directory', role: ['CMD', 'Receptionist'] },
+{ icon: UserSearch, label: 'Patients', role: ['CMD', 'Receptionist'] },
+{ icon: Wallet, label: 'Finance', role: ['CMD', 'Receptionist'] },
+{ icon: CheckCircle, label: 'Reconciliation', role: ['CMD', 'Receptionist'] },
+{ icon: TrendingDown, label: 'Expenses', role: ['CMD', 'Receptionist'] },
+{ icon: FileSpreadsheet, label: 'Reports', role: ['CMD', 'Receptionist'] },
 { icon: ClipboardList, label: 'Doctor Portal', role: ['CMD', 'Doctor'] },
 { icon: Activity, label: 'Nurse Portal', role: ['CMD', 'Nurse'] },
 { icon: FlaskConical, label: 'Laboratory', role: ['CMD', 'Lab'] },
 { icon: Pill, label: 'Pharmacy', role: ['CMD', 'Pharmacy'] },
-{ icon: Receipt, label: 'Accounts', role: ['CMD', 'Accountant'] },
 { icon: ShieldCheck, label: 'Staff Management', role: ['CMD'] },
 { icon: History, label: 'Audit Logs', role: ['CMD'] },
 ];
@@ -120,7 +127,7 @@ user.name.charAt(0)
 </div>
 </header>
 <div className="flex-1 overflow-y-auto p-8">
-{React.cloneElement(children as React.ReactElement, { currentView })}
+{React.cloneElement(children as React.ReactElement, { currentView, onNavigate: setCurrentView })}
 </div>
 </main>
 {/* Profile Modal */}
@@ -143,27 +150,42 @@ onClose={() => setIsProfileOpen(false)}
 );
 };
 // --- Role Specific Views ---
-const MainDashboard = ({ currentView }: { currentView?: string }) => {
+const MainDashboard = ({ currentView, onNavigate }: { currentView?: string; onNavigate?: (view: string) => void }) => {
 const { user } = useAuth();
 if (!user) return null;
+// Labels shown in the sidebar for Receptionist (and CMD viewing the
+// same items) all route through one ReceptionistPortal instance,
+// which owns the section switch internally - this keeps its fetches
+// and realtime subscriptions from remounting on every nav click.
+const receptionistSectionMap: Record<string, string> = {
+'Dashboard': 'dashboard',
+'Patient Registration': 'register',
+'Appointment': 'appointments',
+'Patient Directory': 'directory',
+'Patients': 'patients',
+'Finance': 'finance',
+'Reconciliation': 'reconciliation',
+'Expenses': 'expenses',
+'Reports': 'reports',
+};
 const renderContent = () => {
 if (currentView === 'Clinical Board') return <ClinicalBoard />;
 if (currentView === 'Patient Search') return <PatientSearch />;
 if (currentView === 'Staff Management' && user.role === 'CMD') return <CMDPortal />;
-if (currentView === 'Receptionist Portal') return <ReceptionistPortal userId={user.id} />;
+if (currentView && receptionistSectionMap[currentView]) {
+return <ReceptionistPortal userId={user.id} section={receptionistSectionMap[currentView] as any} onNavigate={onNavigate} />;
+}
 if (currentView === 'Doctor Portal') return <DoctorNursePortal role="Doctor" userId={user.id} />;
 if (currentView === 'Nurse Portal') return <DoctorNursePortal role="Nurse" userId={user.id} />;
 if (currentView === 'Laboratory') return <LabPortal userId={user.id} />;
 if (currentView === 'Pharmacy') return <PharmacyPortal userId={user.id} />;
-if (currentView === 'Accounts') return <AccountantPortal userId={user.id} />;
 if (currentView === 'Audit Logs' && user.role === 'CMD') return <CMDPortal showLogsOnly={true} />;
 switch (user.role) {
 case 'CMD': return <CMDPortal />;
-case 'Receptionist': return <ReceptionistPortal userId={user.id} />;
+case 'Receptionist': return <ReceptionistPortal userId={user.id} section="dashboard" onNavigate={onNavigate} />;
 case 'Doctor':
 case 'Nurse': return <DoctorNursePortal role={user.role} userId={user.id} />;
 case 'Lab': return <LabPortal userId={user.id} />;
-case 'Accountant': return <AccountantPortal userId={user.id} />;
 case 'Pharmacy': return <PharmacyPortal userId={user.id} />;
 default: return (
 <div className="text-center py-20">

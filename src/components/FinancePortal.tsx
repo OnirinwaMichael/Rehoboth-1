@@ -22,7 +22,7 @@ const financialFromRow = (r: any): FinancialRecord => ({
 id: r.id, patientId: r.patient_id, totalAmount: r.total_amount, paidAmount: r.paid_amount,
 pendingAmount: r.pending_amount, paymentStatus: r.payment_status, paymentMethod: r.payment_method,
 reconciled: r.reconciled, reconciledAt: r.reconciled_at, reconciledBy: r.reconciled_by,
-createdAt: r.created_at,
+createdAt: r.created_at, referenceType: r.reference_type,
 });
 const expenseFromRow = (r: any): Expense => ({
 id: r.id, description: r.description, amount: r.amount, category: r.category,
@@ -35,6 +35,7 @@ paidSoFar: r.paid_so_far, balance: r.balance,
 });
 interface Props {
 userId: string;
+section: 'patients' | 'finance' | 'reconciliation' | 'expenses' | 'reports';
 }
 const TransactionRow = memo(({ record, onPrint, onDelete }: { 
 record: FinancialRecord & { patient?: Patient }, 
@@ -48,7 +49,12 @@ onDelete: (id: string) => void
 {record.patient?.name.charAt(0)}
 </div>
 <div>
-<p className="text-sm font-bold text-slate-900">{record.patient?.name}</p>
+<p className="text-sm font-bold text-slate-900 flex items-center gap-2">
+{record.patient?.name}
+{record.referenceType === 'registration' && (
+<span className="text-[9px] font-bold bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full uppercase">Registration</span>
+)}
+</p>
 <p className="text-[10px] text-slate-400">{record.patientId}</p>
 </div>
 </div>
@@ -115,13 +121,22 @@ className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
 </td>
 </tr>
 ));
-export const AccountantPortal: React.FC<Props> = ({ userId }) => {
+export const FinancePortal: React.FC<Props> = ({ userId, section }) => {
 const [records, setRecords] = useState<(FinancialRecord & { patient?: Patient })[]>([]);
 const [expenses, setExpenses] = useState<Expense[]>([]);
 const [loading, setLoading] = useState(true);
 const [searchId, setSearchId] = useState('');
 const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-const [view, setView] = useState<'dashboard' | 'billing' | 'reconciliation' | 'patients' | 'expenses' | 'reports'>('dashboard');
+const [view, setView] = useState<'dashboard' | 'billing' | 'reconciliation' | 'patients' | 'expenses' | 'reports'>(
+section === 'finance' ? 'dashboard' : section
+);
+// The outer sidebar drives which section is active. 'billing' is a
+// drill-in reached only by picking a patient from 'patients' - it has
+// no sidebar entry of its own, so it's excluded from this sync.
+useEffect(() => {
+setView(section === 'finance' ? 'dashboard' : section);
+setSelectedPatient(null);
+}, [section]);
 const [allPatients, setAllPatients] = useState<Patient[]>([]);
 const [expandedPatientId, setExpandedPatientId] = useState<string | null>(null);
 const [patientSearchQuery, setPatientSearchQuery] = useState('');
@@ -429,55 +444,26 @@ return (
 <div className="space-y-8 max-w-7xl mx-auto">
 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
 <div>
-<h2 className="text-3xl font-bold text-slate-900">Accountant Portal</h2>
-<p className="text-slate-500">Manage patient billing and payments.</p>
+<h2 className="text-3xl font-bold text-slate-900">
+{view === 'billing' && selectedPatient ? selectedPatient.name :
+section === 'finance' ? 'Finance' :
+section === 'patients' ? 'Patients' :
+section === 'reconciliation' ? 'Reconciliation' :
+section === 'expenses' ? 'Expenses' : 'Reports'}
+</h2>
+<p className="text-slate-500">
+{view === 'billing' && selectedPatient ? `Card ID: ${selectedPatient.cardId}` : 'Manage patient billing and payments.'}
+</p>
 </div>
 <div className="flex flex-wrap gap-2">
-<button 
-onClick={() => { setView('dashboard'); setSelectedPatient(null); }}
-className={cn(
-"flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all",
-view === 'dashboard' ? "bg-blue-600 text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-)}
->
-<LayoutDashboard className="w-4 h-4" /> Dashboard
-</button>
-<button 
-onClick={() => { setView('reconciliation'); setSelectedPatient(null); }}
-className={cn(
-"flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all",
-view === 'reconciliation' ? "bg-blue-600 text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-)}
->
-<CheckCircle className="w-4 h-4" /> Reconciliation
-</button>
-<button 
+{view === 'billing' && (
+<button
 onClick={() => { setView('patients'); setSelectedPatient(null); }}
-className={cn(
-"flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all",
-view === 'patients' ? "bg-blue-600 text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-)}
+className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition-all"
 >
-<UserIcon className="w-4 h-4" /> Patients
+← Back to Patients
 </button>
-<button 
-onClick={() => { setView('expenses'); setSelectedPatient(null); }}
-className={cn(
-"flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all",
-view === 'expenses' ? "bg-blue-600 text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
 )}
->
-<TrendingDown className="w-4 h-4" /> Expenses
-</button>
-<button 
-onClick={() => { setView('reports'); setSelectedPatient(null); }}
-className={cn(
-"flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all",
-view === 'reports' ? "bg-blue-600 text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-)}
->
-<FileSpreadsheet className="w-4 h-4" /> Reports
-</button>
 <form onSubmit={handleSearch} className="flex gap-2">
 <div className="relative">
 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />

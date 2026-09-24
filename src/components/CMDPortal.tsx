@@ -617,7 +617,6 @@ className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring
 <option value="Doctor">Doctor</option>
 <option value="Nurse">Nurse</option>
 <option value="Lab">Lab Technician</option>
-<option value="Accountant">Accountant</option>
 <option value="Receptionist">Receptionist</option>
 <option value="Pharmacy">Pharmacist</option>
 <option value="CMD">CMD (Admin)</option>

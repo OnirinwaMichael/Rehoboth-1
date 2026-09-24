@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, memo } from 'react';
 import { supabase, handleSupabaseError, fetchAllRows } from '../lib/supabase';
-import { Patient, Appointment, User } from '../types';
+import { Patient, Appointment, User, RegistrationFeeSettings } from '../types';
 import { toast } from 'sonner';
-import { UserPlus, Search, CreditCard, User as UserIcon, Phone, MapPin, Calendar, Briefcase, Heart, LayoutDashboard, Users as UsersIcon, History, X, Clock, Plus, Edit, Trash2, CheckCircle, AlertCircle } from 'lucide-react';
+import { UserPlus, Search, CreditCard, User as UserIcon, Phone, MapPin, Calendar, Briefcase, Heart, LayoutDashboard, Users as UsersIcon, History, X, Clock, Plus, Edit, Trash2, CheckCircle, AlertCircle, DollarSign, ArrowRight, Wallet } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 import { logAction } from '../lib/audit';
@@ -18,12 +18,14 @@ stateOfOrigin: r.state_of_origin, age: r.age, occupation: r.occupation,
 address: r.address, phone: r.phone, nextOfKin: r.next_of_kin,
 relationship: r.relationship, nokAddress: r.nok_address, nokPhone: r.nok_phone,
 category: r.category, createdAt: r.created_at, registrationType: r.registration_type || 'fresh',
+antenatalStatus: r.antenatal_status,
 });
 const patientToRow = (p: any) => ({
 name: p.name, gender: p.gender, state_of_origin: p.stateOfOrigin,
 age: p.age, occupation: p.occupation, address: p.address, phone: p.phone,
 next_of_kin: p.nextOfKin, relationship: p.relationship, nok_address: p.nokAddress,
 nok_phone: p.nokPhone, category: p.category,
+antenatal_status: p.category === 'antenatal' ? (p.antenatalStatus || 'new') : null,
 });
 const appointmentFromRow = (r: any): Appointment => ({
 id: r.id, patientId: r.patient_id, patientName: r.patient_name,
@@ -41,8 +43,11 @@ photoURL: r.photo_url, phone: r.phone,
 import { motion, AnimatePresence } from 'motion/react';
 import { PatientHistory } from './PatientHistory';
 import { ConfirmModal } from './ConfirmModal';
+import { FinancePortal } from './FinancePortal';
 interface Props {
 userId: string;
+section: 'dashboard' | 'register' | 'appointments' | 'directory' | 'patients' | 'finance' | 'reconciliation' | 'expenses' | 'reports';
+onNavigate?: (view: string) => void;
 }
 const PatientCard = memo(({ patient }: { patient: Patient }) => (
 <div className="p-4 rounded-xl border border-slate-50 bg-slate-50/50 hover:bg-slate-50 transition-colors">
@@ -56,12 +61,18 @@ const PatientCard = memo(({ patient }: { patient: Patient }) => (
 <p className="text-[10px] text-slate-400 mt-2">{format(new Date(patient.createdAt), 'MMM d, yyyy HH:mm')}</p>
 </div>
 ));
-export const ReceptionistPortal: React.FC<Props> = ({ userId }) => {
+export const ReceptionistPortal: React.FC<Props> = ({ userId, section, onNavigate }) => {
 const [loading, setLoading] = useState(false);
 const [patients, setPatients] = useState<Patient[]>([]);
 const [appointments, setAppointments] = useState<Appointment[]>([]);
 const [doctors, setDoctors] = useState<User[]>([]);
-const [view, setView] = useState<'dashboard' | 'register' | 'appointments' | 'directory'>('dashboard');
+const OWN_SECTIONS = ['dashboard', 'register', 'appointments', 'directory'] as const;
+const [view, setView] = useState<'dashboard' | 'register' | 'appointments' | 'directory'>(
+(OWN_SECTIONS as readonly string[]).includes(section) ? (section as any) : 'dashboard'
+);
+useEffect(() => {
+if ((OWN_SECTIONS as readonly string[]).includes(section)) setView(section as any);
+}, [section]);
 const [allPatients, setAllPatients] = useState<Patient[]>([]);
 const [patientsLoading, setPatientsLoading] = useState(false);
 const [patientsLoadError, setPatientsLoadError] = useState(false);
@@ -72,7 +83,8 @@ const [searchQuery, setSearchQuery] = useState('');
 const [stats, setStats] = useState({
 total: 0,
 today: 0,
-appointmentsToday: 0
+appointmentsToday: 0,
+pendingBills: 0
 });
 const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
 const [showHistory, setShowHistory] = useState(false);
@@ -98,6 +110,65 @@ const start = (directoryPage - 1) * DIRECTORY_PAGE_SIZE;
 return filteredDirectoryPatients.slice(start, start + DIRECTORY_PAGE_SIZE);
 }, [filteredDirectoryPatients, directoryPage]);
 const [exporting, setExporting] = useState(false);
+const [regFees, setRegFees] = useState<RegistrationFeeSettings | null>(null);
+const [showFeeEditor, setShowFeeEditor] = useState(false);
+const [feeEditorForm, setFeeEditorForm] = useState({ single: '', family: '', antenatalNew: '', antenatalReturning: '' });
+const [pendingRegPayment, setPendingRegPayment] = useState<{ cardId: string; name: string; amount: string; method: 'cash' | 'bank transfer' } | null>(null);
+const getRegistrationFee = (category: Patient['category'], antenatalStatus?: 'new' | 'returning'): number => {
+if (!regFees) return 0;
+if (category === 'single card') return regFees.singleCardPrice;
+if (category === 'family card') return regFees.familyCardPrice;
+if (category === 'antenatal') return antenatalStatus === 'returning' ? regFees.antenatalReturningPrice : regFees.antenatalNewPrice;
+return 0; // children's card has no set price yet
+};
+const fetchRegFees = async () => {
+const { data, error } = await supabase.from('registration_fee_settings').select('*').eq('id', 1).maybeSingle();
+if (error) return handleSupabaseError(error, 'select', 'registration_fee_settings');
+if (data) {
+setRegFees({
+singleCardPrice: data.single_card_price, familyCardPrice: data.family_card_price,
+antenatalNewPrice: data.antenatal_new_price, antenatalReturningPrice: data.antenatal_returning_price,
+updatedAt: data.updated_at,
+});
+}
+};
+const handleSaveFees = async (e: React.FormEvent) => {
+e.preventDefault();
+const { error } = await supabase.from('registration_fee_settings').update({
+single_card_price: parseFloat(feeEditorForm.single) || 0,
+family_card_price: parseFloat(feeEditorForm.family) || 0,
+antenatal_new_price: parseFloat(feeEditorForm.antenatalNew) || 0,
+antenatal_returning_price: parseFloat(feeEditorForm.antenatalReturning) || 0,
+updated_at: new Date().toISOString(),
+}).eq('id', 1);
+if (error) return handleSupabaseError(error, 'update', 'registration_fee_settings');
+await logAction(userId, 'UPDATE_REGISTRATION_FEES', 'Updated patient registration card prices');
+toast.success('Prices updated!');
+setShowFeeEditor(false);
+fetchRegFees();
+};
+const handleConfirmRegPayment = async () => {
+if (!pendingRegPayment) return;
+const amount = parseFloat(pendingRegPayment.amount);
+if (!amount || amount <= 0) { toast.error('Enter a valid amount.'); return; }
+try {
+const { error } = await supabase.from('financials').insert({
+patient_id: pendingRegPayment.cardId,
+total_amount: amount,
+paid_amount: amount,
+pending_amount: 0,
+payment_status: 'fully paid',
+payment_method: pendingRegPayment.method,
+reference_type: 'registration',
+});
+if (error) throw error;
+await logAction(userId, 'RECORD_ITEM_PAYMENT', `Recorded ₦${amount} registration payment for ${pendingRegPayment.name} (${pendingRegPayment.cardId})`);
+toast.success('Registration payment recorded!');
+setPendingRegPayment(null);
+} catch (error) {
+handleSupabaseError(error, 'insert', 'financials');
+}
+};
 const initialFormData = {
 name: '',
 gender: 'male' as 'male' | 'female',
@@ -111,7 +182,8 @@ nextOfKin: '',
 relationship: '',
 nokAddress: '',
 nokPhone: '',
-category: 'single card' as Patient['category']
+category: 'single card' as Patient['category'],
+antenatalStatus: 'new' as 'new' | 'returning'
 };
 const { data: formData, setData: setFormData, clearDraft: clearFormDraft } = useFormDraft('patient_registration', initialFormData);
 const { data: appointmentForm, setData: setAppointmentForm, clearDraft: clearAppointmentDraft } = useFormDraft('appointment_form', {
@@ -128,15 +200,31 @@ fetchRecentPatients();
 fetchAllPatients();
 fetchDoctors();
 fetchAppointments();
+fetchPendingBillsCount();
+fetchRegFees();
 // Realtime subscription (replaces onSnapshot)
 const channel = supabase
 .channel('appointments-changes')
 .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, () => {
 fetchAppointments();
 })
+.on('postgres_changes', { event: '*', schema: 'public', table: 'financials' }, () => {
+fetchPendingBillsCount();
+})
+.on('postgres_changes', { event: '*', schema: 'public', table: 'registration_fee_settings' }, () => {
+fetchRegFees();
+})
 .subscribe();
 return () => { supabase.removeChannel(channel); };
 }, []);
+const fetchPendingBillsCount = async () => {
+const { count, error } = await supabase
+.from('financials')
+.select('*', { count: 'exact', head: true })
+.neq('payment_status', 'fully paid');
+if (error) return handleSupabaseError(error, 'select', 'financials');
+setStats(prev => ({ ...prev, pendingBills: count || 0 }));
+};
 const fetchAppointments = async () => {
 const { data, error } = await supabase
 .from('appointments')
@@ -246,10 +334,17 @@ await supabase.rpc('bump_patient_card_id_seq', { p_card_id: cardId });
 await logAction(userId, 'REGISTER_PATIENT', `Registered ${registrationType === 'old' ? 'existing-file' : 'new'} patient ${formData.name} with Card ID ${cardId}`);
 toast.success('Patient registered successfully!');
 clearFormDraft();
-setEntryMode('auto');
 setManualCardId('');
 fetchRecentPatients();
+if (entryMode === 'auto') {
+// New file being opened right now - offer to record the card fee
+// immediately, pre-filled from the current price settings.
+const fee = getRegistrationFee(formData.category, formData.antenatalStatus);
+setPendingRegPayment({ cardId, name: formData.name, amount: fee ? String(fee) : '', method: 'cash' });
+} else {
 setView('dashboard');
+}
+setEntryMode('auto');
 } catch (error) {
 handleSupabaseError(error, 'insert', 'patients');
 } finally {
@@ -322,7 +417,7 @@ setEditCardId('');
 setFormData({
 name: '', gender: 'male', stateOfOrigin: '', age: '',
 occupation: '', address: '', phone: '', nextOfKin: '',
-relationship: '', nokAddress: '', nokPhone: '', category: 'single card'
+relationship: '', nokAddress: '', nokPhone: '', category: 'single card', antenatalStatus: 'new'
 });
 fetchRecentPatients();
 fetchAllPatients();
@@ -360,54 +455,27 @@ if (error) return handleSupabaseError(error, 'delete', 'appointments');
 toast.success('Appointment deleted');
 fetchAppointments();
 };
+if (section === 'patients' || section === 'finance' || section === 'reconciliation' || section === 'expenses' || section === 'reports') {
+return <FinancePortal userId={userId} section={section} />;
+}
 return (
 <div className="space-y-8 max-w-6xl mx-auto">
 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
 <div>
-<h2 className="text-3xl font-bold text-slate-900">Receptionist Portal</h2>
-<p className="text-slate-500">Register patients and manage appointments.</p>
-</div>
-<div className="flex flex-wrap gap-2">
-<button 
-onClick={() => setView('dashboard')}
-className={cn(
-"flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all text-sm",
-view === 'dashboard' ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-)}
->
-<LayoutDashboard className="w-4 h-4" /> Dashboard
-</button>
-<button 
-onClick={() => setView('register')}
-className={cn(
-"flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all text-sm",
-view === 'register' ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-)}
->
-<UserPlus className="w-4 h-4" /> Register Patient
-</button>
-<button 
-onClick={() => setView('appointments')}
-className={cn(
-"flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all text-sm",
-view === 'appointments' ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-)}
->
-<Calendar className="w-4 h-4" /> Appointments
-</button>
-<button 
-onClick={() => setView('directory')}
-className={cn(
-"flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all text-sm",
-view === 'directory' ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-)}
->
-<UsersIcon className="w-4 h-4" /> Patient Directory
-</button>
+<h2 className="text-3xl font-bold text-slate-900">
+{view === 'dashboard' ? 'Dashboard' : view === 'register' ? (editingPatient ? 'Edit Patient Record' : 'Patient Registration') :
+view === 'appointments' ? 'Appointment' : 'Patient Directory'}
+</h2>
+<p className="text-slate-500">
+{view === 'dashboard' ? 'Front desk overview for today.' :
+view === 'register' ? 'Register new patients and digitize old files.' :
+view === 'appointments' ? 'Book and manage patient appointments.' :
+'Search, view, and edit every patient on file.'}
+</p>
 </div>
 </div>
 {view === 'dashboard' && (
-<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
 <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600">
 <UsersIcon className="w-8 h-8" />
@@ -435,7 +503,64 @@ view === 'directory' ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "bg-
 <h4 className="text-3xl font-black text-slate-900">{stats.appointmentsToday}</h4>
 </div>
 </div>
-<div className="md:col-span-3 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+<button
+onClick={() => onNavigate?.('Finance')}
+className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6 text-left hover:border-orange-200 transition-all"
+>
+<div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-600">
+<DollarSign className="w-8 h-8" />
+</div>
+<div>
+<p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Pending Bills</p>
+<h4 className="text-3xl font-black text-slate-900">{stats.pendingBills}</h4>
+</div>
+</button>
+<div className="lg:col-span-4 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+<h3 className="font-bold text-slate-900 mb-6">Quick Actions</h3>
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+<button
+onClick={() => onNavigate?.('Patient Registration')}
+className="p-5 rounded-xl border border-slate-100 bg-blue-50/50 hover:bg-blue-50 transition-all text-left flex items-center justify-between group"
+>
+<div className="flex items-center gap-3">
+<UserPlus className="w-6 h-6 text-blue-600" />
+<span className="font-bold text-slate-900">Register Patient</span>
+</div>
+<ArrowRight className="w-4 h-4 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+</button>
+<button
+onClick={() => onNavigate?.('Appointment')}
+className="p-5 rounded-xl border border-slate-100 bg-green-50/50 hover:bg-green-50 transition-all text-left flex items-center justify-between group"
+>
+<div className="flex items-center gap-3">
+<Calendar className="w-6 h-6 text-green-600" />
+<span className="font-bold text-slate-900">Book Appointment</span>
+</div>
+<ArrowRight className="w-4 h-4 text-green-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+</button>
+<button
+onClick={() => onNavigate?.('Patient Directory')}
+className="p-5 rounded-xl border border-slate-100 bg-purple-50/50 hover:bg-purple-50 transition-all text-left flex items-center justify-between group"
+>
+<div className="flex items-center gap-3">
+<UsersIcon className="w-6 h-6 text-purple-600" />
+<span className="font-bold text-slate-900">Patient Directory</span>
+</div>
+<ArrowRight className="w-4 h-4 text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+</button>
+<button
+onClick={() => onNavigate?.('Finance')}
+className="p-5 rounded-xl border border-slate-100 bg-orange-50/50 hover:bg-orange-50 transition-all text-left flex items-center justify-between group"
+>
+<div className="flex items-center gap-3">
+<Wallet className="w-6 h-6 text-orange-600" />
+<span className="font-bold text-slate-900">Finance</span>
+</div>
+<ArrowRight className="w-4 h-4 text-orange-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+</button>
+</div>
+</div>
+<div className="lg:col-span-4 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
 <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
 <History className="w-5 h-5 text-slate-400" /> Recent Activity
 </h3>
@@ -555,6 +680,52 @@ className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring
 <option value="antenatal">Antenatal</option>
 <option value="children's card">Children's Card</option>
 </select>
+{!editingPatient && entryMode === 'auto' && formData.category === 'antenatal' && (
+<div className="flex gap-2 pt-1">
+<button
+type="button"
+onClick={() => setFormData({ ...formData, antenatalStatus: 'new' })}
+className={cn(
+"flex-1 py-2 rounded-lg border text-xs font-bold transition-all",
+formData.antenatalStatus === 'new' ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-500"
+)}
+>
+New Registration
+</button>
+<button
+type="button"
+onClick={() => setFormData({ ...formData, antenatalStatus: 'returning' })}
+className={cn(
+"flex-1 py-2 rounded-lg border text-xs font-bold transition-all",
+formData.antenatalStatus === 'returning' ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-500"
+)}
+>
+Returning Patient
+</button>
+</div>
+)}
+{!editingPatient && entryMode === 'auto' && (
+<p className="text-xs text-slate-400 pt-1">
+Registration fee: <span className="font-bold text-slate-600">₦{getRegistrationFee(formData.category, formData.antenatalStatus).toLocaleString()}</span>
+{formData.category === "children's card" && ' (no price set)'}
+{' · '}
+<button
+type="button"
+onClick={() => {
+if (regFees) {
+setFeeEditorForm({
+single: String(regFees.singleCardPrice), family: String(regFees.familyCardPrice),
+antenatalNew: String(regFees.antenatalNewPrice), antenatalReturning: String(regFees.antenatalReturningPrice),
+});
+}
+setShowFeeEditor(true);
+}}
+className="text-blue-600 hover:underline font-bold"
+>
+Edit prices
+</button>
+</p>
+)}
 </div>
 <div className="space-y-2">
 <label className="text-sm font-semibold text-slate-700">Gender</label>
@@ -665,7 +836,7 @@ setEditCardId('');
 setFormData({
 name: '', gender: 'male', stateOfOrigin: '', age: '',
 occupation: '', address: '', phone: '', nextOfKin: '',
-relationship: '', nokAddress: '', nokPhone: '', category: 'single card'
+relationship: '', nokAddress: '', nokPhone: '', category: 'single card', antenatalStatus: 'new'
 });
 setView('directory');
 }}
@@ -918,7 +1089,8 @@ setEditCardId(p.cardId);
 setFormData({
 name: p.name, gender: p.gender, stateOfOrigin: p.stateOfOrigin, age: p.age,
 occupation: p.occupation, address: p.address, phone: p.phone, nextOfKin: p.nextOfKin,
-relationship: p.relationship, nokAddress: p.nokAddress, nokPhone: p.nokPhone, category: p.category
+relationship: p.relationship, nokAddress: p.nokAddress, nokPhone: p.nokPhone, category: p.category,
+antenatalStatus: p.antenatalStatus || 'new'
 });
 setView('register');
 }}
@@ -1229,6 +1401,116 @@ setAppointmentToDelete(null);
 }}
 onCancel={() => setAppointmentToDelete(null)}
 />
+{/* Registration Fee Editor */}
+{showFeeEditor && (
+<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+<div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+<div className="p-6 border-b border-slate-100 bg-slate-900 text-white flex items-center justify-between">
+<h3 className="text-lg font-bold flex items-center gap-2">
+<CreditCard className="w-5 h-5 text-blue-400" /> Registration Card Prices
+</h3>
+<button onClick={() => setShowFeeEditor(false)} className="p-1 hover:bg-white/10 rounded-lg">
+<X className="w-5 h-5" />
+</button>
+</div>
+<form onSubmit={handleSaveFees} className="p-6 space-y-4">
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Single Card (₦)</label>
+<input type="number" required min="0" value={feeEditorForm.single}
+onChange={e => setFeeEditorForm({ ...feeEditorForm, single: e.target.value })}
+className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold" />
+</div>
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Family Card (₦)</label>
+<input type="number" required min="0" value={feeEditorForm.family}
+onChange={e => setFeeEditorForm({ ...feeEditorForm, family: e.target.value })}
+className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold" />
+</div>
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Antenatal — New Registration (₦)</label>
+<input type="number" required min="0" value={feeEditorForm.antenatalNew}
+onChange={e => setFeeEditorForm({ ...feeEditorForm, antenatalNew: e.target.value })}
+className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold" />
+</div>
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Antenatal — Returning Patient (₦)</label>
+<input type="number" required min="0" value={feeEditorForm.antenatalReturning}
+onChange={e => setFeeEditorForm({ ...feeEditorForm, antenatalReturning: e.target.value })}
+className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold" />
+</div>
+<button type="submit" className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all">
+Save Prices
+</button>
+</form>
+</div>
+</div>
+)}
+{/* Registration Payment */}
+{pendingRegPayment && (
+<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+<div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+<div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+<h3 className="font-bold text-slate-900">Record Registration Payment</h3>
+</div>
+<div className="p-6 space-y-4">
+<div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+<p className="text-xs font-bold text-slate-500">{pendingRegPayment.name}</p>
+<p className="text-[10px] text-slate-400 mt-1">Card ID: {pendingRegPayment.cardId}</p>
+</div>
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Amount Paid (₦)</label>
+<input
+type="number"
+autoFocus
+value={pendingRegPayment.amount}
+onChange={e => setPendingRegPayment({ ...pendingRegPayment, amount: e.target.value })}
+className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-lg"
+placeholder="0.00"
+/>
+</div>
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Payment Method</label>
+<div className="grid grid-cols-2 gap-3">
+<button
+type="button"
+onClick={() => setPendingRegPayment({ ...pendingRegPayment, method: 'cash' })}
+className={cn(
+"flex items-center justify-center gap-2 p-3 rounded-xl border transition-all text-sm",
+pendingRegPayment.method === 'cash' ? "bg-blue-50 border-blue-600 text-blue-600 font-bold shadow-sm" : "border-slate-200 text-slate-500"
+)}
+>
+Cash
+</button>
+<button
+type="button"
+onClick={() => setPendingRegPayment({ ...pendingRegPayment, method: 'bank transfer' })}
+className={cn(
+"flex items-center justify-center gap-2 p-3 rounded-xl border transition-all text-sm",
+pendingRegPayment.method === 'bank transfer' ? "bg-blue-50 border-blue-600 text-blue-600 font-bold shadow-sm" : "border-slate-200 text-slate-500"
+)}
+>
+Transfer
+</button>
+</div>
+</div>
+<div className="flex gap-3">
+<button
+onClick={() => { setPendingRegPayment(null); onNavigate?.('Dashboard'); }}
+className="flex-1 px-4 py-3 rounded-xl border border-slate-200 font-bold text-slate-600 hover:bg-slate-50 transition-all"
+>
+Skip for now
+</button>
+<button
+onClick={handleConfirmRegPayment}
+className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-all"
+>
+Record Payment
+</button>
+</div>
+</div>
+</div>
+</div>
+)}
 </div>
 );
 };
