@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, memo } from 'react';
 import { supabase, handleSupabaseError, fetchAllRows } from '../lib/supabase';
 import { Patient, Appointment, User, RegistrationFeeSettings } from '../types';
 import { toast } from 'sonner';
-import { UserPlus, Search, CreditCard, User as UserIcon, Phone, MapPin, Calendar, Briefcase, Heart, LayoutDashboard, Users as UsersIcon, History, X, Clock, Plus, Edit, Trash2, CheckCircle, AlertCircle, DollarSign, ArrowRight, Wallet } from 'lucide-react';
+import { UserPlus, Search, CreditCard, User as UserIcon, Phone, MapPin, Calendar, Briefcase, Heart, LayoutDashboard, Users as UsersIcon, History, X, Clock, Plus, Edit, Trash2, CheckCircle, AlertCircle, DollarSign } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 import { logAction } from '../lib/audit';
@@ -616,51 +616,6 @@ className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items
 <h4 className="text-3xl font-black text-slate-900">{stats.pendingBills}</h4>
 </div>
 </button>
-<div className="lg:col-span-4 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
-<h3 className="font-bold text-slate-900 mb-6">Quick Actions</h3>
-<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-<button
-onClick={() => onNavigate?.('Patient Registration')}
-className="p-5 rounded-xl border border-slate-100 bg-blue-50/50 hover:bg-blue-50 transition-all text-left flex items-center justify-between group"
->
-<div className="flex items-center gap-3">
-<UserPlus className="w-6 h-6 text-blue-600" />
-<span className="font-bold text-slate-900">Register Patient</span>
-</div>
-<ArrowRight className="w-4 h-4 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-</button>
-<button
-onClick={() => onNavigate?.('Appointment')}
-className="p-5 rounded-xl border border-slate-100 bg-green-50/50 hover:bg-green-50 transition-all text-left flex items-center justify-between group"
->
-<div className="flex items-center gap-3">
-<Calendar className="w-6 h-6 text-green-600" />
-<span className="font-bold text-slate-900">Book Appointment</span>
-</div>
-<ArrowRight className="w-4 h-4 text-green-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-</button>
-<button
-onClick={() => onNavigate?.('Patient Directory')}
-className="p-5 rounded-xl border border-slate-100 bg-purple-50/50 hover:bg-purple-50 transition-all text-left flex items-center justify-between group"
->
-<div className="flex items-center gap-3">
-<UsersIcon className="w-6 h-6 text-purple-600" />
-<span className="font-bold text-slate-900">Patient Directory</span>
-</div>
-<ArrowRight className="w-4 h-4 text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-</button>
-<button
-onClick={() => onNavigate?.('Finance')}
-className="p-5 rounded-xl border border-slate-100 bg-orange-50/50 hover:bg-orange-50 transition-all text-left flex items-center justify-between group"
->
-<div className="flex items-center gap-3">
-<Wallet className="w-6 h-6 text-orange-600" />
-<span className="font-bold text-slate-900">Finance</span>
-</div>
-<ArrowRight className="w-4 h-4 text-orange-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-</button>
-</div>
-</div>
 <div className="lg:col-span-3 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
 <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
 <History className="w-5 h-5 text-slate-400" /> Recent Activity
