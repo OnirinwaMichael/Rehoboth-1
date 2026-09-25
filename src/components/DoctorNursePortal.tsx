@@ -73,6 +73,11 @@ const [stats, setStats] = useState({
 totalPatients: 0,
 todayRecords: 0
 });
+// Timestamps of every medical record created in the last 7 days (global,
+// not scoped to one patient), used for the Records Today sparkline —
+// fetched separately from any capped/per-patient record list.
+const [weeklyRecordTimestamps, setWeeklyRecordTimestamps] = useState<string[]>([]);
+const [activeAdmissionsCount, setActiveAdmissionsCount] = useState(0);
 const [visits, setVisits] = useState<Visit[]>([]);
 const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
 const [letters, setLetters] = useState<ClinicalLetter[]>([]);
@@ -265,10 +270,19 @@ setTestSearch('');
 useEffect(() => {
 fetchStats();
 fetchGlobalLabTests();
+fetchWeeklyRecordActivity();
+fetchActiveAdmissionsCount();
 const channel = supabase
 .channel('lab-tests-changes')
 .on('postgres_changes', { event: '*', schema: 'public', table: 'lab_tests' }, () => {
 fetchGlobalLabTests();
+})
+.on('postgres_changes', { event: '*', schema: 'public', table: 'medical_records' }, () => {
+fetchStats();
+fetchWeeklyRecordActivity();
+})
+.on('postgres_changes', { event: '*', schema: 'public', table: 'admissions' }, () => {
+fetchActiveAdmissionsCount();
 })
 .subscribe();
 return () => { supabase.removeChannel(channel); };
@@ -295,6 +309,49 @@ const { count: todayRecords } = await supabase
 .lt('created_at', `${today}T23:59:59.999`);
 setStats({ totalPatients: totalPatients || 0, todayRecords: todayRecords || 0 });
 };
+const fetchWeeklyRecordActivity = async () => {
+const sevenDaysAgo = new Date();
+sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+sevenDaysAgo.setHours(0, 0, 0, 0);
+const { data, error } = await supabase
+.from('medical_records')
+.select('created_at')
+.gte('created_at', sevenDaysAgo.toISOString());
+if (error) return handleSupabaseError(error, 'select', 'medical_records');
+setWeeklyRecordTimestamps((data || []).map((r: any) => r.created_at));
+};
+const fetchActiveAdmissionsCount = async () => {
+const { count, error } = await supabase
+.from('admissions')
+.select('*', { count: 'exact', head: true })
+.is('discharged_at', null);
+if (error) return handleSupabaseError(error, 'select', 'admissions');
+setActiveAdmissionsCount(count || 0);
+};
+// Real trend data for the Records Today sparkline — derived from
+// weeklyRecordTimestamps (a dedicated, uncapped, global query).
+const last7DaysRecords = useMemo(() => {
+const days: { label: string; count: number }[] = [];
+for (let i = 6; i >= 0; i--) {
+const d = new Date();
+d.setDate(d.getDate() - i);
+const key = format(d, 'yyyy-MM-dd');
+days.push({ label: format(d, 'EEE'), count: weeklyRecordTimestamps.filter(t => t.startsWith(key)).length });
+}
+return days;
+}, [weeklyRecordTimestamps]);
+const recordsTrendPct = useMemo(() => {
+const today = last7DaysRecords[6]?.count ?? 0;
+const yesterday = last7DaysRecords[5]?.count ?? 0;
+if (yesterday === 0) return today > 0 ? 100 : 0;
+return Math.round(((today - yesterday) / yesterday) * 100);
+}, [last7DaysRecords]);
+// Genuine count of lab tests still awaiting a result — not a fabricated
+// metric; derived from tests already fetched via fetchGlobalLabTests
+// that have no result, structured panel, or comprehensive panel data yet.
+const pendingLabResultsCount = useMemo(() => {
+return globalLabTests.filter(t => !t.result && !t.structuredResults?.length && !t.panelResults).length;
+}, [globalLabTests]);
 const [searchSuggestions, setSearchSuggestions] = useState<Patient[]>([]);
 useEffect(() => {
 if (!searchId.trim() || searchId.trim().length < 2) {
@@ -714,13 +771,32 @@ No lab tests found.
 <h4 className="text-2xl font-black text-slate-900">{stats.totalPatients}</h4>
 </div>
 </div>
-<div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
-<div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center text-green-600">
-<ClipboardList className="w-6 h-6" />
-</div>
-<div>
+<div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+<div className="flex items-center justify-between mb-3">
+<div className="flex items-center gap-2">
+<span className="w-8 h-8 rounded-lg bg-green-100 text-green-600 flex items-center justify-center">
+<ClipboardList className="w-4 h-4" />
+</span>
 <p className="text-xs font-bold text-slate-400 uppercase">Records Today</p>
+</div>
+</div>
+<div className="flex items-end justify-between gap-4">
 <h4 className="text-2xl font-black text-slate-900">{stats.todayRecords}</h4>
+<div className="flex items-end gap-0.5 h-7">
+{last7DaysRecords.map((d, i) => {
+const max = Math.max(...last7DaysRecords.map(x => x.count), 1);
+return (
+<div key={i} className={cn("w-1.5 rounded-sm", i === 6 ? "bg-green-500" : "bg-slate-200")}
+style={{ height: `${Math.max((d.count / max) * 100, 8)}%` }} title={`${d.label}: ${d.count}`} />
+);
+})}
+</div>
+</div>
+<div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50 text-xs">
+<span className="text-slate-400">vs yesterday</span>
+<span className={cn("flex items-center gap-1 font-bold px-1.5 py-0.5 rounded-full", recordsTrendPct >= 0 ? "text-green-600 bg-green-50" : "text-red-500 bg-red-50")}>
+{recordsTrendPct >= 0 ? '↑' : '↓'} {Math.abs(recordsTrendPct)}%
+</span>
 </div>
 </div>
 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
@@ -728,17 +804,17 @@ No lab tests found.
 <Activity className="w-6 h-6" />
 </div>
 <div>
-<p className="text-xs font-bold text-slate-400 uppercase">Clinical Status</p>
-<h4 className="text-2xl font-black text-slate-900">Active</h4>
+<p className="text-xs font-bold text-slate-400 uppercase">Active Admissions</p>
+<h4 className="text-2xl font-black text-slate-900">{activeAdmissionsCount}</h4>
 </div>
 </div>
 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
 <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600">
-<Stethoscope className="w-6 h-6" />
+<FlaskConical className="w-6 h-6" />
 </div>
 <div>
-<p className="text-xs font-bold text-slate-400 uppercase">Staff Online</p>
-<h4 className="text-2xl font-black text-slate-900">Ready</h4>
+<p className="text-xs font-bold text-slate-400 uppercase">Pending Lab Results</p>
+<h4 className="text-2xl font-black text-slate-900">{pendingLabResultsCount}</h4>
 </div>
 </div>
 <div className="md:col-span-2 lg:col-span-4 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
