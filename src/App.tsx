@@ -33,9 +33,9 @@ if (user.mustChangePassword) {
 return <ForcePasswordChange onDone={() => window.location.reload()} />;
 }
 const menuItems = [
-{ icon: LayoutDashboard, label: 'Overview', role: ['CMD', 'Doctor', 'Nurse', 'Lab', 'Pharmacy'], color: 'text-slate-300 bg-slate-700' },
-{ icon: Search, label: 'Patient Search', role: ['CMD', 'Doctor', 'Nurse', 'Lab', 'Pharmacy'], color: 'text-blue-400 bg-blue-500/10' },
-{ icon: Activity, label: 'Clinical Board', role: ['CMD', 'Doctor', 'Nurse', 'Lab', 'Pharmacy'], color: 'text-purple-400 bg-purple-500/10' },
+{ icon: LayoutDashboard, label: 'Overview', role: ['CMD', 'Doctor', 'Nurse', 'Lab', 'Pharmacy'], color: 'text-slate-300 bg-slate-700', group: 'Overview' },
+{ icon: Search, label: 'Patient Search', role: ['CMD', 'Doctor', 'Nurse', 'Lab', 'Pharmacy'], color: 'text-blue-400 bg-blue-500/10', group: 'Clinical' },
+{ icon: Activity, label: 'Clinical Board', role: ['CMD', 'Doctor', 'Nurse', 'Lab', 'Pharmacy'], color: 'text-purple-400 bg-purple-500/10', group: 'Clinical' },
 { icon: LayoutDashboard, label: 'Dashboard', role: ['CMD', 'Receptionist'], color: 'text-blue-400 bg-blue-500/10', group: 'Overview' },
 { icon: UserPlus, label: 'Patient Registration', role: ['CMD', 'Receptionist'], color: 'text-emerald-400 bg-emerald-500/10', group: 'Patients' },
 { icon: Calendar, label: 'Appointment', role: ['CMD', 'Receptionist'], color: 'text-violet-400 bg-violet-500/10', group: 'Patients' },
@@ -45,12 +45,12 @@ const menuItems = [
 { icon: CheckCircle, label: 'Reconciliation', role: ['CMD', 'Receptionist'], color: 'text-teal-400 bg-teal-500/10', group: 'Finance' },
 { icon: TrendingDown, label: 'Expenses', role: ['CMD', 'Receptionist'], color: 'text-rose-400 bg-rose-500/10', group: 'Finance' },
 { icon: FileSpreadsheet, label: 'Reports', role: ['CMD', 'Receptionist'], color: 'text-pink-400 bg-pink-500/10', group: 'Finance' },
-{ icon: ClipboardList, label: 'Doctor Portal', role: ['CMD', 'Doctor'], color: 'text-blue-400 bg-blue-500/10' },
-{ icon: Activity, label: 'Nurse Portal', role: ['CMD', 'Nurse'], color: 'text-rose-400 bg-rose-500/10' },
-{ icon: FlaskConical, label: 'Laboratory', role: ['CMD', 'Lab'], color: 'text-amber-400 bg-amber-500/10' },
-{ icon: Pill, label: 'Pharmacy', role: ['CMD', 'Pharmacy'], color: 'text-emerald-400 bg-emerald-500/10' },
-{ icon: ShieldCheck, label: 'Staff Management', role: ['CMD'], color: 'text-slate-300 bg-slate-700' },
-{ icon: History, label: 'Audit Logs', role: ['CMD'], color: 'text-slate-300 bg-slate-700' },
+{ icon: ClipboardList, label: 'Doctor Portal', role: ['CMD', 'Doctor'], color: 'text-blue-400 bg-blue-500/10', group: 'Departments' },
+{ icon: Activity, label: 'Nurse Portal', role: ['CMD', 'Nurse'], color: 'text-rose-400 bg-rose-500/10', group: 'Departments' },
+{ icon: FlaskConical, label: 'Laboratory', role: ['CMD', 'Lab'], color: 'text-amber-400 bg-amber-500/10', group: 'Departments' },
+{ icon: Pill, label: 'Pharmacy', role: ['CMD', 'Pharmacy'], color: 'text-emerald-400 bg-emerald-500/10', group: 'Departments' },
+{ icon: ShieldCheck, label: 'Staff Management', role: ['CMD'], color: 'text-slate-300 bg-slate-700', group: 'Administration' },
+{ icon: History, label: 'Audit Logs', role: ['CMD'], color: 'text-slate-300 bg-slate-700', group: 'Administration' },
 ];
 return (
 <div className="min-h-screen bg-slate-50 flex relative">

@@ -106,13 +106,21 @@ email: '',
 role: 'Doctor' as UserRole,
 photoURL: '',
 });
+// Timestamps for every audit log in the last 7 days, fetched separately
+// from the capped 50-row `logs` list used by the log panel below, so the
+// weekly activity sparkline stays accurate even on a busy week.
+const [weeklyAuditTimestamps, setWeeklyAuditTimestamps] = useState<string[]>([]);
 useEffect(() => {
 fetchStaff();
 fetchLogs();
+fetchWeeklyAuditActivity();
 const channel = supabase
 .channel('cmd-portal')
 .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, fetchStaff)
-.on('postgres_changes', { event: '*', schema: 'public', table: 'audit_logs' }, fetchLogs)
+.on('postgres_changes', { event: '*', schema: 'public', table: 'audit_logs' }, () => {
+fetchLogs();
+fetchWeeklyAuditActivity();
+})
 .subscribe();
 return () => { supabase.removeChannel(channel); };
 }, []);
@@ -131,6 +139,57 @@ if (error) { handleSupabaseError(error, 'select', 'audit_logs'); setLoading(fals
 setLogs((data || []).map(auditLogFromRow));
 setLoading(false);
 };
+const fetchWeeklyAuditActivity = async () => {
+const sevenDaysAgo = new Date();
+sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+sevenDaysAgo.setHours(0, 0, 0, 0);
+const { data, error } = await supabase
+.from('audit_logs')
+.select('timestamp')
+.gte('timestamp', sevenDaysAgo.toISOString());
+if (error) return handleSupabaseError(error, 'select', 'audit_logs');
+setWeeklyAuditTimestamps((data || []).map((r: any) => r.timestamp));
+};
+// Real trend data for the weekly activity sparkline — derived from
+// weeklyAuditTimestamps (a dedicated, uncapped query), not the 50-row
+// `logs` list used by the audit log panel.
+const last7DaysAuditActivity = useMemo(() => {
+const days: { label: string; count: number }[] = [];
+for (let i = 6; i >= 0; i--) {
+const d = new Date();
+d.setDate(d.getDate() - i);
+const key = format(d, 'yyyy-MM-dd');
+days.push({ label: format(d, 'EEE'), count: weeklyAuditTimestamps.filter(t => t.startsWith(key)).length });
+}
+return days;
+}, [weeklyAuditTimestamps]);
+const auditActivityTrendPct = useMemo(() => {
+const today = last7DaysAuditActivity[6]?.count ?? 0;
+const yesterday = last7DaysAuditActivity[5]?.count ?? 0;
+if (yesterday === 0) return today > 0 ? 100 : 0;
+return Math.round(((today - yesterday) / yesterday) * 100);
+}, [last7DaysAuditActivity]);
+const staffByRole = useMemo(() => {
+const counts: Record<string, number> = {};
+staff.forEach(s => { counts[s.role] = (counts[s.role] || 0) + 1; });
+const colors: Record<string, string> = {
+CMD: '#7c3aed', Doctor: '#2563eb', Nurse: '#e11d48', Lab: '#d97706', Pharmacy: '#059669', Receptionist: '#0891b2',
+};
+const total = staff.length || 1;
+const circumference = 2 * Math.PI * 70;
+let cumulative = 0;
+return Object.entries(counts)
+.map(([key, count]) => ({ key, label: key, count, color: colors[key] || '#64748b', pct: Math.round((count / total) * 100) }))
+.sort((a, b) => b.count - a.count)
+.map(seg => {
+const length = (seg.count / total) * circumference;
+const dasharray = `${length} ${circumference - length}`;
+const dashoffset = -cumulative;
+cumulative += length;
+return { ...seg, dasharray, dashoffset };
+});
+}, [staff]);
+const activeStaffCount = useMemo(() => staff.filter(s => s.status === 'active').length, [staff]);
 const handleAddStaff = async (e: React.FormEvent) => {
 e.preventDefault();
 setAuthError(null);
@@ -417,6 +476,95 @@ Add Staff
 <div>
 <h2 className="text-3xl font-bold text-slate-900">Audit Logs</h2>
 <p className="text-slate-500">Real-time tracking of all hospital activities.</p>
+</div>
+)}
+{/* Overview stat cards */}
+{!showLogsOnly && !loading && (
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
+<div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center text-purple-600">
+<ShieldCheck className="w-8 h-8" />
+</div>
+<div>
+<p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Total Staff</p>
+<h4 className="text-3xl font-black text-slate-900">{staff.length}</h4>
+</div>
+</div>
+<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
+<div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center text-green-600">
+<CheckCircle className="w-8 h-8" />
+</div>
+<div>
+<p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Active Staff</p>
+<h4 className="text-3xl font-black text-slate-900">{activeStaffCount}</h4>
+</div>
+</div>
+<div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+<div className="flex items-center justify-between mb-4">
+<div className="flex items-center gap-2">
+<span className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+<Activity className="w-4 h-4" />
+</span>
+<p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Audit Activity</p>
+</div>
+</div>
+<div className="flex items-end justify-between gap-4">
+<h4 className="text-3xl font-black text-slate-900">{last7DaysAuditActivity[6]?.count ?? 0}</h4>
+<div className="flex items-end gap-0.5 h-8">
+{last7DaysAuditActivity.map((d, i) => {
+const max = Math.max(...last7DaysAuditActivity.map(x => x.count), 1);
+return (
+<div key={i} className={cn("w-1.5 rounded-sm", i === 6 ? "bg-blue-500" : "bg-slate-200")}
+style={{ height: `${Math.max((d.count / max) * 100, 8)}%` }} title={`${d.label}: ${d.count}`} />
+);
+})}
+</div>
+</div>
+<div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50 text-xs">
+<span className="text-slate-400">vs yesterday</span>
+<span className={cn("flex items-center gap-1 font-bold px-1.5 py-0.5 rounded-full", auditActivityTrendPct >= 0 ? "text-blue-600 bg-blue-50" : "text-red-500 bg-red-50")}>
+{auditActivityTrendPct >= 0 ? '↑' : '↓'} {Math.abs(auditActivityTrendPct)}%
+</span>
+</div>
+</div>
+<div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+<h3 className="font-bold text-slate-900 mb-4 text-sm">Staff by Role</h3>
+{staff.length === 0 ? (
+<p className="text-sm text-slate-400 text-center py-8">No staff yet.</p>
+) : (
+<>
+<div className="relative w-28 h-28 mx-auto mb-4">
+<svg viewBox="0 0 200 200" className="w-full h-full -rotate-90">
+{staffByRole.map(seg => (
+<circle
+key={seg.key}
+cx="100" cy="100" r="70"
+fill="none"
+stroke={seg.color}
+strokeWidth="28"
+strokeDasharray={seg.dasharray}
+strokeDashoffset={seg.dashoffset}
+/>
+))}
+</svg>
+<div className="absolute inset-0 flex flex-col items-center justify-center">
+<span className="text-xl font-black text-slate-900">{staff.length}</span>
+</div>
+</div>
+<div className="space-y-1.5">
+{staffByRole.map(seg => (
+<div key={seg.key} className="flex items-center justify-between text-[11px]">
+<div className="flex items-center gap-2 min-w-0">
+<span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
+<span className="text-slate-600 truncate">{seg.label}</span>
+</div>
+<span className="font-bold text-slate-900 shrink-0">{seg.count}</span>
+</div>
+))}
+</div>
+</>
+)}
+</div>
 </div>
 )}
 {/* Setup Help Card */}
