@@ -109,6 +109,26 @@ administeredBy: string;
 notes?: string;
 createdAt: string;
 }
+export interface DrugChartItem {
+id: string;
+admissionId: string;
+patientId: string;
+drugName: string;
+dose?: string;
+route?: string;
+frequency?: string;
+sortOrder: number;
+prescribedBy: string;
+createdAt: string;
+}
+export interface DrugChartTick {
+id: string;
+itemId: string;
+entryDate: string;
+timeOfDay: 'Night' | 'Morning' | 'Afternoon';
+administeredBy: string;
+administeredAt: string;
+}
 export interface VitalSignEntry {
 id: string;
 admissionId: string;
