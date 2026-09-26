@@ -106,6 +106,7 @@ const [selectedTest, setSelectedTest] = useState<(LabTest & { patient?: Patient 
 const [imageUrl, setImageUrl] = useState('');
 const [showImageUpload, setShowImageUpload] = useState(false);
 const [view, setView] = useState<'dashboard' | 'queue' | 'catalog' | 'manual' | 'resources'>('dashboard');
+const [queueStatusFilter, setQueueStatusFilter] = useState<'all' | 'pending' | 'completed'>('all');
 const { data: manualEntry, setData: setManualEntry, clearDraft: clearManualDraft } = useFormDraft('lab_manual_entry', {
 patientId: '',
 testType: '',
@@ -322,6 +323,11 @@ const [historyPatientId, setHistoryPatientId] = useState<string | null>(null);
 const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 const pendingTests = useMemo(() => tests.filter(t => !t.result), [tests]);
 const completedTests = useMemo(() => tests.filter(t => t.result), [tests]);
+const queueTests = useMemo(() => {
+  if (queueStatusFilter === 'pending') return pendingTests;
+  if (queueStatusFilter === 'completed') return completedTests;
+  return tests;
+}, [queueStatusFilter, tests, pendingTests, completedTests]);
 // Real trend data for the Total Today sparkline — derived from `tests`,
 // which is already the full, uncapped lab_tests list (fetchTests has no
 // .limit()), so no extra query is needed.
@@ -494,7 +500,7 @@ view === 'dashboard' ? "bg-blue-600 text-white" : "bg-white text-slate-600 borde
 <LayoutDashboard className="w-4 h-4" /> Dashboard
 </button>
 <button 
-onClick={() => setView('queue')}
+onClick={() => { setQueueStatusFilter('all'); setView('queue'); }}
 className={cn(
 "flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all",
 view === 'queue' ? "bg-blue-600 text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
@@ -533,7 +539,11 @@ view === 'manual' ? "bg-blue-600 text-white" : "bg-white text-slate-600 border b
 </div>
 {view === 'dashboard' ? (
 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
+<button
+type="button"
+onClick={() => { setQueueStatusFilter('pending'); setView('queue'); }}
+className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6 text-left hover:border-orange-200 hover:shadow-md transition-all"
+>
 <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-600">
 <Clock className="w-8 h-8" />
 </div>
@@ -541,8 +551,12 @@ view === 'manual' ? "bg-blue-600 text-white" : "bg-white text-slate-600 border b
 <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Pending Tests</p>
 <h4 className="text-3xl font-black text-slate-900">{stats.pending}</h4>
 </div>
-</div>
-<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
+</button>
+<button
+type="button"
+onClick={() => { setQueueStatusFilter('completed'); setView('queue'); }}
+className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6 text-left hover:border-green-200 hover:shadow-md transition-all"
+>
 <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center text-green-600">
 <CheckCircle2 className="w-8 h-8" />
 </div>
@@ -550,7 +564,7 @@ view === 'manual' ? "bg-blue-600 text-white" : "bg-white text-slate-600 border b
 <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Completed</p>
 <h4 className="text-3xl font-black text-slate-900">{stats.completed}</h4>
 </div>
-</div>
+</button>
 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
 <div className="flex items-center justify-between mb-4">
 <div className="flex items-center gap-2">
@@ -1155,9 +1169,10 @@ className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover
 <h3 className="font-bold text-slate-900 flex items-center gap-2">
 <FlaskConical className="w-5 h-5 text-purple-600" /> Test Queue
 </h3>
-<div className="flex gap-4 text-xs font-bold uppercase tracking-wider">
-<span className="flex items-center gap-1 text-orange-500"><Clock className="w-3 h-3" /> Pending</span>
-<span className="flex items-center gap-1 text-green-500"><CheckCircle className="w-3 h-3" /> Completed</span>
+<div className="flex gap-2 text-xs font-bold uppercase tracking-wider">
+<button type="button" onClick={() => setQueueStatusFilter('all')} className={cn("px-3 py-1 rounded-full transition-colors", queueStatusFilter === 'all' ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200")}>All</button>
+<button type="button" onClick={() => setQueueStatusFilter('pending')} className={cn("flex items-center gap-1 px-3 py-1 rounded-full transition-colors", queueStatusFilter === 'pending' ? "bg-orange-500 text-white" : "bg-orange-50 text-orange-500 hover:bg-orange-100")}><Clock className="w-3 h-3" /> Pending</button>
+<button type="button" onClick={() => setQueueStatusFilter('completed')} className={cn("flex items-center gap-1 px-3 py-1 rounded-full transition-colors", queueStatusFilter === 'completed' ? "bg-green-500 text-white" : "bg-green-50 text-green-500 hover:bg-green-100")}><CheckCircle className="w-3 h-3" /> Completed</button>
 </div>
 </div>
 <div className="overflow-x-auto">
@@ -1172,7 +1187,7 @@ className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover
 </tr>
 </thead>
 <tbody className="divide-y divide-slate-50">
-{tests.map((test, idx) => (
+{queueTests.map((test, idx) => (
 <LabTestRow 
 key={test.id || idx} 
 test={test} 
@@ -1191,10 +1206,10 @@ setPanelResults(t.panelResults && Object.keys(t.panelResults).length > 0 ? t.pan
 }}
 />
 ))}
-{tests.length === 0 && !loading && (
+{queueTests.length === 0 && !loading && (
 <tr>
 <td colSpan={5} className="px-6 py-20 text-center text-slate-400">
-No test requests found.
+{tests.length === 0 ? 'No test requests found.' : `No ${queueStatusFilter} tests.`}
 </td>
 </tr>
 )}

@@ -34,13 +34,16 @@ userId: string;
 export const PharmacyPortal: React.FC<Props> = ({ userId }) => {
 const [inventory, setInventory] = useState<InventoryItem[]>([]);
 const [inventorySearch, setInventorySearch] = useState('');
+const [showLowStockOnly, setShowLowStockOnly] = useState(false);
 const filteredInventory = useMemo(() => {
 const q = inventorySearch.trim().toLowerCase();
-if (!q) return inventory;
-return inventory.filter(item =>
+let list = inventory;
+if (showLowStockOnly) list = list.filter(item => (item.stock || 0) < 10);
+if (!q) return list;
+return list.filter(item =>
 item.name.toLowerCase().includes(q) || (item.category || '').toLowerCase().includes(q)
 );
-}, [inventory, inventorySearch]);
+}, [inventory, inventorySearch, showLowStockOnly]);
 const [prescriptions, setPrescriptions] = useState<(MedicalRecord & { patient?: Patient })[]>([]);
 const [structuredRx, setStructuredRx] = useState<(Prescription & { patient?: Patient })[]>([]);
 const [loading, setLoading] = useState(true);
@@ -282,7 +285,7 @@ view === 'prescriptions' ? "bg-blue-600 text-white" : "bg-white text-slate-600 b
 <ClipboardList className="w-4 h-4" /> Prescriptions
 </button>
 <button 
-onClick={() => setView('inventory')}
+onClick={() => { setShowLowStockOnly(false); setView('inventory'); }}
 className={cn(
 "flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all",
 view === 'inventory' ? "bg-blue-600 text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
@@ -303,7 +306,11 @@ view === 'inventory' ? "bg-blue-600 text-white" : "bg-white text-slate-600 borde
 <h4 className="text-3xl font-black text-slate-900">{stats.totalDrugs}</h4>
 </div>
 </div>
-<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
+<button
+type="button"
+onClick={() => { setShowLowStockOnly(true); setView('inventory'); }}
+className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6 text-left hover:border-red-200 hover:shadow-md transition-all"
+>
 <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center text-red-600">
 <AlertCircle className="w-8 h-8" />
 </div>
@@ -311,8 +318,12 @@ view === 'inventory' ? "bg-blue-600 text-white" : "bg-white text-slate-600 borde
 <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Low Stock</p>
 <h4 className="text-3xl font-black text-slate-900">{stats.lowStock}</h4>
 </div>
-</div>
-<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
+</button>
+<button
+type="button"
+onClick={() => setView('prescriptions')}
+className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6 text-left hover:border-green-200 hover:shadow-md transition-all"
+>
 <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center text-green-600">
 <TrendingUp className="w-8 h-8" />
 </div>
@@ -322,7 +333,7 @@ view === 'inventory' ? "bg-blue-600 text-white" : "bg-white text-slate-600 borde
 {stats.pendingPrescriptions + structuredRx.filter(c => !c.dispensed).length}
 </h4>
 </div>
-</div>
+</button>
 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
 <div className="flex items-center justify-between mb-4">
 <div className="flex items-center gap-2">
@@ -385,6 +396,16 @@ Rx
 <Package className="w-6 h-6 text-blue-600" /> Drug Inventory
 </h3>
 <div className="flex items-center gap-3">
+<button
+type="button"
+onClick={() => setShowLowStockOnly(v => !v)}
+className={cn(
+"flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors",
+showLowStockOnly ? "bg-red-500 text-white" : "bg-red-50 text-red-500 hover:bg-red-100"
+)}
+>
+<AlertCircle className="w-3.5 h-3.5" /> Low Stock Only
+</button>
 <div className="relative w-64">
 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
 <input
@@ -466,7 +487,7 @@ className="p-2 text-slate-400 hover:text-red-500 transition-colors"
 {filteredInventory.length === 0 && (
 <tr>
 <td colSpan={5} className="p-12 text-center text-slate-400 italic">
-{inventory.length === 0 ? 'No drugs in inventory.' : 'No drugs match your search.'}
+{inventory.length === 0 ? 'No drugs in inventory.' : showLowStockOnly ? 'No low-stock drugs right now.' : 'No drugs match your search.'}
 </td>
 </tr>
 )}

@@ -95,15 +95,18 @@ const [appointmentToDelete, setAppointmentToDelete] = useState<string | null>(nu
 const [entryMode, setEntryMode] = useState<'auto' | 'manual'>('auto');
 const [manualCardId, setManualCardId] = useState('');
 const [directoryFilter, setDirectoryFilter] = useState<'all' | 'fresh' | 'old'>('all');
+const [directoryTodayOnly, setDirectoryTodayOnly] = useState(false);
 const [directoryPage, setDirectoryPage] = useState(1);
 const DIRECTORY_PAGE_SIZE = 50;
-useEffect(() => { setDirectoryPage(1); }, [searchQuery, directoryFilter]);
+useEffect(() => { setDirectoryPage(1); }, [searchQuery, directoryFilter, directoryTodayOnly]);
 const filteredDirectoryPatients = useMemo(() => {
 const q = searchQuery.toLowerCase();
+const todayStr = new Date().toISOString().split('T')[0];
 return allPatients
 .filter(p => p.name.toLowerCase().includes(q) || p.cardId.includes(searchQuery))
-.filter(p => directoryFilter === 'all' || p.registrationType === directoryFilter);
-}, [allPatients, searchQuery, directoryFilter]);
+.filter(p => directoryFilter === 'all' || p.registrationType === directoryFilter)
+.filter(p => !directoryTodayOnly || p.createdAt.startsWith(todayStr));
+}, [allPatients, searchQuery, directoryFilter, directoryTodayOnly]);
 const directoryPageCount = Math.max(1, Math.ceil(filteredDirectoryPatients.length / DIRECTORY_PAGE_SIZE));
 const pagedDirectoryPatients = useMemo(() => {
 const start = (directoryPage - 1) * DIRECTORY_PAGE_SIZE;
@@ -404,9 +407,10 @@ if (entryMode === 'auto') {
 // immediately, pre-filled from the current price settings.
 const fee = getRegistrationFee(formData.category, formData.antenatalStatus);
 setPendingRegPayment({ cardId, name: formData.name, amount: fee ? String(fee) : '', method: 'cash' });
-} else {
-setView('dashboard');
 }
+// Old/Existing-file registrations: stay on the registration form (already
+// cleared above) so the receptionist can keep entering more old cards
+// without being bounced back to the dashboard.
 setEntryMode('auto');
 } catch (error) {
 handleSupabaseError(error, 'insert', 'patients');
@@ -539,7 +543,11 @@ view === 'appointments' ? 'Book and manage patient appointments.' :
 </div>
 {view === 'dashboard' && (
 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-<div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+<button
+type="button"
+onClick={() => { setDirectoryFilter('all'); setDirectoryTodayOnly(false); setView('directory'); }}
+className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 text-left hover:border-teal-200 hover:shadow-md transition-all"
+>
 <div className="flex items-center justify-between mb-4">
 <div className="flex items-center gap-2">
 <span className="w-8 h-8 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center">
@@ -566,8 +574,12 @@ style={{ height: `${Math.max((d.count / max) * 100, 8)}%` }} title={`${d.label}:
 {registrationsTrendPct >= 0 ? '↑' : '↓'} {Math.abs(registrationsTrendPct)}%
 </span>
 </div>
-</div>
-<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
+</button>
+<button
+type="button"
+onClick={() => { setDirectoryFilter('all'); setDirectoryTodayOnly(true); setView('directory'); }}
+className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6 text-left hover:border-emerald-200 hover:shadow-md transition-all"
+>
 <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center text-emerald-600">
 <UserPlus className="w-8 h-8" />
 </div>
@@ -575,8 +587,12 @@ style={{ height: `${Math.max((d.count / max) * 100, 8)}%` }} title={`${d.label}:
 <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">New Today</p>
 <h4 className="text-3xl font-black text-slate-900">{stats.today}</h4>
 </div>
-</div>
-<div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+</button>
+<button
+type="button"
+onClick={() => setView('appointments')}
+className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 text-left hover:border-violet-200 hover:shadow-md transition-all"
+>
 <div className="flex items-center justify-between mb-4">
 <div className="flex items-center gap-2">
 <span className="w-8 h-8 rounded-lg bg-violet-100 text-violet-600 flex items-center justify-center">
@@ -603,7 +619,7 @@ style={{ height: `${Math.max((d.count / max) * 100, 8)}%` }} title={`${d.label}:
 {appointmentsTrendPct >= 0 ? '↑' : '↓'} {Math.abs(appointmentsTrendPct)}%
 </span>
 </div>
-</div>
+</button>
 <button
 onClick={() => onNavigate?.('Finance')}
 className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6 text-left hover:border-orange-200 transition-all"
@@ -1108,7 +1124,7 @@ title="Download the entire patient register as a spreadsheet"
 </button>
 </div>
 </div>
-<div className="flex items-center gap-2">
+<div className="flex items-center gap-2 flex-wrap">
 {([['all', 'All Patients'], ['fresh', 'Fresh / New'], ['old', 'Old / Existing File']] as const).map(([key, label]) => (
 <button
 key={key}
@@ -1121,6 +1137,15 @@ directoryFilter === key ? "bg-blue-600 text-white" : "bg-white text-slate-500 bo
 {label}
 </button>
 ))}
+<button
+onClick={() => setDirectoryTodayOnly(v => !v)}
+className={cn(
+"px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-colors",
+directoryTodayOnly ? "bg-emerald-600 text-white" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-50"
+)}
+>
+Registered Today
+</button>
 </div>
 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
 <div className="overflow-x-auto">
