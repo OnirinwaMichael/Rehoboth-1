@@ -29,6 +29,23 @@ const bookingFromRow = (r: any): AntenatalBooking => ({
   updatedAt: r.updated_at, createdAt: r.created_at,
 });
 
+interface FieldProps { label: string; value: string; onChange: (v: string) => void; voice?: boolean; type?: string }
+
+const Field: React.FC<FieldProps> = ({ label, value, onChange, voice, type }) => (
+  <div>
+    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{label}</label>
+    <div className="flex items-center gap-1">
+      <input
+        type={type || 'text'}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="flex-1 p-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500"
+      />
+      {voice && <VoiceDictationButton onFinalResult={text => onChange((value ? value + ' ' : '') + text)} />}
+    </div>
+  </div>
+);
+
 export const AntenatalBookingSheet: React.FC<Props> = ({ patient, userId, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -107,21 +124,6 @@ export const AntenatalBookingSheet: React.FC<Props> = ({ patient, userId, onClos
     updated[index] = { ...updated[index], ...patch };
     setPreviousPregnancies(updated);
   };
-
-  const Field: React.FC<{ label: string; value: string; onChange: (v: string) => void; voice?: boolean; type?: string }> = ({ label, value, onChange, voice, type }) => (
-    <div>
-      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{label}</label>
-      <div className="flex items-center gap-1">
-        <input
-          type={type || 'text'}
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          className="flex-1 p-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500"
-        />
-        {voice && <VoiceDictationButton onFinalResult={text => onChange((value ? value + ' ' : '') + text)} />}
-      </div>
-    </div>
-  );
 
   if (loading) {
     return (
