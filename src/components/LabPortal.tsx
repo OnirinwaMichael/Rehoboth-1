@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, memo } from 'react';
 import { supabase, handleSupabaseError } from '../lib/supabase';
-import { LabTest, Patient, LabTestCatalogItem, LabResource } from '../types';
+import { LabTest, Patient, LabTestCatalogItem, LabResource, WardCatalogItem } from '../types';
 import { toast } from 'sonner';
 import { FlaskConical, Search, CheckCircle, Clock, FileText, User, CreditCard, Save, X, LayoutDashboard, History, Beaker, CheckCircle2, Plus, Camera, Trash2, Package } from 'lucide-react';
 import { format } from 'date-fns';
@@ -14,7 +14,7 @@ import { ConfirmModal } from './ConfirmModal';
 import { LabReportPrint } from './LabReportPrint';
 import { LabReportEditor } from './LabReportEditor';
 import {
-  LAB_REQUEST_FIELDS, emptyPanelResults, ComprehensivePanelResults,
+  LAB_REQUEST_FIELDS, emptyPanelResults, ComprehensivePanelResults, CULTURE_SPECIMEN_TYPES,
 } from '../data/labReportTemplates';
 const patientFromRow = (r: any): Patient => ({
 cardId: r.card_id, name: r.name, gender: r.gender,
@@ -159,6 +159,32 @@ linkedResourceId: r.linked_resource_id, resourceQtyPerTest: r.resource_qty_per_t
 })));
 };
 useEffect(() => { fetchTestCatalog(); }, []);
+// --- Ward list (editable, CMD-managed) & Consultants (pulled from real staff records) ---
+const [wardCatalog, setWardCatalog] = useState<WardCatalogItem[]>([]);
+const [consultants, setConsultants] = useState<{ id: string; name: string }[]>([]);
+const [newWardName, setNewWardName] = useState('');
+const [addingWard, setAddingWard] = useState(false);
+const fetchWardCatalog = async () => {
+const { data, error } = await supabase.from('ward_catalog').select('*').order('sort_order', { ascending: true }).order('name', { ascending: true });
+if (error) return handleSupabaseError(error, 'select', 'ward_catalog');
+setWardCatalog((data || []).map((r: any) => ({ id: r.id, name: r.name, sortOrder: r.sort_order, createdAt: r.created_at })));
+};
+const fetchConsultants = async () => {
+const { data, error } = await supabase.from('users').select('id,name').in('role', ['CMD', 'Doctor']).eq('status', 'active').order('name', { ascending: true });
+if (error) return handleSupabaseError(error, 'select', 'users');
+setConsultants(data || []);
+};
+useEffect(() => { fetchWardCatalog(); fetchConsultants(); }, []);
+const handleAddWard = async (name: string) => {
+const trimmed = name.trim();
+if (!trimmed) return;
+setAddingWard(true);
+const { error } = await supabase.from('ward_catalog').insert({ name: trimmed, sort_order: wardCatalog.length });
+setAddingWard(false);
+if (error) return handleSupabaseError(error, 'insert', 'ward_catalog');
+setNewWardName('');
+fetchWardCatalog();
+};
 const handleAddCatalogTest = async (e: React.FormEvent) => {
 e.preventDefault();
 if (!newCatalogTest.name.trim()) {
@@ -961,16 +987,78 @@ className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring
 {manualEntry.reportType === 'basic' && (
 <div className="space-y-3 border border-slate-200 rounded-xl p-4 bg-slate-50/50">
 <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Lab Request Details</p>
-{LAB_REQUEST_FIELDS.map(f => (
-<div key={f.key}>
-<label className="text-[10px] font-bold text-slate-500">{f.label}</label>
-<input
-value={manualEntry.requestDetails[f.key] || ''}
-onChange={e => setManualEntry({ ...manualEntry, requestDetails: { ...manualEntry.requestDetails, [f.key]: e.target.value } })}
-className="w-full p-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500"
-/>
-</div>
-))}
+{LAB_REQUEST_FIELDS.map(f => {
+  const value = manualEntry.requestDetails[f.key] || '';
+  const setValue = (v: string) => setManualEntry({ ...manualEntry, requestDetails: { ...manualEntry.requestDetails, [f.key]: v } });
+
+  if (f.key === 'natureOfSpecimen') {
+    return (
+      <div key={f.key}>
+        <label className="text-[10px] font-bold text-slate-500">{f.label}</label>
+        <select value={value} onChange={e => setValue(e.target.value)} className="w-full p-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500">
+          <option value="">Select specimen type...</option>
+          {CULTURE_SPECIMEN_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+      </div>
+    );
+  }
+
+  if (f.key === 'consultant') {
+    return (
+      <div key={f.key}>
+        <label className="text-[10px] font-bold text-slate-500">{f.label}</label>
+        <select value={value} onChange={e => setValue(e.target.value)} className="w-full p-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500">
+          <option value="">Select consultant...</option>
+          {consultants.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+        </select>
+        {consultants.length === 0 && <p className="text-[10px] text-slate-400 mt-1">No active Doctors/CMD found in staff records yet.</p>}
+      </div>
+    );
+  }
+
+  if (f.key === 'ward') {
+    return (
+      <div key={f.key}>
+        <label className="text-[10px] font-bold text-slate-500">{f.label}</label>
+        <select
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          className="w-full p-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500"
+        >
+          <option value="">Select ward...</option>
+          {wardCatalog.map(w => <option key={w.id} value={w.name}>{w.name}</option>)}
+        </select>
+        <div className="flex items-center gap-1 mt-1">
+          <input
+            value={newWardName}
+            onChange={e => setNewWardName(e.target.value)}
+            placeholder="Add a new ward..."
+            className="flex-1 p-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <button
+            type="button"
+            disabled={addingWard || !newWardName.trim()}
+            onClick={async () => { await handleAddWard(newWardName); setValue(newWardName.trim()); }}
+            className="px-2 py-1.5 bg-slate-700 text-white rounded-lg text-[10px] font-bold disabled:opacity-40 shrink-0"
+          >
+            + Add
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div key={f.key}>
+      <label className="text-[10px] font-bold text-slate-500">{f.label}</label>
+      <input
+        value={value}
+        onChange={e => setValue(e.target.value)}
+        className="w-full p-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500"
+      />
+    </div>
+  );
+})}
 </div>
 )}
 <div className="space-y-2">

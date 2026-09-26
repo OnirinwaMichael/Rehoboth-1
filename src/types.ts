@@ -109,6 +109,12 @@ administeredBy: string;
 notes?: string;
 createdAt: string;
 }
+export interface WardCatalogItem {
+id: string;
+name: string;
+sortOrder: number;
+createdAt: string;
+}
 export interface DrugChartItem {
 id: string;
 admissionId: string;
