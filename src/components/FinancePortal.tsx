@@ -127,7 +127,7 @@ const [expenses, setExpenses] = useState<Expense[]>([]);
 const [loading, setLoading] = useState(true);
 const [searchId, setSearchId] = useState('');
 const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-const [view, setView] = useState<'dashboard' | 'billing' | 'reconciliation' | 'patients' | 'expenses' | 'reports'>(
+const [view, setView] = useState<'dashboard' | 'billing' | 'reconciliation' | 'patients' | 'expenses' | 'reports' | 'pendingBills'>(
 section === 'finance' ? 'dashboard' : section
 );
 // The outer sidebar drives which section is active. 'billing' is a
@@ -140,6 +140,8 @@ setSelectedPatient(null);
 const [allPatients, setAllPatients] = useState<Patient[]>([]);
 const [expandedPatientId, setExpandedPatientId] = useState<string | null>(null);
 const [patientSearchQuery, setPatientSearchQuery] = useState('');
+const [financePatientsPage, setFinancePatientsPage] = useState(1);
+const FINANCE_PATIENTS_PAGE_SIZE = 50;
 const [billingItems, setBillingItems] = useState<BillingItem[]>([]);
 const [stats, setStats] = useState({
 totalRevenue: 0,
@@ -215,6 +217,23 @@ const sorted = rows.map(patientFromRow)
 .sort((a, b) => a.cardId.localeCompare(b.cardId, undefined, { numeric: true, sensitivity: 'base' }));
 setAllPatients(sorted);
 };
+// allPatients holds every patient in the clinic (6,000+) - rendering
+// them all as table rows at once is what froze the Patients tab.
+// Filter + paginate before they ever reach JSX, same pattern as the
+// Receptionist's own Patient Directory.
+const filteredFinancePatients = useMemo(() =>
+allPatients.filter(p =>
+p.name.toLowerCase().includes(patientSearchQuery.toLowerCase()) ||
+p.cardId.includes(patientSearchQuery)
+),
+[allPatients, patientSearchQuery]
+);
+const financePatientsPageCount = Math.max(1, Math.ceil(filteredFinancePatients.length / FINANCE_PATIENTS_PAGE_SIZE));
+const paginatedFinancePatients = useMemo(() => {
+const start = (financePatientsPage - 1) * FINANCE_PATIENTS_PAGE_SIZE;
+return filteredFinancePatients.slice(start, start + FINANCE_PATIENTS_PAGE_SIZE);
+}, [filteredFinancePatients, financePatientsPage]);
+useEffect(() => { setFinancePatientsPage(1); }, [patientSearchQuery, section]);
 const [searchSuggestions, setSearchSuggestions] = useState<Patient[]>([]);
 useEffect(() => {
 if (!searchId.trim() || searchId.trim().length < 2) {
@@ -232,6 +251,14 @@ setSearchSuggestions((data || []).map(patientFromRow));
 }, 250);
 return () => clearTimeout(timeout);
 }, [searchId]);
+const openPendingBill = async (record: FinancialRecord & { patient?: Patient }) => {
+const patient = record.patient || allPatients.find(p => p.cardId === record.patientId);
+if (!patient) {
+toast.error('Could not find that patient\'s record.');
+return;
+}
+await selectPatientForBilling(patient);
+};
 const selectPatientForBilling = async (p: Patient) => {
 setSearchSuggestions([]);
 setSearchId('');
@@ -446,13 +473,16 @@ return (
 <div>
 <h2 className="text-3xl font-bold text-slate-900">
 {view === 'billing' && selectedPatient ? selectedPatient.name :
+view === 'pendingBills' ? 'Pending Bills' :
 section === 'finance' ? 'Finance' :
 section === 'patients' ? 'Patients' :
 section === 'reconciliation' ? 'Reconciliation' :
 section === 'expenses' ? 'Expenses' : 'Reports'}
 </h2>
 <p className="text-slate-500">
-{view === 'billing' && selectedPatient ? `Card ID: ${selectedPatient.cardId}` : 'Manage patient billing and payments.'}
+{view === 'billing' && selectedPatient ? `Card ID: ${selectedPatient.cardId}` :
+view === 'pendingBills' ? 'Tap a patient to open their billing and take payment.' :
+'Manage patient billing and payments.'}
 </p>
 </div>
 <div className="flex flex-wrap gap-2">
@@ -462,6 +492,14 @@ onClick={() => { setView('patients'); setSelectedPatient(null); }}
 className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition-all"
 >
 ← Back to Patients
+</button>
+)}
+{view === 'pendingBills' && (
+<button
+onClick={() => setView('dashboard')}
+className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition-all"
+>
+← Back to Dashboard
 </button>
 )}
 <form onSubmit={handleSearch} className="flex gap-2">
@@ -518,7 +556,11 @@ Search
 <h4 className="text-3xl font-black text-slate-900">₦{stats.todayRevenue.toLocaleString()}</h4>
 </div>
 </div>
-<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
+<button
+type="button"
+onClick={() => setView('pendingBills')}
+className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6 text-left hover:border-orange-200 hover:shadow-md transition-all"
+>
 <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-600">
 <Receipt className="w-8 h-8" />
 </div>
@@ -526,7 +568,7 @@ Search
 <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Pending Bills</p>
 <h4 className="text-3xl font-black text-slate-900">{stats.pendingPayments}</h4>
 </div>
-</div>
+</button>
 <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
 <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center text-red-600">
 <TrendingDown className="w-8 h-8" />
@@ -937,9 +979,7 @@ placeholder="Search by name or ID..."
 </tr>
 </thead>
 <tbody className="divide-y divide-slate-50">
-{allPatients
-.filter(p => p.name.toLowerCase().includes(patientSearchQuery.toLowerCase()) || p.cardId.includes(patientSearchQuery))
-.map((p) => (
+{paginatedFinancePatients.map((p) => (
 <React.Fragment key={p.cardId}>
 <tr className="hover:bg-slate-50/50 transition-colors">
 <td className="px-6 py-4">
@@ -998,10 +1038,93 @@ title="Full History"
 )}
 </React.Fragment>
 ))}
-{allPatients.length === 0 && (
+{filteredFinancePatients.length === 0 && (
 <tr>
 <td colSpan={6} className="px-6 py-20 text-center text-slate-400">
 No patients found.
+</td>
+</tr>
+)}
+</tbody>
+</table>
+</div>
+{filteredFinancePatients.length > 0 && (
+<div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 text-sm text-slate-500">
+<span>
+Showing {(financePatientsPage - 1) * FINANCE_PATIENTS_PAGE_SIZE + 1}
+{'-'}
+{Math.min(financePatientsPage * FINANCE_PATIENTS_PAGE_SIZE, filteredFinancePatients.length)} of {filteredFinancePatients.length}
+</span>
+<div className="flex items-center gap-2">
+<button
+type="button"
+onClick={() => setFinancePatientsPage(p => Math.max(1, p - 1))}
+disabled={financePatientsPage === 1}
+className="px-3 py-1.5 rounded-lg border border-slate-200 font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+>
+Prev
+</button>
+<span className="font-semibold text-slate-600">Page {financePatientsPage} of {financePatientsPageCount}</span>
+<button
+type="button"
+onClick={() => setFinancePatientsPage(p => Math.min(financePatientsPageCount, p + 1))}
+disabled={financePatientsPage === financePatientsPageCount}
+className="px-3 py-1.5 rounded-lg border border-slate-200 font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+>
+Next
+</button>
+</div>
+</div>
+)}
+</div>
+) : view === 'pendingBills' ? (
+<div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+<div className="p-6 border-b border-slate-100 bg-slate-50/50">
+<h3 className="font-bold text-slate-900 flex items-center gap-2">
+<Receipt className="w-5 h-5 text-orange-500" /> Patients With Pending Bills
+</h3>
+</div>
+<div className="overflow-x-auto">
+<table className="w-full text-left border-collapse">
+<thead>
+<tr className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100">
+<th className="px-6 py-4">Patient</th>
+<th className="px-6 py-4">Total</th>
+<th className="px-6 py-4">Pending</th>
+<th className="px-6 py-4">Status</th>
+</tr>
+</thead>
+<tbody className="divide-y divide-slate-50">
+{records.filter(r => r.paymentStatus !== 'fully paid').map((record, idx) => (
+<tr
+key={record.id || idx}
+onClick={() => openPendingBill(record)}
+className="hover:bg-orange-50/60 cursor-pointer transition-colors"
+>
+<td className="px-6 py-4">
+<div className="flex items-center gap-3">
+<div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 font-bold text-xs">
+{record.patient?.name.charAt(0) || '?'}
+</div>
+<div>
+<p className="text-sm font-bold text-slate-900">{record.patient?.name || record.patientId}</p>
+<p className="text-[10px] text-slate-400">{record.patientId}</p>
+</div>
+</div>
+</td>
+<td className="px-6 py-4 text-sm font-semibold text-slate-700">₦{record.totalAmount.toLocaleString()}</td>
+<td className="px-6 py-4 text-sm font-bold text-red-500">₦{record.pendingAmount.toLocaleString()}</td>
+<td className="px-6 py-4">
+<span className="text-[10px] font-bold px-2 py-1 rounded-full uppercase bg-orange-100 text-orange-600">
+{record.paymentStatus}
+</span>
+</td>
+</tr>
+))}
+{records.filter(r => r.paymentStatus !== 'fully paid').length === 0 && (
+<tr>
+<td colSpan={4} className="px-6 py-20 text-center text-slate-400">
+No pending bills right now.
 </td>
 </tr>
 )}
