@@ -57,6 +57,30 @@ name: '',
 price: '',
 stock: ''
 });
+// Real trend data for the Dispensed This Week sparkline — derived from
+// `prescriptions` (medical_records + visits), which is already the full,
+// uncapped list (no .limit() on either fetch), so no extra query needed.
+// Structured `prescriptions` table rows have no dispensedAt field, so
+// they aren't part of this flow metric.
+const last7DaysDispensed = useMemo(() => {
+const days: { label: string; count: number }[] = [];
+for (let i = 6; i >= 0; i--) {
+const d = new Date();
+d.setDate(d.getDate() - i);
+const key = format(d, 'yyyy-MM-dd');
+days.push({
+label: format(d, 'EEE'),
+count: prescriptions.filter(p => p.dispensed && p.dispensedAt && p.dispensedAt.startsWith(key)).length,
+});
+}
+return days;
+}, [prescriptions]);
+const dispensedTrendPct = useMemo(() => {
+const today = last7DaysDispensed[6]?.count ?? 0;
+const yesterday = last7DaysDispensed[5]?.count ?? 0;
+if (yesterday === 0) return today > 0 ? 100 : 0;
+return Math.round(((today - yesterday) / yesterday) * 100);
+}, [last7DaysDispensed]);
 useEffect(() => {
 fetchInventory();
 fetchPrescriptionsFromRecords();
@@ -269,7 +293,7 @@ view === 'inventory' ? "bg-blue-600 text-white" : "bg-white text-slate-600 borde
 </div>
 </div>
 {view === 'dashboard' ? (
-<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
 <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600">
 <Package className="w-8 h-8" />
@@ -299,7 +323,35 @@ view === 'inventory' ? "bg-blue-600 text-white" : "bg-white text-slate-600 borde
 </h4>
 </div>
 </div>
-<div className="md:col-span-3 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+<div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+<div className="flex items-center justify-between mb-4">
+<div className="flex items-center gap-2">
+<span className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
+<Package className="w-4 h-4" />
+</span>
+<p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Dispensed This Week</p>
+</div>
+</div>
+<div className="flex items-end justify-between gap-4">
+<h4 className="text-3xl font-black text-slate-900">{last7DaysDispensed[6]?.count ?? 0}</h4>
+<div className="flex items-end gap-0.5 h-8">
+{last7DaysDispensed.map((d, i) => {
+const max = Math.max(...last7DaysDispensed.map(x => x.count), 1);
+return (
+<div key={i} className={cn("w-1.5 rounded-sm", i === 6 ? "bg-emerald-500" : "bg-slate-200")}
+style={{ height: `${Math.max((d.count / max) * 100, 8)}%` }} title={`${d.label}: ${d.count}`} />
+);
+})}
+</div>
+</div>
+<div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50 text-xs">
+<span className="text-slate-400">vs yesterday</span>
+<span className={cn("flex items-center gap-1 font-bold px-1.5 py-0.5 rounded-full", dispensedTrendPct >= 0 ? "text-emerald-600 bg-emerald-50" : "text-red-500 bg-red-50")}>
+{dispensedTrendPct >= 0 ? '↑' : '↓'} {Math.abs(dispensedTrendPct)}%
+</span>
+</div>
+</div>
+<div className="md:col-span-2 lg:col-span-4 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
 <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
 <History className="w-5 h-5 text-slate-400" /> Recent Prescriptions
 </h3>
