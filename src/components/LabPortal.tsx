@@ -296,6 +296,38 @@ const [historyPatientId, setHistoryPatientId] = useState<string | null>(null);
 const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 const pendingTests = useMemo(() => tests.filter(t => !t.result), [tests]);
 const completedTests = useMemo(() => tests.filter(t => t.result), [tests]);
+// Real trend data for the Total Today sparkline — derived from `tests`,
+// which is already the full, uncapped lab_tests list (fetchTests has no
+// .limit()), so no extra query is needed.
+const last7DaysTests = useMemo(() => {
+const days: { label: string; count: number }[] = [];
+for (let i = 6; i >= 0; i--) {
+const d = new Date();
+d.setDate(d.getDate() - i);
+const key = format(d, 'yyyy-MM-dd');
+days.push({ label: format(d, 'EEE'), count: tests.filter(t => t.createdAt.startsWith(key)).length });
+}
+return days;
+}, [tests]);
+const testsTrendPct = useMemo(() => {
+const today = last7DaysTests[6]?.count ?? 0;
+const yesterday = last7DaysTests[5]?.count ?? 0;
+if (yesterday === 0) return today > 0 ? 100 : 0;
+return Math.round(((today - yesterday) / yesterday) * 100);
+}, [last7DaysTests]);
+// Real breakdown by test type — top 5 by volume, with everything else
+// genuinely summed into "Other" rather than dropped or invented.
+const testsByType = useMemo(() => {
+const counts: Record<string, number> = {};
+tests.forEach(t => { counts[t.testType] = (counts[t.testType] || 0) + 1; });
+const total = tests.length || 1;
+const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+const top = sorted.slice(0, 5);
+const rest = sorted.slice(5).reduce((sum, [, c]) => sum + c, 0);
+const rows = top.map(([label, count]) => ({ label, count, pct: Math.round((count / total) * 100) }));
+if (rest > 0) rows.push({ label: 'Other', count: rest, pct: Math.round((rest / total) * 100) });
+return rows;
+}, [tests]);
 useEffect(() => {
 fetchTests();
 const channel = supabase
@@ -493,14 +525,51 @@ view === 'manual' ? "bg-blue-600 text-white" : "bg-white text-slate-600 border b
 <h4 className="text-3xl font-black text-slate-900">{stats.completed}</h4>
 </div>
 </div>
-<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
-<div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600">
-<Beaker className="w-8 h-8" />
+<div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+<div className="flex items-center justify-between mb-4">
+<div className="flex items-center gap-2">
+<span className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+<Beaker className="w-4 h-4" />
+</span>
+<p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Today</p>
 </div>
-<div>
-<p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Total Today</p>
+</div>
+<div className="flex items-end justify-between gap-4">
 <h4 className="text-3xl font-black text-slate-900">{stats.today}</h4>
+<div className="flex items-end gap-0.5 h-8">
+{last7DaysTests.map((d, i) => {
+const max = Math.max(...last7DaysTests.map(x => x.count), 1);
+return (
+<div key={i} className={cn("w-1.5 rounded-sm", i === 6 ? "bg-blue-500" : "bg-slate-200")}
+style={{ height: `${Math.max((d.count / max) * 100, 8)}%` }} title={`${d.label}: ${d.count}`} />
+);
+})}
 </div>
+</div>
+<div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50 text-xs">
+<span className="text-slate-400">vs yesterday</span>
+<span className={cn("flex items-center gap-1 font-bold px-1.5 py-0.5 rounded-full", testsTrendPct >= 0 ? "text-blue-600 bg-blue-50" : "text-red-500 bg-red-50")}>
+{testsTrendPct >= 0 ? '↑' : '↓'} {Math.abs(testsTrendPct)}%
+</span>
+</div>
+</div>
+<div className="md:col-span-3 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+<h3 className="font-bold text-slate-900 mb-6">Tests by Type</h3>
+{testsByType.length === 0 ? (
+<p className="text-sm text-slate-400 text-center py-8">No lab tests yet.</p>
+) : (
+<div className="space-y-3">
+{testsByType.map((row) => (
+<div key={row.label} className="flex items-center gap-4">
+<span className="text-xs font-bold text-slate-600 w-40 truncate shrink-0">{row.label}</span>
+<div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+<div className="h-full bg-blue-500 rounded-full" style={{ width: `${row.pct}%` }} />
+</div>
+<span className="text-xs font-bold text-slate-900 w-16 text-right shrink-0">{row.count} ({row.pct}%)</span>
+</div>
+))}
+</div>
+)}
 </div>
 <div className="md:col-span-3 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
 <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
