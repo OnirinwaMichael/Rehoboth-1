@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, memo, useRef } from 'react';
 import { supabase, handleSupabaseError } from '../lib/supabase';
-import { Patient, MedicalRecord, UserRole, Visit, LabTest, ClinicalLetter, InventoryItem, LabTestCatalogItem, Admission } from '../types';
+import { Patient, MedicalRecord, UserRole, Visit, LabTest, ClinicalLetter, InventoryItem, LabTestCatalogItem, Admission, FamilyMember } from '../types';
 import { toast } from 'sonner';
 import { Search, Activity, ClipboardList, FlaskConical, Pill, Plus, Save, History, User, Heart, Thermometer, Droplets, Stethoscope, FileText, CreditCard, LayoutDashboard, Users as UsersIcon, ChevronDown, ChevronUp, Wind, X, AlertTriangle, FolderOpen, Camera } from 'lucide-react';
 import { format } from 'date-fns';
@@ -66,6 +66,8 @@ userId: string;
 export const DoctorNursePortal: React.FC<Props> = ({ role, userId }) => {
 const [searchId, setSearchId] = useState('');
 const [patient, setPatient] = useState<Patient | null>(null);
+const [patientFamilyMembers, setPatientFamilyMembers] = useState<FamilyMember[]>([]);
+const [selectedFamilyMemberId, setSelectedFamilyMemberId] = useState<string>('');
 const [records, setRecords] = useState<MedicalRecord[]>([]);
 const [loading, setLoading] = useState(false);
 const [view, setView] = useState<'dashboard' | 'assessment' | 'consultations' | 'labResults' | 'records' | 'patients'>('dashboard');
@@ -488,6 +490,21 @@ const { data: admissionData, error: admissionErr } = await supabase
 .maybeSingle();
 if (admissionErr) return handleSupabaseError(admissionErr, 'select', 'admissions');
 setActiveAdmission(admissionData ? admissionFromRow(admissionData) : null);
+setSelectedFamilyMemberId('');
+if (patient.category === 'family card') {
+const { data: membersData, error: membersErr } = await supabase
+.from('family_members')
+.select('*')
+.eq('patient_id', patient.cardId)
+.order('sort_order', { ascending: true })
+.order('created_at', { ascending: true });
+if (membersErr) return handleSupabaseError(membersErr, 'select', 'family_members');
+setPatientFamilyMembers((membersData || []).map((m: any) => ({
+id: m.id, patientId: m.patient_id, name: m.name, sortOrder: m.sort_order, createdAt: m.created_at
+})));
+} else {
+setPatientFamilyMembers([]);
+}
 };
 fetchRecordsAndVisits();
 const channel = supabase
@@ -597,12 +614,17 @@ if (!formData.bloodPressure || !formData.temperature) {
 toast.error('Blood Pressure and Temperature are required vitals.');
 return;
 }
+if (patient.category === 'family card' && !selectedFamilyMemberId) {
+toast.error('Please select which family member this visit is for.');
+return;
+}
 setLoading(true);
 try {
 const paymentFee = parseFloat(formData.paymentFee) || 0;
 const { data: recordRow, error } = await supabase.from('medical_records').insert({
 patient_id: patient.cardId,
 staff_id: userId,
+family_member_id: patient.category === 'family card' ? selectedFamilyMemberId : null,
 blood_pressure: formData.bloodPressure,
 temperature: formData.temperature,
 sugar_level: formData.sugarLevel,
@@ -632,6 +654,7 @@ for (const test of formData.recommendedTests) {
 const { error: labErr } = await supabase.from('lab_tests').insert({
 patient_id: patient.cardId,
 record_id: recordRow?.id,
+family_member_id: patient.category === 'family card' ? selectedFamilyMemberId : null,
 test_type: test.name,
 price: parseFloat(test.price) || 0,
 payment_status: 'pending',
@@ -663,6 +686,7 @@ await logAction(userId, 'CREATE_PRESCRIPTION', `Prescribed ${formData.prescripti
 }
 toast.success('Medical record saved successfully!');
 clearFormDraft();
+setSelectedFamilyMemberId('');
 fetchStats();
 } catch (error) {
 handleSupabaseError(error, 'insert', 'medical_records');
@@ -1601,6 +1625,28 @@ Recording as: <span className="text-blue-600 font-bold">{role}</span>
 </span>
 </div>
 <div className="p-8 space-y-8">
+{patient.category === 'family card' && (
+<div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
+<label className="text-sm font-bold text-amber-900 flex items-center gap-2">
+<UsersIcon className="w-4 h-4" /> Family Member Being Treated
+</label>
+{patientFamilyMembers.length > 0 ? (
+<select
+required
+value={selectedFamilyMemberId}
+onChange={e => setSelectedFamilyMemberId(e.target.value)}
+className="w-full p-3 rounded-xl border border-amber-300 bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+>
+<option value="" disabled>Select family member</option>
+{patientFamilyMembers.map(m => (
+<option key={m.id} value={m.id}>{m.name}</option>
+))}
+</select>
+) : (
+<p className="text-sm text-amber-800">No family members are on file for this card yet — add them from the Receptionist patient registration/edit screen before recording this consultation.</p>
+)}
+</div>
+)}
 {/* Vitals Section - Tabular Grid Format */}
 <div className="space-y-4">
 <h4 className="font-bold text-slate-900 flex items-center gap-2">

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, memo } from 'react';
 import { supabase, handleSupabaseError } from '../lib/supabase';
-import { LabTest, Patient, LabTestCatalogItem, LabResource, WardCatalogItem } from '../types';
+import { LabTest, Patient, LabTestCatalogItem, LabResource, WardCatalogItem, FamilyMember } from '../types';
 import { toast } from 'sonner';
-import { FlaskConical, Search, CheckCircle, Clock, FileText, User, CreditCard, Save, X, LayoutDashboard, History, Beaker, CheckCircle2, Plus, Camera, Trash2, Package } from 'lucide-react';
+import { FlaskConical, Search, CheckCircle, Clock, FileText, User, CreditCard, Save, X, LayoutDashboard, History, Beaker, CheckCircle2, Plus, Camera, Trash2, Package, Users as UsersIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -145,6 +145,27 @@ const { data, error } = await supabase
 if (error) return handleSupabaseError(error, 'select', 'patients');
 setManualPatientSuggestions((data || []).map(patientFromRow));
 }, 250);
+return () => clearTimeout(timeout);
+}, [manualEntry.patientId]);
+const [manualFamilyMembers, setManualFamilyMembers] = useState<FamilyMember[]>([]);
+const [manualFamilyMemberId, setManualFamilyMemberId] = useState('');
+useEffect(() => {
+const cardId = manualEntry.patientId.trim();
+if (!cardId) { setManualFamilyMembers([]); setManualFamilyMemberId(''); return; }
+const timeout = setTimeout(async () => {
+const { data: patientRow, error: patientErr } = await supabase
+.from('patients').select('card_id, category').eq('card_id', cardId).maybeSingle();
+if (patientErr) return handleSupabaseError(patientErr, 'select', 'patients');
+setManualFamilyMemberId('');
+if (!patientRow || patientRow.category !== 'family card') { setManualFamilyMembers([]); return; }
+const { data: membersData, error: membersErr } = await supabase
+.from('family_members').select('*').eq('patient_id', cardId)
+.order('sort_order', { ascending: true }).order('created_at', { ascending: true });
+if (membersErr) return handleSupabaseError(membersErr, 'select', 'family_members');
+setManualFamilyMembers((membersData || []).map((m: any) => ({
+id: m.id, patientId: m.patient_id, name: m.name, sortOrder: m.sort_order, createdAt: m.created_at
+})));
+}, 300);
 return () => clearTimeout(timeout);
 }, [manualEntry.patientId]);
 const [newCatalogTest, setNewCatalogTest] = useState({ name: '', price: '' });
@@ -405,6 +426,10 @@ if (!manualEntry.patientId || !manualEntry.testType || !manualEntry.result) {
 toast.error('Please fill all fields');
 return;
 }
+if (manualFamilyMembers.length > 0 && !manualFamilyMemberId) {
+toast.error('Please select which family member this test is for.');
+return;
+}
 try {
 setLoading(true);
 const { data: patientRow, error: patientErr } = await supabase
@@ -416,6 +441,7 @@ return;
 }
 const { error } = await supabase.from('lab_tests').insert({
 patient_id: manualEntry.patientId,
+family_member_id: manualFamilyMemberId || null,
 test_type: manualEntry.testType,
 price: parseFloat(manualEntry.price) || 0,
 result: manualEntry.result,
@@ -428,6 +454,8 @@ if (error) throw error;
 await logAction(userId, 'MANUAL_LAB_ENTRY', `Manually recorded ${manualEntry.testType} for patient ${manualEntry.patientId}`);
 toast.success('Lab record added successfully!');
 clearManualDraft();
+setManualFamilyMemberId('');
+setManualFamilyMembers([]);
 setView('dashboard');
 } catch (error) {
 handleSupabaseError(error, 'insert', 'lab_tests');
@@ -962,6 +990,24 @@ className="w-full flex items-center justify-between text-left px-4 py-2 text-sm 
 )}
 </div>
 </div>
+{manualFamilyMembers.length > 0 && (
+<div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
+<label className="text-sm font-bold text-amber-900 flex items-center gap-2">
+<UsersIcon className="w-4 h-4" /> Family Member Being Tested
+</label>
+<select
+required
+value={manualFamilyMemberId}
+onChange={e => setManualFamilyMemberId(e.target.value)}
+className="w-full p-3 rounded-xl border border-amber-300 bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+>
+<option value="" disabled>Select family member</option>
+{manualFamilyMembers.map(m => (
+<option key={m.id} value={m.id}>{m.name}</option>
+))}
+</select>
+</div>
+)}
 <div className="space-y-2">
 <label className="text-sm font-bold text-slate-700">Test / Scan Type</label>
 <select

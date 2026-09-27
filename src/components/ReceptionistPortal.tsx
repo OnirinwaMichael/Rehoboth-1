@@ -78,6 +78,7 @@ const [patientsLoadError, setPatientsLoadError] = useState(false);
 const [expandedPatientId, setExpandedPatientId] = useState<string | null>(null);
 const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
 const [editCardId, setEditCardId] = useState('');
+const [familyMembers, setFamilyMembers] = useState<{ id: string | null; name: string }[]>([]);
 const [searchQuery, setSearchQuery] = useState('');
 const [stats, setStats] = useState({
 total: 0,
@@ -398,9 +399,12 @@ if (entryMode === 'manual') {
 await supabase.rpc('bump_patient_card_id_seq', { p_card_id: cardId });
 }
 await logAction(userId, 'REGISTER_PATIENT', `Registered ${registrationType === 'old' ? 'existing-file' : 'new'} patient ${formData.name} with Card ID ${cardId}`);
+if (formData.category === 'family card') await saveFamilyMembers(cardId);
 toast.success('Patient registered successfully!');
 clearFormDraft();
 setManualCardId('');
+setFamilyMembers([]);
+setOriginalFamilyMemberIds([]);
 fetchRecentPatients();
 if (entryMode === 'auto') {
 // New file being opened right now - offer to record the card fee
@@ -416,6 +420,35 @@ setEntryMode('auto');
 handleSupabaseError(error, 'insert', 'patients');
 } finally {
 setLoading(false);
+}
+};
+// --- Family Members roster (Family Card only) ---
+const [originalFamilyMemberIds, setOriginalFamilyMemberIds] = useState<string[]>([]);
+const loadFamilyMembers = async (cardId: string) => {
+const { data, error } = await supabase.from('family_members').select('id, name')
+.eq('patient_id', cardId).order('sort_order', { ascending: true }).order('created_at', { ascending: true });
+if (error) { handleSupabaseError(error, 'select', 'family_members'); return; }
+const rows = (data || []).map((r: any) => ({ id: r.id as string, name: r.name as string }));
+setFamilyMembers(rows);
+setOriginalFamilyMemberIds(rows.map(r => r.id));
+};
+const saveFamilyMembers = async (cardId: string) => {
+const named = familyMembers.map(m => ({ ...m, name: m.name.trim() })).filter(m => m.name);
+const toInsert = named.filter(m => !m.id).map((m, i) => ({ patient_id: cardId, name: m.name, sort_order: i }));
+const toUpdate = named.filter(m => m.id);
+const remainingIds = toUpdate.map(m => m.id as string);
+const removedIds = originalFamilyMemberIds.filter(id => !remainingIds.includes(id));
+if (removedIds.length) {
+const { error } = await supabase.from('family_members').delete().in('id', removedIds);
+if (error) return handleSupabaseError(error, 'delete', 'family_members');
+}
+for (const m of toUpdate) {
+const { error } = await supabase.from('family_members').update({ name: m.name }).eq('id', m.id as string);
+if (error) return handleSupabaseError(error, 'update', 'family_members');
+}
+if (toInsert.length) {
+const { error } = await supabase.from('family_members').insert(toInsert);
+if (error) return handleSupabaseError(error, 'insert', 'family_members');
 }
 };
 const handleAppointmentSubmit = async (e: React.FormEvent) => {
@@ -478,9 +511,12 @@ return;
 throw error;
 }
 await logAction(userId, 'UPDATE_PATIENT', `Updated patient ${formData.name}${newCardId !== editingPatient.cardId ? ` (Card ID changed from ${editingPatient.cardId} to ${newCardId})` : ` with Card ID ${editingPatient.cardId}`}`);
+if (formData.category === 'family card') await saveFamilyMembers(newCardId);
 toast.success('Patient updated successfully!');
 setEditingPatient(null);
 setEditCardId('');
+setFamilyMembers([]);
+setOriginalFamilyMemberIds([]);
 setFormData({
 name: '', gender: 'male', stateOfOrigin: '', age: '',
 occupation: '', address: '', phone: '', nextOfKin: '',
@@ -938,6 +974,41 @@ className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring
 </div>
 </div>
 </div>
+{formData.category === 'family card' && (
+<div className="border-t border-slate-100 pt-6">
+<h4 className="font-bold text-slate-900 mb-1 flex items-center gap-2">
+<UsersIcon className="w-4 h-4 text-blue-500" /> Family Members
+</h4>
+<p className="text-xs text-slate-400 mb-4">Add each person covered by this card, so staff can pick who a visit is for.</p>
+<div className="space-y-3">
+{familyMembers.map((member, i) => (
+<div key={i} className="flex items-center gap-2">
+<input
+value={member.name}
+onChange={e => setFamilyMembers(fm => fm.map((m, idx) => idx === i ? { ...m, name: e.target.value } : m))}
+placeholder={`Family member ${i + 1} name`}
+className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+/>
+<button
+type="button"
+onClick={() => setFamilyMembers(fm => fm.filter((_, idx) => idx !== i))}
+className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+title="Remove"
+>
+<X className="w-4 h-4" />
+</button>
+</div>
+))}
+<button
+type="button"
+onClick={() => setFamilyMembers(fm => [...fm, { id: null, name: '' }])}
+className="flex items-center gap-2 text-sm font-bold text-blue-600 hover:underline"
+>
+<Plus className="w-4 h-4" /> Add family member
+</button>
+</div>
+</div>
+)}
 <div className="flex gap-4">
 <button
 type="submit"
@@ -952,6 +1023,8 @@ type="button"
 onClick={() => {
 setEditingPatient(null);
 setEditCardId('');
+setFamilyMembers([]);
+setOriginalFamilyMemberIds([]);
 setFormData({
 name: '', gender: 'male', stateOfOrigin: '', age: '',
 occupation: '', address: '', phone: '', nextOfKin: '',
@@ -1220,6 +1293,7 @@ occupation: p.occupation, address: p.address, phone: p.phone, nextOfKin: p.nextO
 relationship: p.relationship, nokAddress: p.nokAddress, nokPhone: p.nokPhone, category: p.category,
 antenatalStatus: p.antenatalStatus || 'new'
 });
+if (p.category === 'family card') { loadFamilyMembers(p.cardId); } else { setFamilyMembers([]); setOriginalFamilyMemberIds([]); }
 setView('register');
 }}
 className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"

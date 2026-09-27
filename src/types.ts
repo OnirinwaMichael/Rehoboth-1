@@ -26,6 +26,13 @@ createdAt: string;
 registrationType: 'fresh' | 'old';
 antenatalStatus?: 'new' | 'returning' | null;
 }
+export interface FamilyMember {
+id: string;
+patientId: string;
+name: string;
+sortOrder: number;
+createdAt: string;
+}
 export interface Vitals {
 bloodPressure?: string;
 temperature?: string;
@@ -39,6 +46,7 @@ export interface MedicalRecord {
 id: string;
 patientId: string;
 staffId: string;
+familyMemberId?: string | null;
 vitals?: Vitals;
 diagnosis?: string;
 prescriptions?: string[];
@@ -245,6 +253,7 @@ export interface LabTest {
 id: string;
 patientId: string;
 recordId?: string;
+familyMemberId?: string | null;
 testType: string;
 price?: number;
 result?: string;
