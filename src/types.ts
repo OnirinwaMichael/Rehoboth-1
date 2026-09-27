@@ -149,17 +149,14 @@ createdBy: string;
 updatedAt: string;
 createdAt: string;
 }
-export interface VitalSignEntry {
+export interface VitalSignsGrid {
 id: string;
 admissionId: string;
 patientId: string;
-entryDate: string;
-timeOfDay: 'Night' | 'Morning' | 'Afternoon';
-temperature?: string;
-pulse?: string;
-respiration?: string;
-bloodPressure?: string;
-recordedBy: string;
+dateHeaders: string[];
+values: string[][];
+createdBy: string;
+updatedAt: string;
 createdAt: string;
 }
 export interface AntenatalFollowup {

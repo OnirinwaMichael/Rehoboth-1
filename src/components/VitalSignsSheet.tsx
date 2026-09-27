@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Patient, Admission, VitalSignEntry } from '../types';
-import { format } from 'date-fns';
-import { Activity } from 'lucide-react';
+import { Patient, Admission, VitalSignsGrid } from '../types';
+import { Plus, Save } from 'lucide-react';
 import { FullScreenSheet } from './FullScreenSheet';
 import { supabase, handleSupabaseError } from '../lib/supabase';
 import { toast } from 'sonner';
@@ -13,177 +12,224 @@ interface Props {
   onClose: () => void;
 }
 
-const TIME_SLOTS: VitalSignEntry['timeOfDay'][] = ['Night', 'Morning', 'Afternoon'];
+// 1:1 digital replica of the clinic's physical paper Vital Signs
+// form: Date-group columns (each split into Night/Morning/Afternoon)
+// across the top, and fixed T / P / R / BP rows down the side,
+// printed twice. The row labels are fixed (printed), exactly like
+// "Date:" and "Name:" on the paper - only the actual cells and the
+// per-date-group headers are blank/editable.
+const SUB_COLS = ['N', 'M', 'A'];
+const ROW_LABELS = ['T', 'P', 'R', 'BP', 'T', 'P', 'R', 'BP'];
+const DEFAULT_GROUP_COUNT = 7; // date-groups, matching the printed form
 
-const vitalSignFromRow = (r: any): VitalSignEntry => ({
-  id: r.id, admissionId: r.admission_id, patientId: r.patient_id, entryDate: r.entry_date,
-  timeOfDay: r.time_of_day, temperature: r.temperature, pulse: r.pulse,
-  respiration: r.respiration, bloodPressure: r.blood_pressure,
-  recordedBy: r.recorded_by, createdAt: r.created_at,
+const gridFromRow = (r: any): VitalSignsGrid => ({
+  id: r.id,
+  admissionId: r.admission_id,
+  patientId: r.patient_id,
+  dateHeaders: r.date_headers || [],
+  values: r.values || [],
+  createdBy: r.created_by,
+  updatedAt: r.updated_at,
+  createdAt: r.created_at,
 });
 
-export const VitalSignsSheet: React.FC<Props> = ({ patient, admission, userId, onClose }) => {
-  const [entries, setEntries] = useState<VitalSignEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [newDate, setNewDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
-  const [draft, setDraft] = useState<Record<string, { temperature: string; pulse: string; respiration: string; bloodPressure: string }>>({
-    Night: { temperature: '', pulse: '', respiration: '', bloodPressure: '' },
-    Morning: { temperature: '', pulse: '', respiration: '', bloodPressure: '' },
-    Afternoon: { temperature: '', pulse: '', respiration: '', bloodPressure: '' },
-  });
+const blankValues = (groupCount: number): string[][] =>
+  ROW_LABELS.map(() => Array(groupCount * 3).fill(''));
 
-  const fetchEntries = async () => {
+export const VitalSignsSheet: React.FC<Props> = ({ patient, admission, userId, onClose }) => {
+  const [grid, setGrid] = useState<VitalSignsGrid | null>(null);
+  const [dateHeaders, setDateHeaders] = useState<string[]>(Array(DEFAULT_GROUP_COUNT).fill(''));
+  const [values, setValues] = useState<string[][]>(blankValues(DEFAULT_GROUP_COUNT));
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+
+  const fetchGrid = async () => {
     const { data, error } = await supabase
-      .from('vital_signs_entries')
+      .from('vital_signs_grids')
       .select('*')
       .eq('admission_id', admission.id)
-      .order('entry_date', { ascending: false });
-    if (error) { handleSupabaseError(error, 'select', 'vital_signs_entries'); setLoading(false); return; }
-    setEntries((data || []).map(vitalSignFromRow));
+      .maybeSingle();
+    if (error) { handleSupabaseError(error, 'select', 'vital_signs_grids'); setLoading(false); return; }
+    if (data) {
+      const g = gridFromRow(data);
+      const groupCount = g.dateHeaders.length || DEFAULT_GROUP_COUNT;
+      setGrid(g);
+      setDateHeaders(g.dateHeaders.length ? g.dateHeaders : Array(DEFAULT_GROUP_COUNT).fill(''));
+      setValues(g.values.length === ROW_LABELS.length ? g.values : blankValues(groupCount));
+    }
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchEntries();
+    fetchGrid();
     const channel = supabase
-      .channel(`vital-signs-${admission.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'vital_signs_entries', filter: `admission_id=eq.${admission.id}` }, fetchEntries)
+      .channel(`vital-signs-grid-${admission.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vital_signs_grids', filter: `admission_id=eq.${admission.id}` }, () => {
+        if (!dirty) fetchGrid();
+      })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [admission.id]);
 
-  const handleSaveSlot = async (timeOfDay: string) => {
-    const slot = draft[timeOfDay];
-    if (!slot.temperature && !slot.pulse && !slot.respiration && !slot.bloodPressure) {
-      toast.error('Enter at least one reading.');
-      return;
-    }
-    const { error } = await supabase.from('vital_signs_entries').upsert({
-      admission_id: admission.id,
-      patient_id: patient.cardId,
-      entry_date: newDate,
-      time_of_day: timeOfDay,
-      temperature: slot.temperature || null,
-      pulse: slot.pulse || null,
-      respiration: slot.respiration || null,
-      blood_pressure: slot.bloodPressure || null,
-      recorded_by: userId,
-    }, { onConflict: 'admission_id,entry_date,time_of_day' });
-    if (error) return handleSupabaseError(error, 'insert', 'vital_signs_entries');
-    toast.success(`${timeOfDay} reading saved.`);
-    setDraft({ ...draft, [timeOfDay]: { temperature: '', pulse: '', respiration: '', bloodPressure: '' } });
+  const updateDateHeader = (groupIndex: number, value: string) => {
+    setDateHeaders(prev => prev.map((d, i) => (i === groupIndex ? value : d)));
+    setDirty(true);
   };
 
-  const grouped = entries.reduce<Record<string, VitalSignEntry[]>>((acc, e) => {
-    (acc[e.entryDate] = acc[e.entryDate] || []).push(e);
-    return acc;
-  }, {});
+  const updateCell = (rowIndex: number, colIndex: number, value: string) => {
+    setValues(prev => prev.map((row, r) => {
+      if (r !== rowIndex) return row;
+      const next = [...row];
+      next[colIndex] = value;
+      return next;
+    }));
+    setDirty(true);
+  };
+
+  const addDateGroup = () => {
+    setDateHeaders(prev => [...prev, '']);
+    setValues(prev => prev.map(row => [...row, '', '', '']));
+    setDirty(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const payload = {
+      admission_id: admission.id,
+      patient_id: patient.cardId,
+      date_headers: dateHeaders,
+      values,
+      created_by: grid?.createdBy || userId,
+    };
+    const { data, error } = await supabase
+      .from('vital_signs_grids')
+      .upsert(payload, { onConflict: 'admission_id' })
+      .select()
+      .single();
+    setSaving(false);
+    if (error) return handleSupabaseError(error, 'upsert', 'vital_signs_grids');
+    setGrid(gridFromRow(data));
+    setDirty(false);
+    toast.success('Vital signs chart saved.');
+  };
+
+  const cellClass = "w-full h-full px-1 py-2 text-xs text-center outline-none focus:bg-blue-50 border-l border-slate-300 bg-transparent";
 
   return (
-    <FullScreenSheet title="Vital Signs" subtitle={patient.name} onClose={onClose}>
-      <div className="max-w-3xl mx-auto p-4 space-y-6">
-        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Record Reading</p>
-            <input
-              type="date"
-              value={newDate}
-              onChange={e => setNewDate(e.target.value)}
-              className="p-2 text-sm border border-slate-200 rounded-lg outline-none"
-            />
+    <FullScreenSheet
+      title="Vital Signs"
+      subtitle={patient.name}
+      onClose={onClose}
+      headerActions={
+        <button
+          onClick={handleSave}
+          disabled={saving || !dirty}
+          className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700 disabled:opacity-40"
+        >
+          <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save'}
+        </button>
+      }
+    >
+      {loading ? (
+        <p className="text-center text-slate-400 text-sm py-8">Loading...</p>
+      ) : (
+        <div className="max-w-[900px] mx-auto p-4 pb-24">
+          {/* Letterhead - replica of the printed paper form */}
+          <div className="border-2 border-sky-700 rounded-sm p-4 mb-0">
+            <div className="flex items-center gap-4 justify-center flex-wrap">
+              <div className="w-16 h-16 rounded-full border-2 border-sky-700 flex flex-col items-center justify-center shrink-0 text-sky-700">
+                <span className="text-[7px] font-bold leading-none">THE REHOBOTH</span>
+                <span className="text-sm font-black leading-none my-0.5">TRCM</span>
+                <span className="text-[6px] font-bold leading-none">CLINIC & MATERNITY</span>
+              </div>
+              <div className="text-center">
+                <h1 className="text-xl sm:text-2xl font-black text-sky-700 uppercase tracking-tight">
+                  The Rehoboth Clinic &amp; Maternity
+                </h1>
+                <p className="text-[11px] text-sky-700 font-semibold">
+                  P.O.Box 89, Adogbe Along Living Faith Church Odole Mopa Mopamuro L.G.A. Kogi State
+                </p>
+                <p className="text-sm font-bold text-sky-700 mt-1">08054894848</p>
+              </div>
+            </div>
+            <h2 className="text-center text-lg font-black text-sky-700 uppercase mt-2">Vital Signs</h2>
+            <div className="flex items-baseline gap-2 mt-3 text-sm">
+              <span className="font-semibold text-slate-800">Name:</span>
+              <span className="flex-1 border-b border-slate-400 pb-0.5 font-medium text-slate-900">{patient.name}</span>
+            </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse">
+
+          {/* Grid - exact replica of the printed table */}
+          <div className="border-2 border-t-0 border-sky-700 overflow-x-auto">
+            <table className="w-full border-collapse">
               <thead>
-                <tr>
-                  <th className="text-left px-2 py-1"></th>
-                  {TIME_SLOTS.map(slot => (
-                    <th key={slot} className="px-2 py-1 text-center bg-slate-700 text-white rounded-t-lg">{slot}</th>
+                <tr className="border-b border-slate-300">
+                  <th className="border-r border-slate-300 px-2 py-2 text-left text-xs font-bold text-slate-800 bg-slate-50 min-w-[60px]">
+                    Date:
+                  </th>
+                  {dateHeaders.map((val, groupIndex) => (
+                    <th key={groupIndex} colSpan={3} className="p-0 min-w-[90px] border-l border-slate-300">
+                      <input
+                        value={val}
+                        onChange={e => updateDateHeader(groupIndex, e.target.value)}
+                        className="w-full px-1 py-2 text-xs text-center font-bold outline-none focus:bg-blue-50 bg-transparent"
+                      />
+                    </th>
+                  ))}
+                </tr>
+                <tr className="border-b-2 border-sky-700">
+                  <th className="border-r border-slate-300 bg-slate-50"></th>
+                  {dateHeaders.map((_, groupIndex) => (
+                    SUB_COLS.map((s, si) => (
+                      <th key={`${groupIndex}-${s}`} className="border-l border-slate-300 first:border-l-0 px-1 py-1 text-[10px] font-bold text-slate-500 min-w-[24px]">
+                        {s}
+                      </th>
+                    ))
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {(['temperature', 'pulse', 'respiration', 'bloodPressure'] as const).map((field, i) => (
-                  <tr key={field}>
-                    <td className="px-2 py-1 font-bold text-slate-500 whitespace-nowrap">
-                      {['Temp', 'Pulse', 'Resp', 'BP'][i]}
+                {ROW_LABELS.map((label, rowIndex) => (
+                  <tr
+                    key={rowIndex}
+                    className={rowIndex === 3 || rowIndex === 7 ? "border-b-2 border-sky-700" : "border-b border-slate-200"}
+                    style={rowIndex === 4 ? { borderTop: '10px solid white' } : undefined}
+                  >
+                    <td className="border-r border-slate-300 px-2 py-2 text-xs font-bold text-slate-800 bg-slate-50">
+                      {label}
                     </td>
-                    {TIME_SLOTS.map(slot => (
-                      <td key={slot} className="p-1">
+                    {values[rowIndex]?.map((val, colIndex) => (
+                      <td key={colIndex} className="p-0 border-l border-slate-300 first:border-l-0">
                         <input
-                          value={draft[slot][field]}
-                          onChange={e => setDraft({ ...draft, [slot]: { ...draft[slot], [field]: e.target.value } })}
-                          className="w-full p-2 text-center border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500"
+                          value={val}
+                          onChange={e => updateCell(rowIndex, colIndex, e.target.value)}
+                          className={cellClass}
                         />
                       </td>
                     ))}
                   </tr>
                 ))}
-                <tr>
-                  <td></td>
-                  {TIME_SLOTS.map(slot => (
-                    <td key={slot} className="p-1">
-                      <button
-                        onClick={() => handleSaveSlot(slot)}
-                        className="w-full py-2 bg-blue-600 text-white rounded-lg font-bold text-[10px] hover:bg-blue-700"
-                      >
-                        Save {slot}
-                      </button>
-                    </td>
-                  ))}
-                </tr>
               </tbody>
             </table>
           </div>
-        </div>
 
-        <div className="space-y-4">
-          {loading ? (
-            <p className="text-center text-slate-400 text-sm py-8">Loading...</p>
-          ) : Object.keys(grouped).length === 0 ? (
-            <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-              <Activity className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-              <p className="text-slate-400 text-sm">No readings recorded yet.</p>
-            </div>
-          ) : (
-            Object.entries(grouped).map(([date, dayEntries]: [string, VitalSignEntry[]]) => (
-              <div key={date} className="border border-slate-200 rounded-2xl overflow-hidden">
-                <div className="bg-slate-700 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">
-                  {format(new Date(date), 'EEEE, MMM d, yyyy')}
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50">
-                        <th className="px-2 py-1 text-left">Time</th>
-                        <th className="px-2 py-1">Temp</th>
-                        <th className="px-2 py-1">Pulse</th>
-                        <th className="px-2 py-1">Resp</th>
-                        <th className="px-2 py-1">BP</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {TIME_SLOTS.map(slot => {
-                        const entry = dayEntries.find(e => e.timeOfDay === slot);
-                        return (
-                          <tr key={slot} className="border-t border-slate-100">
-                            <td className="px-2 py-2 font-bold text-slate-700">{slot}</td>
-                            <td className="px-2 py-2 text-center">{entry?.temperature || '—'}</td>
-                            <td className="px-2 py-2 text-center">{entry?.pulse || '—'}</td>
-                            <td className="px-2 py-2 text-center">{entry?.respiration || '—'}</td>
-                            <td className="px-2 py-2 text-center">{entry?.bloodPressure || '—'}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ))
+          {/* Digital-only convenience - not on the paper form, needed
+              since a screen can't add another printed sheet */}
+          <button
+            onClick={addDateGroup}
+            className="w-full flex items-center justify-center gap-1 py-2 mt-3 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200"
+          >
+            <Plus className="w-3 h-3" /> Add Date Column
+          </button>
+          {dirty && (
+            <p className="text-center text-[11px] text-amber-600 font-semibold mt-2">
+              Unsaved changes — tap Save above.
+            </p>
           )}
         </div>
-      </div>
+      )}
     </FullScreenSheet>
   );
 };
