@@ -7,7 +7,6 @@ import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 import { logAction } from '../lib/audit';
 import { useFormDraft } from '../hooks/useFormDraft';
-import { generatePatientRegister } from '../lib/excel';
 import { Download } from 'lucide-react';
 // --- DB <-> app-shape mappers (keep every other line of this file,
 // and every other component, working with the same camelCase field
@@ -320,13 +319,14 @@ setAllPatients(sorted);
 setPatientsLoadError(false);
 setPatientsLoading(false);
 };
-const handleExportRegister = () => {
+const handleExportRegister = async () => {
 if (allPatients.length === 0) {
 toast.error('No patients to export yet.');
 return;
 }
 setExporting(true);
 try {
+const { generatePatientRegister } = await import('../lib/excel');
 generatePatientRegister(allPatients);
 toast.success('Patient register downloaded.');
 } catch (error) {
@@ -912,12 +912,20 @@ className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring
 </div>
 <div className="space-y-2">
 <label className="text-sm font-semibold text-slate-700">Relationship</label>
-<input
+<select
 required
 value={formData.relationship}
 onChange={e => setFormData({ ...formData, relationship: e.target.value })}
 className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
-/>
+>
+<option value="" disabled>Select relationship</option>
+<option value="Spouse">Spouse</option>
+<option value="Parent">Parent</option>
+<option value="Child">Child</option>
+<option value="Sibling">Sibling</option>
+<option value="Guardian">Guardian</option>
+<option value="Other">Other</option>
+</select>
 </div>
 <div className="space-y-2">
 <label className="text-sm font-semibold text-slate-700">NOK Phone</label>

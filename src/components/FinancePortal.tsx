@@ -8,7 +8,6 @@ import { cn } from '../lib/utils';
 import { logAction } from '../lib/audit';
 import { PatientHistory } from './PatientHistory';
 import { motion, AnimatePresence } from 'motion/react';
-import { generateFinancialReport } from '../lib/excel';
 import { useFormDraft } from '../hooks/useFormDraft';
 import { ConfirmModal } from './ConfirmModal';
 const patientFromRow = (r: any): Patient => ({
@@ -938,7 +937,14 @@ No expenses recorded yet.
 </div>
 </div>
 <button
-onClick={() => generateFinancialReport({ income: records, expenses })}
+onClick={async () => {
+try {
+const { generateFinancialReport } = await import('../lib/excel');
+generateFinancialReport({ income: records, expenses });
+} catch (error) {
+toast.error('Could not generate the spreadsheet. Please try again.');
+}
+}}
 className="w-full bg-white text-blue-600 py-5 rounded-2xl font-black text-xl hover:bg-blue-50 transition-all flex items-center justify-center gap-3 shadow-lg"
 >
 <FileSpreadsheet className="w-6 h-6" />

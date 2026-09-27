@@ -10,4 +10,15 @@ export default defineConfig({
       '@': path.resolve(__dirname, '.'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          motion: ['motion'],
+          supabase: ['@supabase/supabase-js'],
+        },
+      },
+    },
+  },
 });
