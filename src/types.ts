@@ -135,6 +135,20 @@ timeOfDay: 'Night' | 'Morning' | 'Afternoon';
 administeredBy: string;
 administeredAt: string;
 }
+export interface DrugChartGridRow {
+date: string;
+cells: string[];
+}
+export interface DrugChartGrid {
+id: string;
+admissionId: string;
+patientId: string;
+headerRow: string[];
+rows: DrugChartGridRow[];
+createdBy: string;
+updatedAt: string;
+createdAt: string;
+}
 export interface VitalSignEntry {
 id: string;
 admissionId: string;
