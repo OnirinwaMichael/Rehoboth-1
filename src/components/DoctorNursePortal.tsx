@@ -50,6 +50,7 @@ createdAt: r.created_at, updatedAt: r.updated_at,
 });
 import { motion, AnimatePresence } from 'motion/react';
 import { PatientHistory } from './PatientHistory';
+import { ConfirmModal } from './ConfirmModal';
 import { LetterheadPrint } from './LetterheadPrint';
 import { DrugChartSheet } from './DrugChartSheet';
 import { VitalSignsSheet } from './VitalSignsSheet';
@@ -67,7 +68,7 @@ const [searchId, setSearchId] = useState('');
 const [patient, setPatient] = useState<Patient | null>(null);
 const [records, setRecords] = useState<MedicalRecord[]>([]);
 const [loading, setLoading] = useState(false);
-const [view, setView] = useState<'dashboard' | 'assessment' | 'consultations' | 'labResults'>('dashboard');
+const [view, setView] = useState<'dashboard' | 'assessment' | 'consultations' | 'labResults' | 'records' | 'patients'>('dashboard');
 const [expandedRecord, setExpandedRecord] = useState<string | null>(null);
 const [stats, setStats] = useState({
 totalPatients: 0,
@@ -133,6 +134,15 @@ const drugSearchRef = useRef<HTMLInputElement>(null);
 const [testSearch, setTestSearch] = useState('');
 const [showHistory, setShowHistory] = useState(false);
 const [globalLabTests, setGlobalLabTests] = useState<(LabTest & { patient?: Patient })[]>([]);
+// Hospital-wide medical records (all patients), for the Dashboard's
+// "Recent Clinical Activity" panel and the Records-Today drill-through —
+// distinct from `records`, which stays scoped to the one selected patient.
+const [globalRecords, setGlobalRecords] = useState<(MedicalRecord & { patient?: Patient })[]>([]);
+const [recordsFilter, setRecordsFilter] = useState<'all' | 'today'>('all');
+const [recordsSearch, setRecordsSearch] = useState('');
+// Hospital-wide patient list, for the Total-Patients drill-through.
+const [allPatients, setAllPatients] = useState<Patient[]>([]);
+const [patientsSearch, setPatientsSearch] = useState('');
 useEffect(() => {
 const fetchDrugCatalog = async () => {
 const { data, error } = await supabase.from('inventory').select('*').order('name', { ascending: true });
@@ -257,6 +267,18 @@ setContinueNote('');
 handleSupabaseError(error, 'insert', 'prescriptions');
 }
 };
+const filteredGlobalRecords = useMemo(() => {
+const today = format(new Date(), 'yyyy-MM-dd');
+const q = recordsSearch.trim().toLowerCase();
+return globalRecords
+.filter(r => recordsFilter === 'all' || r.createdAt.startsWith(today))
+.filter(r => !q || r.patient?.name?.toLowerCase().includes(q) || r.patientId.toLowerCase().includes(q));
+}, [globalRecords, recordsFilter, recordsSearch]);
+const filteredAllPatients = useMemo(() => {
+const q = patientsSearch.trim().toLowerCase();
+if (!q) return allPatients;
+return allPatients.filter(p => p.name.toLowerCase().includes(q) || p.cardId.toLowerCase().includes(q));
+}, [allPatients, patientsSearch]);
 const prescriptionTotal = useMemo(() =>
 formData.prescriptionItems.reduce((sum, p) => sum + prescriptionUnitsAndTotal(p).total, 0),
 [formData.prescriptionItems]
@@ -272,6 +294,8 @@ fetchStats();
 fetchGlobalLabTests();
 fetchWeeklyRecordActivity();
 fetchActiveAdmissionsCount();
+fetchGlobalRecords();
+fetchAllPatients();
 const channel = supabase
 .channel('lab-tests-changes')
 .on('postgres_changes', { event: '*', schema: 'public', table: 'lab_tests' }, () => {
@@ -280,9 +304,13 @@ fetchGlobalLabTests();
 .on('postgres_changes', { event: '*', schema: 'public', table: 'medical_records' }, () => {
 fetchStats();
 fetchWeeklyRecordActivity();
+fetchGlobalRecords();
 })
 .on('postgres_changes', { event: '*', schema: 'public', table: 'admissions' }, () => {
 fetchActiveAdmissionsCount();
+})
+.on('postgres_changes', { event: '*', schema: 'public', table: 'patients' }, () => {
+fetchAllPatients();
 })
 .subscribe();
 return () => { supabase.removeChannel(channel); };
@@ -298,6 +326,23 @@ const testsWithPatients = (data || []).map((row: any) => ({
 patient: row.patients ? patientFromRow(row.patients) : undefined,
 }));
 setGlobalLabTests(testsWithPatients);
+};
+const fetchGlobalRecords = async () => {
+const { data, error } = await supabase
+.from('medical_records')
+.select('*, patients(*)')
+.order('created_at', { ascending: false })
+.limit(300);
+if (error) return handleSupabaseError(error, 'select', 'medical_records');
+setGlobalRecords((data || []).map((row: any) => ({
+...recordFromRow(row),
+patient: row.patients ? patientFromRow(row.patients) : undefined,
+})));
+};
+const fetchAllPatients = async () => {
+const { data, error } = await supabase.from('patients').select('*').order('created_at', { ascending: false });
+if (error) return handleSupabaseError(error, 'select', 'patients');
+setAllPatients((data || []).map(patientFromRow));
 };
 const fetchStats = async () => {
 const { count: totalPatients } = await supabase.from('patients').select('*', { count: 'exact', head: true });
@@ -455,21 +500,24 @@ const channel = supabase
 .subscribe();
 return () => { supabase.removeChannel(channel); };
 }, [patient]);
-const handleAdmitPatient = async () => {
+const [showAdmitModal, setShowAdmitModal] = useState(false);
+const [admitReason, setAdmitReason] = useState('');
+const [showDischargeConfirm, setShowDischargeConfirm] = useState(false);
+const confirmAdmitPatient = async () => {
 if (!patient) return;
-const reason = window.prompt('Reason for admission (optional):') || null;
 const { error } = await supabase.from('admissions').insert({
 patient_id: patient.cardId,
 admitted_by: userId,
-reason,
+reason: admitReason.trim() || null,
 });
 if (error) return handleSupabaseError(error, 'insert', 'admissions');
 await logAction(userId, 'ADMIT_PATIENT', `Admitted patient ${patient.cardId}`);
 toast.success(`${patient.name} has been admitted.`);
+setShowAdmitModal(false);
+setAdmitReason('');
 };
 const handleDischargePatient = async () => {
 if (!patient || !activeAdmission) return;
-if (!window.confirm(`Discharge ${patient.name}? This ends their current admission.`)) return;
 const { error } = await supabase.from('admissions').update({
 discharged_at: new Date().toISOString(),
 discharged_by: userId,
@@ -688,7 +736,136 @@ Search
 </form>
 </div>
 </div>
-{view === 'labResults' ? (
+{view === 'records' ? (
+<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+<div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+<h3 className="font-bold text-slate-900 flex items-center gap-2">
+<ClipboardList className="w-5 h-5 text-green-500" /> Hospital-Wide Records
+</h3>
+<div className="flex items-center gap-2">
+<div className="flex rounded-xl border border-slate-200 overflow-hidden">
+<button
+type="button"
+onClick={() => setRecordsFilter('all')}
+className={cn("px-3 py-2 text-xs font-bold transition-all", recordsFilter === 'all' ? "bg-green-600 text-white" : "bg-white text-slate-500 hover:bg-slate-50")}
+>
+All
+</button>
+<button
+type="button"
+onClick={() => setRecordsFilter('today')}
+className={cn("px-3 py-2 text-xs font-bold transition-all", recordsFilter === 'today' ? "bg-green-600 text-white" : "bg-white text-slate-500 hover:bg-slate-50")}
+>
+Today
+</button>
+</div>
+<div className="relative">
+<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+<input
+value={recordsSearch}
+onChange={e => setRecordsSearch(e.target.value)}
+className="pl-9 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm w-48"
+placeholder="Search patient or Card ID"
+/>
+</div>
+</div>
+</div>
+<div className="overflow-x-auto">
+<table className="w-full">
+<thead>
+<tr className="text-left text-xs font-bold text-slate-400 uppercase border-b border-slate-100">
+<th className="pb-4 font-bold">Date</th>
+<th className="pb-4 font-bold">Patient</th>
+<th className="pb-4 font-bold">Diagnosis</th>
+<th className="pb-4 font-bold">Payment</th>
+</tr>
+</thead>
+<tbody className="divide-y divide-slate-50">
+{filteredGlobalRecords.map((record) => (
+<tr key={record.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => record.patient && selectPatientDirectly(record.patient)}>
+<td className="py-4 text-sm text-slate-600">{format(new Date(record.createdAt), 'MMM d, yyyy HH:mm')}</td>
+<td className="py-4">
+<div className="flex items-center gap-3">
+<div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
+{(record.patient?.name || record.patientId).charAt(0)}
+</div>
+<div>
+<p className="text-sm font-bold text-slate-900">{record.patient?.name || 'Unknown Patient'}</p>
+<p className="text-xs text-slate-500">{record.patientId}</p>
+</div>
+</div>
+</td>
+<td className="py-4 text-sm text-slate-600 max-w-xs truncate">{record.diagnosis || 'General Checkup'}</td>
+<td className="py-4">
+<span className={cn("px-3 py-1 rounded-full text-xs font-bold uppercase", record.paymentStatus === 'paid' ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700")}>
+{record.paymentStatus || 'pending'}
+</span>
+</td>
+</tr>
+))}
+{filteredGlobalRecords.length === 0 && (
+<tr>
+<td colSpan={4} className="py-8 text-center text-slate-400">No records found.</td>
+</tr>
+)}
+</tbody>
+</table>
+</div>
+</div>
+) : view === 'patients' ? (
+<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+<div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+<h3 className="font-bold text-slate-900 flex items-center gap-2">
+<UsersIcon className="w-5 h-5 text-blue-500" /> All Patients
+</h3>
+<div className="relative">
+<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+<input
+value={patientsSearch}
+onChange={e => setPatientsSearch(e.target.value)}
+className="pl-9 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm w-64"
+placeholder="Search by name or Card ID"
+/>
+</div>
+</div>
+<div className="overflow-x-auto">
+<table className="w-full">
+<thead>
+<tr className="text-left text-xs font-bold text-slate-400 uppercase border-b border-slate-100">
+<th className="pb-4 font-bold">Patient</th>
+<th className="pb-4 font-bold">Card ID</th>
+<th className="pb-4 font-bold">Age / Gender</th>
+<th className="pb-4 font-bold">Category</th>
+<th className="pb-4 font-bold">Registered</th>
+</tr>
+</thead>
+<tbody className="divide-y divide-slate-50">
+{filteredAllPatients.map((p) => (
+<tr key={p.cardId} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => selectPatientDirectly(p)}>
+<td className="py-4">
+<div className="flex items-center gap-3">
+<div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
+{p.name.charAt(0)}
+</div>
+<p className="text-sm font-bold text-slate-900">{p.name}</p>
+</div>
+</td>
+<td className="py-4 text-sm font-bold text-blue-600">{p.cardId}</td>
+<td className="py-4 text-sm text-slate-600">{p.age} / <span className="capitalize">{p.gender}</span></td>
+<td className="py-4 text-sm text-slate-600 capitalize">{p.category}</td>
+<td className="py-4 text-sm text-slate-600">{format(new Date(p.createdAt), 'MMM d, yyyy')}</td>
+</tr>
+))}
+{filteredAllPatients.length === 0 && (
+<tr>
+<td colSpan={5} className="py-8 text-center text-slate-400">No patients found.</td>
+</tr>
+)}
+</tbody>
+</table>
+</div>
+</div>
+) : view === 'labResults' ? (
 <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
 <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
 <FlaskConical className="w-5 h-5 text-purple-500" /> Global Lab Results
@@ -762,7 +939,11 @@ No lab tests found.
 </div>
 ) : view === 'dashboard' ? (
 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-<div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
+<button
+type="button"
+onClick={() => { setPatientsSearch(''); setView('patients'); }}
+className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 text-left hover:border-blue-200 hover:shadow-md transition-all"
+>
 <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
 <UsersIcon className="w-6 h-6" />
 </div>
@@ -770,8 +951,12 @@ No lab tests found.
 <p className="text-xs font-bold text-slate-400 uppercase">Total Patients</p>
 <h4 className="text-2xl font-black text-slate-900">{stats.totalPatients}</h4>
 </div>
-</div>
-<div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+</button>
+<button
+type="button"
+onClick={() => { setRecordsFilter('today'); setRecordsSearch(''); setView('records'); }}
+className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 text-left hover:border-green-200 hover:shadow-md transition-all"
+>
 <div className="flex items-center justify-between mb-3">
 <div className="flex items-center gap-2">
 <span className="w-8 h-8 rounded-lg bg-green-100 text-green-600 flex items-center justify-center">
@@ -798,7 +983,7 @@ style={{ height: `${Math.max((d.count / max) * 100, 8)}%` }} title={`${d.label}:
 {recordsTrendPct >= 0 ? '↑' : '↓'} {Math.abs(recordsTrendPct)}%
 </span>
 </div>
-</div>
+</button>
 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
 <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600">
 <Activity className="w-6 h-6" />
@@ -818,27 +1003,41 @@ style={{ height: `${Math.max((d.count / max) * 100, 8)}%` }} title={`${d.label}:
 </div>
 </div>
 <div className="md:col-span-2 lg:col-span-4 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
-<h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
+<div className="flex items-center justify-between mb-6">
+<h3 className="font-bold text-slate-900 flex items-center gap-2">
 <History className="w-5 h-5 text-slate-400" /> Recent Clinical Activity
 </h3>
+<button
+type="button"
+onClick={() => { setRecordsFilter('all'); setRecordsSearch(''); setView('records'); }}
+className="text-xs font-bold text-blue-600 hover:underline"
+>
+View all
+</button>
+</div>
 <div className="space-y-4">
-{records.slice(0, 10).map((record, idx) => (
-<div key={idx} className="p-4 rounded-xl border border-slate-50 bg-slate-50/50 flex justify-between items-center">
+{globalRecords.slice(0, 10).map((record) => (
+<button
+key={record.id}
+type="button"
+onClick={() => record.patient && selectPatientDirectly(record.patient)}
+className="w-full p-4 rounded-xl border border-slate-50 bg-slate-50/50 flex justify-between items-center text-left hover:bg-slate-100 transition-colors"
+>
 <div className="flex items-center gap-4">
 <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">
-{record.patientId.charAt(0)}
+{(record.patient?.name || record.patientId).charAt(0)}
 </div>
 <div>
-<p className="font-bold text-slate-900">Patient ID: {record.patientId}</p>
+<p className="font-bold text-slate-900">{record.patient?.name || `Patient ID: ${record.patientId}`}</p>
 <p className="text-xs text-slate-500">{record.diagnosis || 'General Checkup'}</p>
 </div>
 </div>
 <div className="text-right">
 <p className="text-xs font-bold text-slate-400">{format(new Date(record.createdAt), 'MMM d, HH:mm')}</p>
 </div>
-</div>
+</button>
 ))}
-{records.length === 0 && (
+{globalRecords.length === 0 && (
 <p className="text-center text-slate-400 py-10">No recent clinical records found.</p>
 )}
 </div>
@@ -926,7 +1125,7 @@ className="w-full flex items-center justify-center gap-2 py-3 bg-rose-50 text-ro
 <Activity className="w-4 h-4" /> Vital Signs
 </button>
 <button
-onClick={handleDischargePatient}
+onClick={() => setShowDischargeConfirm(true)}
 className="w-full flex items-center justify-center gap-2 py-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-900 transition-all"
 >
 Discharge Patient
@@ -934,7 +1133,7 @@ Discharge Patient
 </>
 ) : (
 <button
-onClick={handleAdmitPatient}
+onClick={() => { setAdmitReason(''); setShowAdmitModal(true); }}
 className="w-full flex items-center justify-center gap-2 py-3 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 transition-all"
 >
 Admit Patient
@@ -1919,6 +2118,54 @@ className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-e
 {printTest && patient && (
 <LabReportPrint test={{ ...printTest, patient }} onClose={() => setPrintTest(null)} />
 )}
+{showAdmitModal && patient && (
+<div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+<div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+<div className="p-6 border-b border-slate-100 flex items-center justify-between bg-amber-50">
+<h3 className="font-bold text-amber-700 flex items-center gap-2">
+<Activity className="w-5 h-5" /> Admit {patient.name}
+</h3>
+<button onClick={() => setShowAdmitModal(false)} className="p-2 hover:bg-amber-100 rounded-lg transition-colors">
+<X className="w-5 h-5 text-amber-600" />
+</button>
+</div>
+<div className="p-6 space-y-4">
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Reason for Admission (optional)</label>
+<textarea
+value={admitReason}
+onChange={e => setAdmitReason(e.target.value)}
+autoFocus
+className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500 outline-none text-sm min-h-[80px]"
+placeholder="e.g. Severe malaria, observation, labour, etc."
+/>
+</div>
+<div className="flex gap-4">
+<button
+onClick={() => setShowAdmitModal(false)}
+className="flex-1 px-4 py-3 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 transition-colors"
+>
+Cancel
+</button>
+<button
+onClick={confirmAdmitPatient}
+className="flex-1 px-4 py-3 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 transition-colors shadow-lg shadow-amber-200"
+>
+Admit Patient
+</button>
+</div>
+</div>
+</div>
+</div>
+)}
+<ConfirmModal
+isOpen={showDischargeConfirm}
+title="Discharge Patient"
+message={patient ? `Discharge ${patient.name}? This ends their current admission.` : ''}
+confirmText="Discharge"
+onConfirm={handleDischargePatient}
+onCancel={() => setShowDischargeConfirm(false)}
+/>
 {showDrugChart && patient && activeAdmission && (
 <DrugChartSheet patient={patient} admission={activeAdmission} userId={userId} onClose={() => setShowDrugChart(false)} />
 )}
