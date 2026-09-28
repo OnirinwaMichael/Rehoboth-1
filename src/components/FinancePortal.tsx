@@ -288,7 +288,26 @@ handleSupabaseError(error, 'select', 'patients');
 const fetchBillingItems = async (patientCardId: string) => {
 const { data, error } = await supabase.rpc('get_patient_billing', { p_patient_id: patientCardId });
 if (error) return handleSupabaseError(error, 'select', 'billing_items');
-setBillingItems((data || []).map(billingItemFromRow));
+const items = (data || []).map(billingItemFromRow);
+// On family cards, work out whose treatment each bill is for
+const { data: famData } = await supabase.from('family_members').select('id, name').eq('patient_id', patientCardId);
+if (famData && famData.length > 0) {
+const names: Record<string, string> = {};
+famData.forEach((m: any) => { names[m.id] = m.name; });
+const [{ data: recs }, { data: labs }] = await Promise.all([
+supabase.from('medical_records').select('id, family_member_id').eq('patient_id', patientCardId).not('family_member_id', 'is', null),
+supabase.from('lab_tests').select('id, family_member_id').eq('patient_id', patientCardId).not('family_member_id', 'is', null),
+]);
+const byRecord: Record<string, string> = {};
+(recs || []).forEach((r: any) => { byRecord[r.id] = names[r.family_member_id]; });
+const byLab: Record<string, string> = {};
+(labs || []).forEach((l: any) => { byLab[l.id] = names[l.family_member_id]; });
+items.forEach(it => {
+const type = it.itemType as string;
+it.familyMemberName = type === 'lab_test' ? byLab[it.id] : (type === 'visit' || type === 'prescription') ? undefined : byRecord[it.id];
+});
+}
+setBillingItems(items);
 };
 const handleConfirmPayment = async () => {
 if (!payModal || !selectedPatient) return;
@@ -650,6 +669,7 @@ billingItems.map((item) => (
 <div key={`${item.itemType}-${item.id}`} className="p-4 flex items-center justify-between gap-4">
 <div className="min-w-0 flex-1">
 <p className="text-sm font-bold text-slate-900 truncate">{item.description}</p>
+{item.familyMemberName && <p className="text-[10px] font-bold text-amber-700">For: {item.familyMemberName}</p>}
 <div className="flex items-center gap-2 mt-1">
 <span className={cn(
 "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border",
@@ -1158,6 +1178,7 @@ className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
 <div className="p-6 space-y-4">
 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
 <p className="text-xs font-bold text-slate-500">{payModal.item.description}</p>
+{payModal.item.familyMemberName && <p className="text-xs font-bold text-amber-700">For: {payModal.item.familyMemberName}</p>}
 <p className="text-[10px] text-slate-400 mt-1">
 Balance due: ₦{payModal.item.balance.toLocaleString()}
 {payModal.item.paidSoFar > 0 && ` (already paid ₦${payModal.item.paidSoFar.toLocaleString()} of ₦${payModal.item.amount.toLocaleString()})`}

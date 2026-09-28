@@ -45,6 +45,7 @@ item.name.toLowerCase().includes(q) || (item.category || '').toLowerCase().inclu
 );
 }, [inventory, inventorySearch, showLowStockOnly]);
 const [prescriptions, setPrescriptions] = useState<(MedicalRecord & { patient?: Patient })[]>([]);
+const [familyNameById, setFamilyNameById] = useState<Record<string, string>>({});
 const [structuredRx, setStructuredRx] = useState<(Prescription & { patient?: Patient })[]>([]);
 const [loading, setLoading] = useState(true);
 const [view, setView] = useState<'dashboard' | 'inventory' | 'prescriptions'>('dashboard');
@@ -126,11 +127,16 @@ const { data, error } = await supabase
 .select('*, patients(*)')
 .order('created_at', { ascending: false });
 if (error) { handleSupabaseError(error, 'select', 'medical_records'); setLoading(false); return; }
+const { data: famData } = await supabase.from('family_members').select('id, name');
+const famNames: Record<string, string> = {};
+(famData || []).forEach((m: any) => { famNames[m.id] = m.name; });
+setFamilyNameById(famNames);
 const withPrescriptions = (data || []).filter((r: any) => r.prescriptions && r.prescriptions.length > 0);
 const recordsWithPatients = withPrescriptions.map((r: any) => ({
 id: `mr_${r.id}`,
 patientId: r.patient_id,
 staffId: r.staff_id,
+familyMemberId: r.family_member_id ?? null,
 createdAt: r.created_at,
 diagnosis: r.diagnosis,
 prescriptions: r.prescriptions || [],
@@ -375,6 +381,9 @@ Rx
 </div>
 <div>
 <p className="font-bold text-slate-900">{rx.patient?.name || rx.patientId}</p>
+{rx.familyMemberId && familyNameById[rx.familyMemberId] && (
+<p className="text-[10px] font-bold text-amber-700">For: {familyNameById[rx.familyMemberId]}</p>
+)}
 <p className="text-xs text-slate-500">{rx.prescriptions.join(', ')}</p>
 </div>
 </div>
@@ -513,6 +522,9 @@ className="p-2 text-slate-400 hover:text-red-500 transition-colors"
 <div>
 <p className="font-bold text-slate-900">{rx.patient?.name}</p>
 <p className="text-[10px] text-slate-400">{rx.patientId}</p>
+{rx.familyMemberId && familyNameById[rx.familyMemberId] && (
+<p className="text-[10px] font-bold text-amber-700">For: {familyNameById[rx.familyMemberId]}</p>
+)}
 </div>
 </div>
 <div className="text-right">
@@ -571,6 +583,9 @@ Mark as Dispensed
 <div>
 <p className="font-bold text-slate-900">{rx.patient?.name}</p>
 <p className="text-[10px] text-slate-400">{rx.patientId}</p>
+{rx.familyMemberId && familyNameById[rx.familyMemberId] && (
+<p className="text-[10px] font-bold text-amber-700">For: {familyNameById[rx.familyMemberId]}</p>
+)}
 </div>
 </div>
 <div className="text-right">

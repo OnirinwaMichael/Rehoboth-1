@@ -248,6 +248,7 @@ paymentStatus: 'pending' | 'partial' | 'paid';
 createdAt: string;
 paidSoFar: number;
 balance: number;
+familyMemberName?: string;
 }
 export interface LabTest {
 id: string;
