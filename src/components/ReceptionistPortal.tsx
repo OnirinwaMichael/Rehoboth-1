@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { UserPlus, Search, CreditCard, User as UserIcon, Phone, MapPin, Calendar, Briefcase, Heart, LayoutDashboard, Users as UsersIcon, History, X, Clock, Plus, Edit, Trash2, CheckCircle, AlertCircle, DollarSign } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
+import SearchSelect from './SearchSelect';
 import { logAction } from '../lib/audit';
 import { useFormDraft } from '../hooks/useFormDraft';
 import { Download } from 'lucide-react';
@@ -453,6 +454,10 @@ if (error) return handleSupabaseError(error, 'insert', 'family_members');
 };
 const handleAppointmentSubmit = async (e: React.FormEvent) => {
 e.preventDefault();
+if (!appointmentForm.doctorId) {
+toast.error('Please select a doctor for this appointment.');
+return;
+}
 setLoading(true);
 try {
 const selectedDoctor = doctors.find(d => d.uid === appointmentForm.doctorId);
@@ -1506,17 +1511,12 @@ placeholder="Auto-filled or manual entry"
 </div>
 <div className="space-y-1.5">
 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Assign Doctor</label>
-<select
-required
+<SearchSelect
 value={appointmentForm.doctorId}
-onChange={e => setAppointmentForm({ ...appointmentForm, doctorId: e.target.value })}
-className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
->
-<option value="">Select a Doctor</option>
-{doctors.map(d => (
-<option key={d.uid} value={d.uid}>{d.name}</option>
-))}
-</select>
+onChange={v => setAppointmentForm({ ...appointmentForm, doctorId: v })}
+placeholder="Type to search a doctor..."
+options={doctors.map(d => ({ value: d.uid, label: d.name }))}
+/>
 </div>
 <div className="grid grid-cols-2 gap-4">
 <div className="space-y-1.5">

@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { FlaskConical, Search, CheckCircle, Clock, FileText, User, CreditCard, Save, X, LayoutDashboard, History, Beaker, CheckCircle2, Plus, Camera, Trash2, Package, Users as UsersIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
+import SearchSelect from './SearchSelect';
 import { motion, AnimatePresence } from 'motion/react';
 import { logAction } from '../lib/audit';
 import { useAuth } from '../lib/auth';
@@ -770,16 +771,10 @@ title="Remove test from catalog"
 </div>
 <div className="flex items-center gap-2 pt-3 border-t border-slate-100">
 <Package className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-<select
-value={test.linkedResourceId || ''}
-onChange={e => handleLinkCatalogResource(test.id, e.target.value, test.resourceQtyPerTest)}
-className="flex-1 min-w-0 text-xs p-1.5 rounded-lg border border-slate-200 outline-none bg-white text-slate-600"
->
-<option value="">No resource used</option>
-{resources.map(r => (
-<option key={r.id} value={r.id}>{r.name}</option>
-))}
-</select>
+<SearchSelect size="sm" className="flex-1 min-w-0" value={test.linkedResourceId || ''}
+onChange={v => handleLinkCatalogResource(test.id, v, test.resourceQtyPerTest)}
+placeholder="No resource used — type to search"
+options={resources.map(r => ({ value: r.id, label: r.name }))} />
 {test.linkedResourceId && (
 <input
 type="number"
@@ -1081,10 +1076,8 @@ className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring
     return (
       <div key={f.key}>
         <label className="text-[10px] font-bold text-slate-500">{f.label}</label>
-        <select value={value} onChange={e => setValue(e.target.value)} className="w-full p-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500">
-          <option value="">Select specimen type...</option>
-          {CULTURE_SPECIMEN_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
+        <SearchSelect size="sm" value={value} onChange={setValue} placeholder="Type to search specimen..."
+          options={CULTURE_SPECIMEN_TYPES.map(t => ({ value: t, label: t }))} />
       </div>
     );
   }
@@ -1093,10 +1086,8 @@ className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring
     return (
       <div key={f.key}>
         <label className="text-[10px] font-bold text-slate-500">{f.label}</label>
-        <select value={value} onChange={e => setValue(e.target.value)} className="w-full p-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500">
-          <option value="">Select consultant...</option>
-          {consultants.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-        </select>
+        <SearchSelect size="sm" value={value} onChange={setValue} placeholder="Type to search consultant..."
+          options={consultants.map(c => ({ value: c.name, label: c.name }))} />
         {consultants.length === 0 && <p className="text-[10px] text-slate-400 mt-1">No active Doctors/CMD found in staff records yet.</p>}
       </div>
     );
@@ -1106,14 +1097,9 @@ className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring
     return (
       <div key={f.key}>
         <label className="text-[10px] font-bold text-slate-500">{f.label}</label>
-        <select
-          value={value}
-          onChange={e => setValue(e.target.value)}
-          className="w-full p-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500"
-        >
-          <option value="">Select ward...</option>
-          {wardCatalog.map(w => <option key={w.id} value={w.name}>{w.name}</option>)}
-        </select>
+        <SearchSelect size="sm" value={value} onChange={setValue} placeholder="Type to search ward..."
+          emptyText="No matching ward — add it below."
+          options={wardCatalog.map(w => ({ value: w.name, label: w.name }))} />
         <div className="flex items-center gap-1 mt-1">
           <input
             value={newWardName}
