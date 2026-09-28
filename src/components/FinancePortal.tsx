@@ -647,7 +647,7 @@ title="View Patient History"
 <p className="text-center text-slate-400 text-sm py-12">No billable items found for this patient.</p>
 ) : (
 billingItems.map((item) => (
-<div key={item.id} className="p-4 flex items-center justify-between gap-4">
+<div key={`${item.itemType}-${item.id}`} className="p-4 flex items-center justify-between gap-4">
 <div className="min-w-0 flex-1">
 <p className="text-sm font-bold text-slate-900 truncate">{item.description}</p>
 <div className="flex items-center gap-2 mt-1">

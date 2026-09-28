@@ -67,6 +67,30 @@ const [searchId, setSearchId] = useState('');
 const [patient, setPatient] = useState<Patient | null>(null);
 const [patientFamilyMembers, setPatientFamilyMembers] = useState<FamilyMember[]>([]);
 const [selectedFamilyMemberId, setSelectedFamilyMemberId] = useState<string>('');
+const [newFamilyMemberName, setNewFamilyMemberName] = useState('');
+const [addingFamilyMember, setAddingFamilyMember] = useState(false);
+const handleAddFamilyMember = async () => {
+if (!patient) return;
+const name = newFamilyMemberName.trim();
+if (!name) return;
+if (patientFamilyMembers.some(m => m.name.toLowerCase() === name.toLowerCase())) {
+toast.error('That family member is already on this card.');
+return;
+}
+setAddingFamilyMember(true);
+const { data, error } = await supabase
+.from('family_members')
+.insert({ patient_id: patient.cardId, name, sort_order: patientFamilyMembers.length })
+.select('*')
+.single();
+setAddingFamilyMember(false);
+if (error) return handleSupabaseError(error, 'insert', 'family_members');
+const added: FamilyMember = { id: data.id, patientId: data.patient_id, name: data.name, sortOrder: data.sort_order, createdAt: data.created_at };
+setPatientFamilyMembers(prev => [...prev, added]);
+setSelectedFamilyMemberId(added.id);
+setNewFamilyMemberName('');
+toast.success(`${name} added to this family card.`);
+};
 const [records, setRecords] = useState<MedicalRecord[]>([]);
 const [loading, setLoading] = useState(false);
 const [view, setView] = useState<'dashboard' | 'assessment' | 'consultations' | 'labResults' | 'records' | 'patients' | 'admissions'>('dashboard');
@@ -1819,8 +1843,25 @@ className="w-full p-3 rounded-xl border border-amber-300 bg-white focus:ring-2 f
 ))}
 </select>
 ) : (
-<p className="text-sm text-amber-800">No family members are on file for this card yet — add them from the Receptionist patient registration/edit screen before recording this consultation.</p>
+<p className="text-sm text-amber-800">No family members on file yet — add the person being treated below.</p>
 )}
+<div className="flex gap-2">
+<input
+value={newFamilyMemberName}
+onChange={e => setNewFamilyMemberName(e.target.value)}
+onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddFamilyMember(); } }}
+placeholder="New family member's name"
+className="flex-1 p-3 rounded-xl border border-amber-300 bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+/>
+<button
+type="button"
+onClick={handleAddFamilyMember}
+disabled={addingFamilyMember || !newFamilyMemberName.trim()}
+className="px-4 rounded-xl bg-amber-600 text-white font-bold text-sm hover:bg-amber-700 disabled:opacity-50 flex items-center gap-1"
+>
+<Plus className="w-4 h-4" /> Add
+</button>
+</div>
 </div>
 )}
 {/* Vitals Section - Tabular Grid Format */}
