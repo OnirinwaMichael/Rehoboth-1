@@ -5,7 +5,6 @@ import { toast } from 'sonner';
 import { Search, Activity, ClipboardList, FlaskConical, Pill, Plus, Save, History, User, Heart, Thermometer, Droplets, Stethoscope, FileText, CreditCard, LayoutDashboard, Users as UsersIcon, ChevronDown, ChevronUp, Wind, X, AlertTriangle, FolderOpen, Camera } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
-import { NAFDAC_DRUGS } from '../data/hospitalData';
 import { logAction, logRecordAccess } from '../lib/audit';
 import { useFormDraft } from '../hooks/useFormDraft';
 const patientFromRow = (r: any): Patient => ({
@@ -70,7 +69,7 @@ const [patientFamilyMembers, setPatientFamilyMembers] = useState<FamilyMember[]>
 const [selectedFamilyMemberId, setSelectedFamilyMemberId] = useState<string>('');
 const [records, setRecords] = useState<MedicalRecord[]>([]);
 const [loading, setLoading] = useState(false);
-const [view, setView] = useState<'dashboard' | 'assessment' | 'consultations' | 'labResults' | 'records' | 'patients'>('dashboard');
+const [view, setView] = useState<'dashboard' | 'assessment' | 'consultations' | 'labResults' | 'records' | 'patients' | 'admissions'>('dashboard');
 const [expandedRecord, setExpandedRecord] = useState<string | null>(null);
 const [stats, setStats] = useState({
 totalPatients: 0,
@@ -140,6 +139,9 @@ const [globalLabTests, setGlobalLabTests] = useState<(LabTest & { patient?: Pati
 // "Recent Clinical Activity" panel and the Records-Today drill-through —
 // distinct from `records`, which stays scoped to the one selected patient.
 const [globalRecords, setGlobalRecords] = useState<(MedicalRecord & { patient?: Patient })[]>([]);
+const [globalAdmissions, setGlobalAdmissions] = useState<(Admission & { patient?: Patient })[]>([]);
+const [labResultsFilter, setLabResultsFilter] = useState<'all' | 'pending'>('all');
+const [labResultsSearch, setLabResultsSearch] = useState('');
 const [recordsFilter, setRecordsFilter] = useState<'all' | 'today'>('all');
 const [recordsSearch, setRecordsSearch] = useState('');
 // Hospital-wide patient list, for the Total-Patients drill-through.
@@ -203,6 +205,21 @@ const continueFilteredDrugs = useMemo(() =>
 drugCatalog.filter(d => d.name.toLowerCase().includes(continueDrugSearch.toLowerCase())).slice(0, 8),
 [continueDrugSearch, drugCatalog]
 );
+const [checkupDrugSearch, setCheckupDrugSearch] = useState('');
+const checkupFilteredDrugs = useMemo(() =>
+drugCatalog.filter(d => d.name.toLowerCase().includes(checkupDrugSearch.toLowerCase())).slice(0, 8),
+[checkupDrugSearch, drugCatalog]
+);
+const checkupSelectedDrugs = consultationForm.prescription.split(',').map(s => s.trim()).filter(Boolean);
+const addCheckupDrug = (name: string) => {
+if (!checkupSelectedDrugs.includes(name)) {
+setConsultationForm({ ...consultationForm, prescription: [...checkupSelectedDrugs, name].join(', ') });
+}
+setCheckupDrugSearch('');
+};
+const removeCheckupDrug = (name: string) => {
+setConsultationForm({ ...consultationForm, prescription: checkupSelectedDrugs.filter(d => d !== name).join(', ') });
+};
 const addContinueDrug = (drug: InventoryItem) => {
 if (!continueRxItems.some(p => p.drugId === drug.id)) {
 setContinueRxItems([...continueRxItems, {
@@ -281,6 +298,12 @@ const q = patientsSearch.trim().toLowerCase();
 if (!q) return allPatients;
 return allPatients.filter(p => p.name.toLowerCase().includes(q) || p.cardId.toLowerCase().includes(q));
 }, [allPatients, patientsSearch]);
+const filteredGlobalLabTests = useMemo(() => {
+const q = labResultsSearch.trim().toLowerCase();
+return globalLabTests
+.filter(t => labResultsFilter === 'all' || (!t.result && !t.structuredResults?.length && !t.panelResults))
+.filter(t => !q || t.testType.toLowerCase().includes(q) || t.patient?.name?.toLowerCase().includes(q) || t.patientId.toLowerCase().includes(q));
+}, [globalLabTests, labResultsFilter, labResultsSearch]);
 const prescriptionTotal = useMemo(() =>
 formData.prescriptionItems.reduce((sum, p) => sum + prescriptionUnitsAndTotal(p).total, 0),
 [formData.prescriptionItems]
@@ -297,6 +320,7 @@ fetchGlobalLabTests();
 fetchWeeklyRecordActivity();
 fetchActiveAdmissionsCount();
 fetchGlobalRecords();
+fetchGlobalAdmissions();
 fetchAllPatients();
 const channel = supabase
 .channel('lab-tests-changes')
@@ -310,6 +334,7 @@ fetchGlobalRecords();
 })
 .on('postgres_changes', { event: '*', schema: 'public', table: 'admissions' }, () => {
 fetchActiveAdmissionsCount();
+fetchGlobalAdmissions();
 })
 .on('postgres_changes', { event: '*', schema: 'public', table: 'patients' }, () => {
 fetchAllPatients();
@@ -338,6 +363,18 @@ const { data, error } = await supabase
 if (error) return handleSupabaseError(error, 'select', 'medical_records');
 setGlobalRecords((data || []).map((row: any) => ({
 ...recordFromRow(row),
+patient: row.patients ? patientFromRow(row.patients) : undefined,
+})));
+};
+const fetchGlobalAdmissions = async () => {
+const { data, error } = await supabase
+.from('admissions')
+.select('*, patients(*)')
+.is('discharged_at', null)
+.order('admitted_at', { ascending: false });
+if (error) return handleSupabaseError(error, 'select', 'admissions');
+setGlobalAdmissions((data || []).map((row: any) => ({
+...admissionFromRow(row),
 patient: row.patients ? patientFromRow(row.patients) : undefined,
 })));
 };
@@ -425,6 +462,29 @@ setIsNewConsultation(true);
 setSelectedVisit(null);
 await logAction(userId, 'SEARCH_PATIENT', `Selected patient ${p.name} (${p.cardId})`);
 await logRecordAccess(userId, p.cardId);
+};
+const handleActiveAdmissionsClick = () => {
+if (activeAdmissionsCount === 1 && globalAdmissions.length === 1 && globalAdmissions[0].patient) {
+setPatient(globalAdmissions[0].patient);
+setView('consultations');
+setIsNewConsultation(false);
+setSelectedVisit(null);
+} else {
+setView('admissions');
+}
+};
+const handlePendingLabResultsClick = () => {
+const pending = globalLabTests.filter(t => !t.result && !t.structuredResults?.length && !t.panelResults);
+if (pending.length === 1 && pending[0].patient) {
+setPatient(pending[0].patient);
+setView('consultations');
+setIsNewConsultation(false);
+setSelectedVisit(null);
+} else {
+setLabResultsFilter('pending');
+setLabResultsSearch('');
+setView('labResults');
+}
 };
 const handleSearch = async (e: React.FormEvent) => {
 e.preventDefault();
@@ -891,9 +951,38 @@ placeholder="Search by name or Card ID"
 </div>
 ) : view === 'labResults' ? (
 <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
-<h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
+<div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+<h3 className="font-bold text-slate-900 flex items-center gap-2">
 <FlaskConical className="w-5 h-5 text-purple-500" /> Global Lab Results
 </h3>
+<div className="flex items-center gap-2">
+<div className="flex rounded-xl border border-slate-200 overflow-hidden">
+<button
+type="button"
+onClick={() => setLabResultsFilter('all')}
+className={cn("px-3 py-2 text-xs font-bold transition-all", labResultsFilter === 'all' ? "bg-purple-600 text-white" : "bg-white text-slate-500 hover:bg-slate-50")}
+>
+All
+</button>
+<button
+type="button"
+onClick={() => setLabResultsFilter('pending')}
+className={cn("px-3 py-2 text-xs font-bold transition-all", labResultsFilter === 'pending' ? "bg-purple-600 text-white" : "bg-white text-slate-500 hover:bg-slate-50")}
+>
+Pending
+</button>
+</div>
+<div className="relative">
+<Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+<input
+value={labResultsSearch}
+onChange={e => setLabResultsSearch(e.target.value)}
+className="pl-9 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm w-48"
+placeholder="Search patient or test"
+/>
+</div>
+</div>
+</div>
 <div className="overflow-x-auto">
 <table className="w-full">
 <thead>
@@ -907,8 +996,12 @@ placeholder="Search by name or Card ID"
 </tr>
 </thead>
 <tbody className="divide-y divide-slate-50">
-{globalLabTests.map((test) => (
-<tr key={test.id} className="hover:bg-slate-50 transition-colors">
+{filteredGlobalLabTests.map((test) => (
+<tr
+key={test.id}
+onClick={() => { if (test.patient) { setPatient(test.patient); setView('consultations'); setIsNewConsultation(false); setSelectedVisit(null); } }}
+className={cn("hover:bg-slate-50 transition-colors", test.patient && "cursor-pointer")}
+>
 <td className="py-4 text-sm text-slate-600">
 {format(new Date(test.createdAt), 'MMM d, yyyy HH:mm')}
 </td>
@@ -943,17 +1036,66 @@ test.paymentStatus === 'paid' ? "bg-green-100 text-green-700" : "bg-orange-100 t
 <td className="py-4 text-sm text-slate-600 max-w-xs truncate">
 {test.result || '-'}
 {test.imageUrl && (
-<a href={test.imageUrl} target="_blank" rel="noreferrer" className="block mt-1 text-xs text-blue-600 hover:underline">
+<a href={test.imageUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="block mt-1 text-xs text-blue-600 hover:underline">
 View Attached Image
 </a>
 )}
 </td>
 </tr>
 ))}
-{globalLabTests.length === 0 && (
+{filteredGlobalLabTests.length === 0 && (
 <tr>
 <td colSpan={5} className="py-8 text-center text-slate-400">
 No lab tests found.
+</td>
+</tr>
+)}
+</tbody>
+</table>
+</div>
+</div>
+) : view === 'admissions' ? (
+<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+<h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
+<Activity className="w-5 h-5 text-purple-500" /> Active Admissions
+</h3>
+<div className="overflow-x-auto">
+<table className="w-full">
+<thead>
+<tr className="text-left text-xs font-bold text-slate-400 uppercase border-b border-slate-100">
+<th className="pb-4 font-bold">Admitted</th>
+<th className="pb-4 font-bold">Patient</th>
+<th className="pb-4 font-bold">Reason</th>
+</tr>
+</thead>
+<tbody className="divide-y divide-slate-50">
+{globalAdmissions.map((admission) => (
+<tr
+key={admission.id}
+onClick={() => { if (admission.patient) { setPatient(admission.patient); setView('consultations'); setIsNewConsultation(false); setSelectedVisit(null); } }}
+className={cn("hover:bg-slate-50 transition-colors", admission.patient && "cursor-pointer")}
+>
+<td className="py-4 text-sm text-slate-600">
+{format(new Date(admission.admittedAt), 'MMM d, yyyy HH:mm')}
+</td>
+<td className="py-4">
+<div className="flex items-center gap-3">
+<div className="w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-xs">
+{admission.patient?.name?.charAt(0) || admission.patientId.charAt(0)}
+</div>
+<div>
+<p className="text-sm font-bold text-slate-900">{admission.patient?.name || 'Unknown Patient'}</p>
+<p className="text-xs text-slate-500">{admission.patientId}</p>
+</div>
+</div>
+</td>
+<td className="py-4 text-sm text-slate-600 max-w-xs truncate">{admission.reason || '-'}</td>
+</tr>
+))}
+{globalAdmissions.length === 0 && (
+<tr>
+<td colSpan={3} className="py-8 text-center text-slate-400">
+No active admissions.
 </td>
 </tr>
 )}
@@ -1008,7 +1150,11 @@ style={{ height: `${Math.max((d.count / max) * 100, 8)}%` }} title={`${d.label}:
 </span>
 </div>
 </button>
-<div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
+<button
+type="button"
+onClick={handleActiveAdmissionsClick}
+className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 text-left hover:border-purple-200 hover:shadow-md transition-all"
+>
 <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600">
 <Activity className="w-6 h-6" />
 </div>
@@ -1016,8 +1162,12 @@ style={{ height: `${Math.max((d.count / max) * 100, 8)}%` }} title={`${d.label}:
 <p className="text-xs font-bold text-slate-400 uppercase">Active Admissions</p>
 <h4 className="text-2xl font-black text-slate-900">{activeAdmissionsCount}</h4>
 </div>
-</div>
-<div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
+</button>
+<button
+type="button"
+onClick={handlePendingLabResultsClick}
+className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 text-left hover:border-orange-200 hover:shadow-md transition-all"
+>
 <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600">
 <FlaskConical className="w-6 h-6" />
 </div>
@@ -1025,7 +1175,7 @@ style={{ height: `${Math.max((d.count / max) * 100, 8)}%` }} title={`${d.label}:
 <p className="text-xs font-bold text-slate-400 uppercase">Pending Lab Results</p>
 <h4 className="text-2xl font-black text-slate-900">{pendingLabResultsCount}</h4>
 </div>
-</div>
+</button>
 <div className="md:col-span-2 lg:col-span-4 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
 <div className="flex items-center justify-between mb-6">
 <h3 className="font-bold text-slate-900 flex items-center gap-2">
@@ -1429,16 +1579,42 @@ required
 <label className="text-sm font-bold text-slate-700">Prescription (Drugs)</label>
 <input
 type="text"
-value={consultationForm.prescription}
-onChange={e => setConsultationForm({ ...consultationForm, prescription: e.target.value })}
+value={checkupDrugSearch}
+onChange={e => setCheckupDrugSearch(e.target.value)}
 className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
-placeholder="Type to search drugs (comma separated)..."
-list="drugs-list"
+placeholder="Search pharmacy drugs & injections by name..."
 />
-<datalist id="drugs-list">
-{NAFDAC_DRUGS.map((drug, i) => <option key={i} value={drug} />)}
-</datalist>
-<p className="text-xs text-slate-500">Separate multiple drugs with commas.</p>
+{checkupDrugSearch && (
+<div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+{checkupFilteredDrugs.length === 0 ? (
+<p className="px-4 py-3 text-sm text-slate-400">No matching drugs in pharmacy inventory.</p>
+) : (
+checkupFilteredDrugs.map(drug => (
+<button
+key={drug.id}
+type="button"
+onClick={() => addCheckupDrug(drug.name)}
+className="w-full flex items-center justify-between text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors"
+>
+<span className="font-medium">{drug.name}</span>
+<span className="text-xs font-bold text-slate-500">Stock: {drug.stock}</span>
+</button>
+))
+)}
+</div>
+)}
+{checkupSelectedDrugs.length > 0 ? (
+<div className="flex flex-wrap gap-2 pt-1">
+{checkupSelectedDrugs.map(name => (
+<span key={name} className="inline-flex items-center gap-1 bg-green-50 text-green-700 border border-green-100 text-xs font-bold px-3 py-1 rounded-full">
+{name}
+<button type="button" onClick={() => removeCheckupDrug(name)} className="hover:text-red-500"><X className="w-3 h-3" /></button>
+</span>
+))}
+</div>
+) : (
+<p className="text-xs text-slate-500">Search and tap a drug to add it — keep typing to add more.</p>
+)}
 </div>
 <div className="space-y-2">
 <label className="text-sm font-bold text-slate-700">Prescription Note</label>

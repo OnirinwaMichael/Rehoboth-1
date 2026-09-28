@@ -36,7 +36,7 @@ prescriptionNote: r.prescription_note, billingAmount: r.billing_amount,
 paymentStatus: r.payment_status, staffId: r.staff_id,
 });
 const recordFromRow = (r: any): MedicalRecord => ({
-id: r.id, patientId: r.patient_id, staffId: r.staff_id,
+id: r.id, patientId: r.patient_id, staffId: r.staff_id, familyMemberId: r.family_member_id ?? null,
 vitals: {
 bloodPressure: r.blood_pressure, temperature: r.temperature, sugarLevel: r.sugar_level,
 pulse: r.pulse, respiratoryRate: r.respiratory_rate, spo2: r.spo2, weight: r.weight,
@@ -47,7 +47,7 @@ paymentFee: r.payment_fee, paymentStatus: r.payment_status,
 dispensed: r.dispensed, createdAt: r.created_at,
 });
 const labTestFromRow = (r: any): LabTest => ({
-id: r.id, patientId: r.patient_id, recordId: r.record_id, testType: r.test_type,
+id: r.id, patientId: r.patient_id, recordId: r.record_id, familyMemberId: r.family_member_id ?? null, testType: r.test_type,
 price: r.price, result: r.result, structuredResults: r.structured_results,
 imageUrl: r.image_url, paymentStatus: r.payment_status, createdAt: r.created_at,
 reportType: r.report_type || 'legacy', requestDetails: r.request_details || undefined,
@@ -77,6 +77,7 @@ const [activeTab, setActiveTab] = useState<'visits' | 'medical' | 'labs' | 'pres
 const [printTest, setPrintTest] = useState<LabTest | null>(null);
 const [printLetter, setPrintLetter] = useState<ClinicalLetter | null>(null);
 const [staffNameById, setStaffNameById] = useState<Record<string, string>>({});
+const [familyNameById, setFamilyNameById] = useState<Record<string, string>>({});
 useEffect(() => {
 const fetchStaffNames = async () => {
 const { data, error } = await supabase.from('users').select('id, name');
@@ -94,7 +95,7 @@ setLoading(true);
 // gap the original app had (only writes were audited, not reads).
 logRecordAccess(user?.id, patientId);
 const fetchAll = async () => {
-const [patientRes, visitsRes, medicalRes, labsRes, financialRes, lettersRes, prescriptionsRes] = await Promise.all([
+const [patientRes, visitsRes, medicalRes, labsRes, financialRes, lettersRes, prescriptionsRes, familyRes] = await Promise.all([
 supabase.from('patients').select('*').eq('card_id', patientId).maybeSingle(),
 supabase.from('visits').select('*').eq('patient_id', patientId).order('timestamp', { ascending: false }),
 supabase.from('medical_records').select('*').eq('patient_id', patientId).order('created_at', { ascending: false }),
@@ -102,6 +103,7 @@ supabase.from('lab_tests').select('*').eq('patient_id', patientId).order('create
 supabase.from('financials').select('*').eq('patient_id', patientId).order('created_at', { ascending: false }),
 supabase.from('clinical_letters').select('*').eq('patient_id', patientId).order('created_at', { ascending: false }),
 supabase.from('prescriptions').select('*').eq('patient_id', patientId).order('created_at', { ascending: false }),
+supabase.from('family_members').select('id, name').eq('patient_id', patientId),
 ]);
 if (patientRes.error) handleSupabaseError(patientRes.error, 'select', 'patients');
 else if (patientRes.data) setPatient(patientFromRow(patientRes.data));
@@ -117,6 +119,12 @@ if (lettersRes.error) handleSupabaseError(lettersRes.error, 'select', 'clinical_
 else setLetters((lettersRes.data || []).map(letterFromRow));
 if (prescriptionsRes.error) handleSupabaseError(prescriptionsRes.error, 'select', 'prescriptions');
 else setPrescriptions((prescriptionsRes.data || []).map(prescriptionFromRow));
+if (familyRes.error) handleSupabaseError(familyRes.error, 'select', 'family_members');
+else {
+const fam: Record<string, string> = {};
+(familyRes.data || []).forEach((m: any) => { fam[m.id] = m.name; });
+setFamilyNameById(fam);
+}
 setLoading(false);
 };
 fetchAll();
@@ -308,6 +316,9 @@ medicalRecords.map((record) => (
 <div>
 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Assessment Date</p>
 <p className="font-bold text-slate-900">{format(new Date(record.createdAt), 'MMMM d, yyyy HH:mm')}</p>
+{record.familyMemberId && familyNameById[record.familyMemberId] && (
+<p className="text-xs font-bold text-amber-700 mt-1">For: {familyNameById[record.familyMemberId]}</p>
+)}
 </div>
 </div>
 <div className="text-right">
@@ -437,6 +448,9 @@ test.result ? "bg-green-50 text-green-600" : "bg-orange-50 text-orange-600"
 <div>
 <p className="font-bold text-slate-900">{test.testType}</p>
 <p className="text-xs text-slate-400">{format(new Date(test.createdAt), 'MMM d, yyyy HH:mm')}</p>
+{test.familyMemberId && familyNameById[test.familyMemberId] && (
+<p className="text-xs font-bold text-amber-700 mt-0.5">For: {familyNameById[test.familyMemberId]}</p>
+)}
 </div>
 </div>
 <div className="text-right">

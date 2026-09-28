@@ -149,6 +149,7 @@ return () => clearTimeout(timeout);
 }, [manualEntry.patientId]);
 const [manualFamilyMembers, setManualFamilyMembers] = useState<FamilyMember[]>([]);
 const [manualFamilyMemberId, setManualFamilyMemberId] = useState('');
+const [testTypeOpen, setTestTypeOpen] = useState(false);
 useEffect(() => {
 const cardId = manualEntry.patientId.trim();
 if (!cardId) { setManualFamilyMembers([]); setManualFamilyMemberId(''); return; }
@@ -424,6 +425,10 @@ const handleManualEntry = async (e: React.FormEvent) => {
 e.preventDefault();
 if (!manualEntry.patientId || !manualEntry.testType || !manualEntry.result) {
 toast.error('Please fill all fields');
+return;
+}
+if (!testCatalog.some(t => t.name === manualEntry.testType)) {
+toast.error('Please pick the test from the search list.');
 return;
 }
 if (manualFamilyMembers.length > 0 && !manualFamilyMemberId) {
@@ -1010,23 +1015,39 @@ className="w-full p-3 rounded-xl border border-amber-300 bg-white focus:ring-2 f
 )}
 <div className="space-y-2">
 <label className="text-sm font-bold text-slate-700">Test / Scan Type</label>
-<select
+<div className="relative">
+<input
 value={manualEntry.testType}
 onChange={e => {
-const picked = testCatalog.find(t => t.name === e.target.value);
-setManualEntry({
-...manualEntry,
-testType: e.target.value,
-price: picked ? picked.price.toString() : manualEntry.price,
-});
+setManualEntry({ ...manualEntry, testType: e.target.value });
+setTestTypeOpen(true);
 }}
+onFocus={() => setTestTypeOpen(true)}
 className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
+placeholder="Type to search tests & scans..."
+/>
+{testTypeOpen && manualEntry.testType && !testCatalog.some(t => t.name === manualEntry.testType) && (
+<div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+{testCatalog.filter(t => t.name.toLowerCase().includes(manualEntry.testType.toLowerCase())).slice(0, 8).map(test => (
+<button
+key={test.id}
+type="button"
+onClick={() => {
+setManualEntry({ ...manualEntry, testType: test.name, price: test.price.toString() });
+setTestTypeOpen(false);
+}}
+className="w-full flex items-center justify-between text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors"
 >
-<option value="">Select a test...</option>
-{testCatalog.map((test) => (
-<option key={test.id} value={test.name}>{test.name} — ₦{test.price.toLocaleString()}</option>
+<span className="font-medium">{test.name}</span>
+<span className="text-xs font-bold text-slate-500">₦{test.price.toLocaleString()}</span>
+</button>
 ))}
-</select>
+{testCatalog.filter(t => t.name.toLowerCase().includes(manualEntry.testType.toLowerCase())).length === 0 && (
+<p className="px-4 py-3 text-sm text-slate-400">No matching tests in the catalog.</p>
+)}
+</div>
+)}
+</div>
 <p className="text-[10px] text-slate-400">Price auto-fills from the catalog — you can still adjust it below for this specific entry.</p>
 </div>
 <div className="space-y-2">
