@@ -35,7 +35,7 @@ export const LabReportPrint: React.FC<Props> = ({ test, onClose }) => {
   return (
     <FullScreenSheet
       title="Lab Report"
-      subtitle={`${test.patient?.name || test.patientId} · ${test.testType}`}
+      subtitle={`${test.familyMemberName || test.patient?.name || test.patientId} · ${test.testType}`}
       onClose={onClose}
       headerActions={
         <button
@@ -70,10 +70,13 @@ export const LabReportPrint: React.FC<Props> = ({ test, onClose }) => {
 
           {/* Patient header */}
           <div className="grid grid-cols-2 gap-x-6 mb-3 border border-slate-300 rounded-lg p-3">
-            <FieldRow label="Patient's Name" value={test.patient?.name} />
+            <FieldRow label="Patient's Name" value={test.familyMemberName || test.patient?.name} />
             <FieldRow label="Card No" value={test.patientId} />
-            <FieldRow label="Age" value={test.patient?.age} />
-            <FieldRow label="Sex" value={test.patient?.gender} />
+            {test.familyMemberName && <FieldRow label="Family Card" value={test.patient?.name} />}
+            {test.familyMemberName && <div />}
+            {/* On a family card the stored age/sex belong to the card holder, so leave blank for the member */}
+            <FieldRow label="Age" value={test.familyMemberName ? undefined : test.patient?.age} />
+            <FieldRow label="Sex" value={test.familyMemberName ? undefined : test.patient?.gender} />
             <FieldRow label="Clinic No" value={pr.clinicNo} />
             <FieldRow label="Clinician" value={pr.clinician} />
             <FieldRow label="Test Required" value={test.testType} />

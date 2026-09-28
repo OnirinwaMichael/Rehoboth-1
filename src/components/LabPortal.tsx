@@ -24,7 +24,7 @@ relationship: r.relationship, nokAddress: r.nok_address, nokPhone: r.nok_phone,
 category: r.category, createdAt: r.created_at, registrationType: r.registration_type || 'fresh',
 });
 const labTestFromRow = (r: any): LabTest => ({
-id: r.id, patientId: r.patient_id, recordId: r.record_id, testType: r.test_type,
+id: r.id, patientId: r.patient_id, recordId: r.record_id, familyMemberId: r.family_member_id ?? null, testType: r.test_type,
 price: r.price, result: r.result, structuredResults: r.structured_results,
 imageUrl: r.image_url, paymentStatus: r.payment_status, createdAt: r.created_at,
 reportType: r.report_type || 'legacy', requestDetails: r.request_details || undefined,
@@ -48,6 +48,7 @@ onPrint: (test: LabTest & { patient?: Patient }) => void
 <div>
 <p className="text-sm font-bold text-slate-900">{test.patient?.name}</p>
 <p className="text-[10px] text-slate-400">{test.patientId}</p>
+{test.familyMemberName && <p className="text-[10px] font-bold text-amber-700">For: {test.familyMemberName}</p>}
 </div>
 </div>
 </td>
@@ -402,8 +403,12 @@ handleSupabaseError(error, 'select', 'lab_tests');
 setLoading(false);
 return;
 }
+const { data: famData } = await supabase.from('family_members').select('id, name');
+const famNames: Record<string, string> = {};
+(famData || []).forEach((m: any) => { famNames[m.id] = m.name; });
 const testsWithPatients = (data || []).map((row: any) => ({
 ...labTestFromRow(row),
+familyMemberName: row.family_member_id ? famNames[row.family_member_id] : undefined,
 patient: row.patients ? patientFromRow(row.patients) : undefined,
 }));
 setTests(testsWithPatients);
@@ -660,7 +665,7 @@ test.result ? "bg-green-100 text-green-600" : "bg-orange-100 text-orange-600"
 </div>
 <div>
 <p className="font-bold text-slate-900">{test.testType}</p>
-<p className="text-xs text-slate-500">Patient: {test.patient?.name || test.patientId}</p>
+<p className="text-xs text-slate-500">Patient: {test.patient?.name || test.patientId}{test.familyMemberName && <span className="ml-2 font-bold text-amber-700">For: {test.familyMemberName}</span>}</p>
 </div>
 </div>
 <div className="text-right">

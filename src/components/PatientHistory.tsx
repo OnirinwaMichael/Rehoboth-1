@@ -504,7 +504,7 @@ Pending
 </motion.div>
 )}
 {printTest && patient && (
-<LabReportPrint test={{ ...printTest, patient }} onClose={() => setPrintTest(null)} />
+<LabReportPrint test={{ ...printTest, patient, familyMemberName: printTest.familyMemberId ? familyNameById[printTest.familyMemberId] : undefined }} onClose={() => setPrintTest(null)} />
 )}
 {activeTab === 'prescriptions' && (
 <motion.div

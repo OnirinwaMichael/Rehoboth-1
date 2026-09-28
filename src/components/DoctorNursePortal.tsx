@@ -15,7 +15,7 @@ relationship: r.relationship, nokAddress: r.nok_address, nokPhone: r.nok_phone,
 category: r.category, createdAt: r.created_at, registrationType: r.registration_type || 'fresh',
 });
 const recordFromRow = (r: any): MedicalRecord => ({
-id: r.id, patientId: r.patient_id, staffId: r.staff_id,
+id: r.id, patientId: r.patient_id, staffId: r.staff_id, familyMemberId: r.family_member_id ?? null,
 vitals: {
 bloodPressure: r.blood_pressure, temperature: r.temperature, sugarLevel: r.sugar_level,
 pulse: r.pulse, respiratoryRate: r.respiratory_rate, spo2: r.spo2, weight: r.weight,
@@ -32,7 +32,7 @@ prescriptionNote: r.prescription_note, billingAmount: r.billing_amount,
 paymentStatus: r.payment_status, staffId: r.staff_id,
 });
 const labTestFromRow = (r: any): LabTest => ({
-id: r.id, patientId: r.patient_id, recordId: r.record_id, testType: r.test_type,
+id: r.id, patientId: r.patient_id, recordId: r.record_id, familyMemberId: r.family_member_id ?? null, testType: r.test_type,
 price: r.price, result: r.result, structuredResults: r.structured_results,
 paymentStatus: r.payment_status, createdAt: r.created_at,
 reportType: r.report_type || 'legacy', requestDetails: r.request_details || undefined,
@@ -67,6 +67,15 @@ const [searchId, setSearchId] = useState('');
 const [patient, setPatient] = useState<Patient | null>(null);
 const [patientFamilyMembers, setPatientFamilyMembers] = useState<FamilyMember[]>([]);
 const [selectedFamilyMemberId, setSelectedFamilyMemberId] = useState<string>('');
+const [familyNameById, setFamilyNameById] = useState<Record<string, string>>({});
+const familyLabel = (id?: string | null) => (id ? familyNameById[id] : undefined);
+const fetchFamilyNames = async () => {
+const { data, error } = await supabase.from('family_members').select('id, name');
+if (error) return handleSupabaseError(error, 'select', 'family_members');
+const map: Record<string, string> = {};
+(data || []).forEach((m: any) => { map[m.id] = m.name; });
+setFamilyNameById(map);
+};
 const [newFamilyMemberName, setNewFamilyMemberName] = useState('');
 const [addingFamilyMember, setAddingFamilyMember] = useState(false);
 const handleAddFamilyMember = async () => {
@@ -87,6 +96,7 @@ setAddingFamilyMember(false);
 if (error) return handleSupabaseError(error, 'insert', 'family_members');
 const added: FamilyMember = { id: data.id, patientId: data.patient_id, name: data.name, sortOrder: data.sort_order, createdAt: data.created_at };
 setPatientFamilyMembers(prev => [...prev, added]);
+setFamilyNameById(prev => ({ ...prev, [added.id]: added.name }));
 setSelectedFamilyMemberId(added.id);
 setNewFamilyMemberName('');
 toast.success(`${name} added to this family card.`);
@@ -367,6 +377,7 @@ fetchAllPatients();
 return () => { supabase.removeChannel(channel); };
 }, []);
 const fetchGlobalLabTests = async () => {
+fetchFamilyNames();
 const { data, error } = await supabase
 .from('lab_tests')
 .select('*, patients(*)')
@@ -379,6 +390,7 @@ patient: row.patients ? patientFromRow(row.patients) : undefined,
 setGlobalLabTests(testsWithPatients);
 };
 const fetchGlobalRecords = async () => {
+fetchFamilyNames();
 const { data, error } = await supabase
 .from('medical_records')
 .select('*, patients(*)')
@@ -900,6 +912,9 @@ placeholder="Search patient or Card ID"
 <div>
 <p className="text-sm font-bold text-slate-900">{record.patient?.name || 'Unknown Patient'}</p>
 <p className="text-xs text-slate-500">{record.patientId}</p>
+{familyLabel(record.familyMemberId) && (
+<p className="text-[10px] font-bold text-amber-700">For: {familyLabel(record.familyMemberId)}</p>
+)}
 </div>
 </div>
 </td>
@@ -1037,6 +1052,9 @@ className={cn("hover:bg-slate-50 transition-colors", test.patient && "cursor-poi
 <div>
 <p className="text-sm font-bold text-slate-900">{test.patient?.name || 'Unknown Patient'}</p>
 <p className="text-xs text-slate-500">{test.patientId}</p>
+{familyLabel(test.familyMemberId) && (
+<p className="text-[10px] font-bold text-amber-700">For: {familyLabel(test.familyMemberId)}</p>
+)}
 </div>
 </div>
 </td>
@@ -1228,6 +1246,9 @@ className="w-full p-4 rounded-xl border border-slate-50 bg-slate-50/50 flex just
 <div>
 <p className="font-bold text-slate-900">{record.patient?.name || `Patient ID: ${record.patientId}`}</p>
 <p className="text-xs text-slate-500">{record.diagnosis || 'General Checkup'}</p>
+{familyLabel(record.familyMemberId) && (
+<p className="text-[10px] font-bold text-amber-700">For: {familyLabel(record.familyMemberId)}</p>
+)}
 </div>
 </div>
 <div className="text-right">
@@ -1398,6 +1419,9 @@ Continue
 <div key={test.id} className="flex items-center justify-between gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
 <div className="min-w-0 flex-1">
 <p className="text-xs font-bold text-slate-900 truncate">{test.testType}</p>
+{familyLabel(test.familyMemberId) && (
+<p className="text-[10px] font-bold text-amber-700">For: {familyLabel(test.familyMemberId)}</p>
+)}
 <div className="flex items-center gap-2 mt-1">
 <span className={cn(
 "text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border",
@@ -1469,6 +1493,9 @@ className="w-full p-4 bg-slate-50 hover:bg-slate-100 transition-colors flex item
 {format(new Date(record.createdAt), 'MMM d, yyyy')}
 </p>
 <p className="text-[10px] text-slate-500">{record.diagnosis || 'No diagnosis'}</p>
+{familyLabel(record.familyMemberId) && (
+<p className="text-[10px] font-bold text-amber-700">For: {familyLabel(record.familyMemberId)}</p>
+)}
 </div>
 {expandedRecord === record.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
 </button>
@@ -2379,7 +2406,7 @@ className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-e
 <LetterheadPrint letter={printLetter} patient={patient || undefined} onClose={() => setPrintLetter(null)} />
 )}
 {printTest && patient && (
-<LabReportPrint test={{ ...printTest, patient }} onClose={() => setPrintTest(null)} />
+<LabReportPrint test={{ ...printTest, patient, familyMemberName: familyLabel(printTest.familyMemberId) }} onClose={() => setPrintTest(null)} />
 )}
 {showAdmitModal && patient && (
 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
@@ -2471,7 +2498,7 @@ className="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-l
 <div className="space-y-2">
 {patientLabTests.filter(t => t.recordId === continueRecord.id).map(t => (
 <div key={t.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-100">
-<span className="text-xs font-medium text-slate-700">{t.testType}</span>
+<span className="text-xs font-medium text-slate-700">{t.testType}{familyLabel(t.familyMemberId) && <span className="ml-2 text-[10px] font-bold text-amber-700">For: {familyLabel(t.familyMemberId)}</span>}</span>
 {t.result ? (
 <button onClick={() => setPrintTest(t)} className="text-xs font-bold text-blue-600 underline">View Result</button>
 ) : (

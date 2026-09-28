@@ -254,6 +254,7 @@ id: string;
 patientId: string;
 recordId?: string;
 familyMemberId?: string | null;
+familyMemberName?: string;
 testType: string;
 price?: number;
 result?: string;
