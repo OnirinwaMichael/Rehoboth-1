@@ -238,6 +238,11 @@ instructions?: string;
 dispensed: boolean;
 dispensedAt?: string;
 dispensedBy?: string;
+billingBasis?: 'per_unit' | 'per_pack';
+proposedQuantity?: number;
+quantityConfirmed?: boolean;
+quantityConfirmedAt?: string;
+stockDeducted?: number;
 }
 export interface BillingItem {
 id: string;
@@ -308,6 +313,11 @@ price: number;
 stock: number;
 category: string;
 lastUpdated: string;
+billingBasis?: 'per_unit' | 'per_pack';
+priceVerified?: boolean;
+stockVerified?: boolean;
+oversoldCount?: number;
+oversoldUnits?: number;
 }
 export interface AuditLog {
 id: string;

@@ -345,7 +345,9 @@ setPrintingRecord(receipt);
 setPayModal(null);
 await fetchBillingItems(selectedPatient.cardId);
 fetchFinancials();
-} catch (error) {
+} catch (error: any) {
+const msg = String(error?.message || '');
+if (msg.includes('Pharmacy must confirm')) { toast.error(msg); return; }
 handleSupabaseError(error, 'insert', 'financials');
 }
 };

@@ -125,7 +125,7 @@ const [showVitalSigns, setShowVitalSigns] = useState(false);
 const [showAntenatalBooking, setShowAntenatalBooking] = useState(false);
 const [showAntenatalFollowup, setShowAntenatalFollowup] = useState(false);
 const [continueRecord, setContinueRecord] = useState<MedicalRecord | null>(null);
-const [continueRxItems, setContinueRxItems] = useState<{ drugId: string, drugName: string, drugPrice: number, route: 'Oral' | 'Injection' | 'Topical' | 'IV' | 'Other', morning: number, afternoon: number, night: number, durationDays: number, instructions: string }[]>([]);
+const [continueRxItems, setContinueRxItems] = useState<{ drugId: string, drugName: string, drugPrice: number, route: 'Oral' | 'Injection' | 'Topical' | 'IV' | 'Other', morning: number, afternoon: number, night: number, durationDays: number, instructions: string, billingBasis?: 'per_unit' | 'per_pack', priceVerified?: boolean }[]>([]);
 const [continueDrugSearch, setContinueDrugSearch] = useState('');
 const [continueNote, setContinueNote] = useState('');
 const [showLetterModal, setShowLetterModal] = useState(false);
@@ -156,7 +156,7 @@ respiratoryRate: '',
 spo2: '',
 weight: '',
 diagnosis: '',
-prescriptionItems: [] as { drugId: string, drugName: string, drugPrice: number, route: 'Oral' | 'Injection' | 'Topical' | 'IV' | 'Other', morning: number, afternoon: number, night: number, durationDays: number, instructions: string }[],
+prescriptionItems: [] as { drugId: string, drugName: string, drugPrice: number, route: 'Oral' | 'Injection' | 'Topical' | 'IV' | 'Other', morning: number, afternoon: number, night: number, durationDays: number, instructions: string, billingBasis?: 'per_unit' | 'per_pack', priceVerified?: boolean }[],
 recommendedTests: [] as { name: string, price: string }[],
 admissionRecommended: false,
 cSectionRecommended: false,
@@ -187,6 +187,7 @@ const { data, error } = await supabase.from('inventory').select('*').order('name
 if (error) return handleSupabaseError(error, 'select', 'inventory');
 setDrugCatalog((data || []).map((r: any) => ({
 id: r.id, name: r.name, price: r.price, stock: r.stock, category: r.category, lastUpdated: r.last_updated,
+billingBasis: r.billing_basis, priceVerified: r.price_verified,
 })));
 };
 fetchDrugCatalog();
@@ -217,6 +218,7 @@ setFormData({
 ...formData,
 prescriptionItems: [...formData.prescriptionItems, {
 drugId: drug.id, drugName: drug.name, drugPrice: drug.price,
+billingBasis: drug.billingBasis, priceVerified: drug.priceVerified,
 route: 'Oral', morning: 1, afternoon: 0, night: 0, durationDays: 1, instructions: '',
 }],
 });
@@ -232,7 +234,7 @@ updated[index] = { ...updated[index], ...patch };
 setFormData({ ...formData, prescriptionItems: updated });
 };
 const prescriptionUnitsAndTotal = (item: typeof formData.prescriptionItems[number]) => {
-const units = (item.morning + item.afternoon + item.night) * item.durationDays;
+const units = item.billingBasis === 'per_pack' ? 1 : (item.morning + item.afternoon + item.night) * item.durationDays;
 return { units, total: units * item.drugPrice };
 };
 const continueFilteredDrugs = useMemo(() =>
@@ -258,6 +260,7 @@ const addContinueDrug = (drug: InventoryItem) => {
 if (!continueRxItems.some(p => p.drugId === drug.id)) {
 setContinueRxItems([...continueRxItems, {
 drugId: drug.id, drugName: drug.name, drugPrice: drug.price,
+billingBasis: drug.billingBasis, priceVerified: drug.priceVerified,
 route: 'Oral', morning: 1, afternoon: 0, night: 0, durationDays: 1, instructions: '',
 }]);
 }
@@ -735,7 +738,7 @@ const dosageParts = [];
 if (p.morning) dosageParts.push(`${p.morning} morning`);
 if (p.afternoon) dosageParts.push(`${p.afternoon} afternoon`);
 if (p.night) dosageParts.push(`${p.night} night`);
-return `${p.drugName} (${p.route}) — ${dosageParts.join(', ') || 'as directed'} for ${p.durationDays}d [${units} units]`;
+return `${p.drugName} (${p.route}) — ${dosageParts.join(', ') || 'as directed'} for ${p.durationDays}d [${units} ${p.billingBasis === 'per_pack' ? (units === 1 ? 'pack' : 'packs') : 'units'}]`;
 }),
 recommended_tests: formData.recommendedTests.map(t => t.name),
 admission_recommended: formData.admissionRecommended,
@@ -2069,7 +2072,7 @@ return (
 <div className="flex items-center justify-between gap-2">
 <span className="text-sm font-bold text-slate-900">{item.drugName}</span>
 <div className="flex items-center gap-2">
-<span className="text-xs font-bold text-slate-500">₦{item.drugPrice.toLocaleString()}/unit</span>
+<span className="text-xs font-bold text-slate-500">₦{item.drugPrice.toLocaleString()}/{item.billingBasis === 'per_pack' ? 'pack' : 'unit'}{item.priceVerified === false ? ' · price not confirmed' : ''}</span>
 <button
 type="button"
 onClick={() => setFormData({ ...formData, prescriptionItems: formData.prescriptionItems.filter((_, i) => i !== index) })}
@@ -2141,7 +2144,7 @@ className="flex-1 p-2 text-xs border border-slate-200 rounded-lg outline-none fo
 <VoiceDictationButton onFinalResult={text => updatePrescriptionItem(index, { instructions: (item.instructions ? item.instructions + ' ' : '') + text })} />
 </div>
 <div className="flex items-center justify-between pt-1 border-t border-slate-200 text-xs">
-<span className="text-slate-500">{units} unit{units !== 1 ? 's' : ''} total</span>
+<span className="text-slate-500">{item.billingBasis === 'per_pack' ? `${units} pack${units !== 1 ? 's' : ''} (pharmacy confirms final quantity)` : `${units} unit${units !== 1 ? 's' : ''} total`}</span>
 <span className="font-bold text-slate-700">₦{total.toLocaleString()}</span>
 </div>
 </div>
@@ -2581,7 +2584,7 @@ className="w-full p-2 text-xs border border-slate-200 rounded-lg outline-none bg
 <input type="number" min={1} value={item.durationDays} onChange={e => updateContinueRxItem(index, { durationDays: Math.max(1, parseInt(e.target.value) || 1) })} placeholder="Days" className="p-2 text-sm text-center border border-slate-200 rounded-lg outline-none" />
 </div>
 <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-200">
-<span className="text-slate-500">{units} units</span>
+<span className="text-slate-500">{item.billingBasis === 'per_pack' ? `${units} pack${units !== 1 ? 's' : ''}` : `${units} units`}</span>
 <span className="font-bold text-slate-700">₦{total.toLocaleString()}</span>
 </div>
 </div>

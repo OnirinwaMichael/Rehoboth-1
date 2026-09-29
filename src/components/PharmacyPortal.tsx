@@ -18,6 +18,8 @@ category: r.category, createdAt: r.created_at, registrationType: r.registration_
 const inventoryFromRow = (r: any): InventoryItem => ({
 id: r.id, name: r.name, price: r.price, stock: r.stock,
 category: r.category, lastUpdated: r.last_updated,
+billingBasis: r.billing_basis, priceVerified: r.price_verified, stockVerified: r.stock_verified,
+oversoldCount: r.oversold_count, oversoldUnits: r.oversold_units,
 });
 const prescriptionFromRow = (r: any): Prescription & { patient?: Patient } => ({
 id: r.id, patientId: r.patient_id, recordId: r.record_id, staffId: r.staff_id,
@@ -26,6 +28,9 @@ paymentStatus: r.payment_status, createdAt: r.created_at,
 dosageMorning: r.dosage_morning, dosageAfternoon: r.dosage_afternoon, dosageNight: r.dosage_night,
 durationDays: r.duration_days, route: r.route, instructions: r.instructions,
 dispensed: r.dispensed, dispensedAt: r.dispensed_at, dispensedBy: r.dispensed_by,
+billingBasis: r.billing_basis, proposedQuantity: r.proposed_quantity,
+quantityConfirmed: r.quantity_confirmed, quantityConfirmedAt: r.quantity_confirmed_at,
+stockDeducted: r.stock_deducted,
 patient: r.patients ? patientFromRow(r.patients) : undefined,
 });
 interface Props {
@@ -59,8 +64,12 @@ pendingPrescriptions: 0
 const [drugForm, setDrugForm] = useState({
 name: '',
 price: '',
-stock: ''
+stock: '',
+billingBasis: 'per_unit' as 'per_unit' | 'per_pack',
+priceVerified: false,
+stockVerified: false,
 });
+const [qtyEdits, setQtyEdits] = useState<Record<string, string>>({});
 // Real trend data for the Dispensed This Week sparkline — derived from
 // `prescriptions` (medical_records + visits), which is already the full,
 // uncapped list (no .limit() on either fetch), so no extra query needed.
@@ -214,6 +223,9 @@ name: drugForm.name,
 price: parseFloat(drugForm.price),
 stock: parseInt(drugForm.stock, 10) || 0,
 category: 'General',
+billing_basis: drugForm.billingBasis,
+price_verified: drugForm.priceVerified,
+stock_verified: drugForm.stockVerified,
 last_updated: new Date().toISOString(),
 };
 if (editingDrug) {
@@ -227,7 +239,7 @@ if (error) throw error;
 await logAction(userId, 'ADD_INVENTORY', `Added new drug: ${drugData.name}`);
 toast.success('Drug added successfully!');
 }
-setDrugForm({ name: '', price: '', stock: '' });
+setDrugForm({ name: '', price: '', stock: '', billingBasis: 'per_unit', priceVerified: false, stockVerified: false });
 setIsAddingDrug(false);
 setEditingDrug(null);
 } catch (error) {
@@ -254,15 +266,39 @@ if (error) return handleSupabaseError(error, 'update', table);
 await logAction(userId, 'DISPENSE_DRUGS', `Dispensed drugs for record ${record.id}`);
 toast.success('Prescription marked as dispensed!');
 };
+const handleConfirmQuantity = async (rx: Prescription) => {
+const raw = qtyEdits[rx.id];
+const qty = raw !== undefined && raw !== '' ? parseInt(raw, 10) : rx.quantity;
+if (!Number.isFinite(qty) || qty < 1) { toast.error('Quantity must be at least 1.'); return; }
+const { error } = await supabase.from('prescriptions')
+.update({ quantity: qty, quantity_confirmed: true }).eq('id', rx.id);
+if (error) { toast.error(error.message || 'Could not confirm the quantity.'); return; }
+await logAction(userId, 'CONFIRM_RX_QUANTITY',
+`Confirmed ${rx.drugName} x${qty} (proposed ${rx.proposedQuantity ?? rx.quantity}) for patient ${rx.patientId}`);
+toast.success(`Quantity confirmed: ${qty}`);
+setQtyEdits(prev => { const n = { ...prev }; delete n[rx.id]; return n; });
+fetchStructuredPrescriptions();
+};
 const handleDispenseStructured = async (rx: Prescription) => {
+const isFree = (rx.drugPrice || 0) * (rx.quantity || 1) === 0;
+if (!rx.quantityConfirmed) { toast.error('Confirm the quantity before dispensing.'); return; }
+if (rx.paymentStatus !== 'paid' && !isFree) { toast.error('Payment must be completed before dispensing.'); return; }
+const drug = inventory.find(d => d.name.toLowerCase() === rx.drugName.toLowerCase());
+const shortBy = !!drug && !!drug.stockVerified && (drug.stock || 0) < rx.quantity;
 const { error } = await supabase.from('prescriptions').update({
 dispensed: true,
 dispensed_at: new Date().toISOString(),
 dispensed_by: userId,
 }).eq('id', rx.id);
-if (error) return handleSupabaseError(error, 'update', 'prescriptions');
-await logAction(userId, 'DISPENSE_DRUGS', `Dispensed ${rx.drugName} for patient ${rx.patientId}`);
+if (error) { toast.error(error.message || 'Could not dispense this prescription.'); return; }
+await logAction(userId, 'DISPENSE_DRUGS', `Dispensed ${rx.drugName} x${rx.quantity} for patient ${rx.patientId}`);
+if (shortBy && drug) {
+const left = Math.max(0, 3 - (drug.oversoldCount || 0) - 1);
+toast.warning(`${rx.drugName} was short in stock. ${left} more dispense${left === 1 ? '' : 's'} allowed before it must be restocked.`);
+} else {
 toast.success('Marked as dispensed!');
+}
+fetchStructuredPrescriptions();
 };
 return (
 <div className="space-y-8 max-w-7xl mx-auto">
@@ -428,7 +464,7 @@ className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2
 <button
 onClick={() => {
 setEditingDrug(null);
-setDrugForm({ name: '', price: '', stock: '50' });
+setDrugForm({ name: '', price: '', stock: '', billingBasis: 'per_unit', priceVerified: false, stockVerified: false });
 setIsAddingDrug(true);
 }}
 className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center gap-2"
@@ -445,6 +481,7 @@ className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-7
 <th className="px-6 py-4">Drug Name</th>
 <th className="px-6 py-4">Category</th>
 <th className="px-6 py-4">Price (₦)</th>
+<th className="px-6 py-4">Billed</th>
 <th className="px-6 py-4">Stock</th>
 <th className="px-6 py-4">Actions</th>
 </tr>
@@ -458,7 +495,11 @@ className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-7
 {item.category || 'General'}
 </span>
 </td>
-<td className="px-6 py-4 font-bold text-blue-600">₦{item.price.toLocaleString()}</td>
+<td className="px-6 py-4 font-bold text-blue-600">
+₦{item.price.toLocaleString()}
+{!item.priceVerified && <span className="block text-[9px] font-bold uppercase text-amber-600">price not confirmed</span>}
+</td>
+<td className="px-6 py-4 text-xs font-bold text-slate-600">{item.billingBasis === 'per_pack' ? 'Per pack' : 'Per unit'}</td>
 <td className="px-6 py-4">
 <span className={cn(
 "font-bold",
@@ -466,6 +507,8 @@ className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-7
 )}>
 {item.stock || 0}
 </span>
+{!item.stockVerified && <span className="block text-[9px] font-bold uppercase text-amber-600">count not confirmed</span>}
+{(item.oversoldUnits || 0) > 0 && <span className="block text-[9px] font-bold uppercase text-red-600">{item.oversoldUnits} dispensed beyond stock</span>}
 </td>
 <td className="px-6 py-4">
 <div className="flex gap-2">
@@ -475,7 +518,10 @@ setEditingDrug(item);
 setDrugForm({
 name: item.name,
 price: item.price.toString(),
-stock: (item.stock || 0).toString()
+stock: (item.stock || 0).toString(),
+billingBasis: item.billingBasis || 'per_unit',
+priceVerified: !!item.priceVerified,
+stockVerified: !!item.stockVerified,
 });
 setIsAddingDrug(true);
 }}
@@ -495,7 +541,7 @@ className="p-2 text-slate-400 hover:text-red-500 transition-colors"
 ))}
 {filteredInventory.length === 0 && (
 <tr>
-<td colSpan={5} className="p-12 text-center text-slate-400 italic">
+<td colSpan={6} className="p-12 text-center text-slate-400 italic">
 {inventory.length === 0 ? 'No drugs in inventory.' : showLowStockOnly ? 'No low-stock drugs right now.' : 'No drugs match your search.'}
 </td>
 </tr>
@@ -546,17 +592,37 @@ rx.paymentStatus === 'paid' ? "text-green-600" : rx.paymentStatus === 'partial' 
 </div>
 <p className="text-xs text-slate-600">
 {[rx.dosageMorning && `${rx.dosageMorning} morning`, rx.dosageAfternoon && `${rx.dosageAfternoon} afternoon`, rx.dosageNight && `${rx.dosageNight} night`].filter(Boolean).join(', ') || 'As directed'}
-{' · '}{rx.durationDays} day{rx.durationDays !== 1 ? 's' : ''} · {rx.quantity} units total
+{' · '}{rx.durationDays} day{rx.durationDays !== 1 ? 's' : ''} · {rx.billingBasis === 'per_pack' ? `${rx.quantity} pack${rx.quantity !== 1 ? 's' : ''}` : `${rx.quantity} unit${rx.quantity !== 1 ? 's' : ''}`} billed
 </p>
+{rx.quantityConfirmed ? (
+<p className="text-[11px] font-bold text-green-700">✓ Quantity confirmed: {rx.quantity}{rx.proposedQuantity && rx.proposedQuantity !== rx.quantity ? ` (proposed ${rx.proposedQuantity})` : ''}</p>
+) : (
+<div className="flex items-center gap-2 pt-1">
+<input
+type="number" min="1"
+disabled={rx.paymentStatus !== 'pending'}
+value={qtyEdits[rx.id] ?? String(rx.quantity)}
+onChange={e => setQtyEdits(prev => ({ ...prev, [rx.id]: e.target.value }))}
+className="w-20 p-2 rounded-lg border border-slate-200 text-sm font-bold"
+/>
+<button
+onClick={() => handleConfirmQuantity(rx)}
+className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700"
+>
+Confirm {rx.billingBasis === 'per_pack' ? 'packs' : 'quantity'}
+</button>
+</div>
+)}
 {rx.instructions && (
 <p className="text-xs text-slate-500 italic">Note: {rx.instructions}</p>
 )}
 </div>
 <button 
 onClick={() => handleDispenseStructured(rx)}
-className="w-full mt-4 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all text-sm"
+disabled={!rx.quantityConfirmed || (rx.paymentStatus !== 'paid' && (rx.drugPrice || 0) * (rx.quantity || 1) > 0)}
+className="w-full mt-4 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all text-sm disabled:opacity-40 disabled:cursor-not-allowed"
 >
-Mark as Dispensed
+{!rx.quantityConfirmed ? 'Confirm quantity first' : rx.paymentStatus !== 'paid' && (rx.drugPrice || 0) * (rx.quantity || 1) > 0 ? 'Awaiting full payment' : 'Mark as Dispensed'}
 </button>
 </div>
 ))}
@@ -680,6 +746,25 @@ className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring
 placeholder="0"
 />
 </div>
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">How is this drug billed?</label>
+<select
+value={drugForm.billingBasis}
+onChange={e => setDrugForm({ ...drugForm, billingBasis: e.target.value as 'per_unit' | 'per_pack' })}
+className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold bg-white"
+>
+<option value="per_unit">Per unit used (tablets, capsules, ampoules) — price × doses × days</option>
+<option value="per_pack">Per pack (bottle, tube, vial, pack) — price × packs, normally 1</option>
+</select>
+</div>
+<label className="flex items-start gap-3 text-sm text-slate-700">
+<input type="checkbox" checked={drugForm.priceVerified} onChange={e => setDrugForm({ ...drugForm, priceVerified: e.target.checked })} className="mt-1 w-4 h-4" />
+<span><b>Price is confirmed</b> — this is the real price per {drugForm.billingBasis === 'per_pack' ? 'pack' : 'unit'}.</span>
+</label>
+<label className="flex items-start gap-3 text-sm text-slate-700">
+<input type="checkbox" checked={drugForm.stockVerified} onChange={e => setDrugForm({ ...drugForm, stockVerified: e.target.checked })} className="mt-1 w-4 h-4" />
+<span><b>Stock count is real</b> — I counted it. Dispensing only reduces stock once this is ticked.</span>
+</label>
 <button
 type="submit"
 className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2"
