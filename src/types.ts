@@ -75,6 +75,30 @@ consultant?: string;
 provisionalDiagnosis?: string;
 natureOfSpecimen?: string;
 }
+export interface LabRequestForm {
+id: string;
+patientId: string;
+familyMemberId?: string | null;
+patientName?: string;
+sex?: string;
+age?: string;
+hospitalClinic?: string;
+ward?: string;
+no?: string;
+clinicalHistory?: string;
+consultant?: string;
+provisionalDiagnosis?: string;
+natureOfSpecimen?: string;
+testsRequired?: string;
+dateOfReception?: string;
+labNo?: string;
+labResult?: string;
+resultDate?: string;
+labSecretary?: string;
+createdBy: string;
+updatedAt: string;
+createdAt: string;
+}
 export interface LabTestCatalogItem {
 id: string;
 name: string;
