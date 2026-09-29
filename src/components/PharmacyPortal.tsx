@@ -6,7 +6,6 @@ import { Pill, Search, Plus, Trash2, Edit, Save, X, ClipboardList, FileText, Use
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { NAFDAC_DRUGS } from '../data/hospitalData';
 import { logAction } from '../lib/audit';
 const patientFromRow = (r: any): Patient => ({
 cardId: r.card_id, name: r.name, gender: r.gender,
@@ -121,9 +120,6 @@ const { data, error } = await supabase.from('inventory').select('*').order('name
 if (error) return handleSupabaseError(error, 'select', 'inventory');
 const mapped = (data || []).map(inventoryFromRow);
 setInventory(mapped);
-if (mapped.length === 0) {
-seedInitialDrugs();
-}
 setStats(prev => ({
 ...prev,
 totalDrugs: mapped.length,
@@ -193,27 +189,6 @@ const combined = [...others, ...visitsWithPatients].sort((a, b) => new Date(b.cr
 setStats(s => ({ ...s, pendingPrescriptions: combined.filter(c => !c.dispensed).length }));
 return combined;
 });
-};
-const seedInitialDrugs = async () => {
-toast.info('Seeding NAFDAC approved drugs...');
-try {
-const rows = NAFDAC_DRUGS.map(drugName => ({
-name: drugName,
-price: Math.floor(Math.random() * 5000) + 500,
-stock: Math.floor(Math.random() * 100) + 20,
-category: 'General',
-}));
-// Insert in batches of 50 (matches original batching intent —
-// avoids one oversized request)
-const batchSize = 50;
-for (let i = 0; i < rows.length; i += batchSize) {
-const { error } = await supabase.from('inventory').insert(rows.slice(i, i + batchSize));
-if (error) throw error;
-}
-toast.success(`${rows.length}+ NAFDAC approved drugs added to inventory!`);
-} catch (error) {
-handleSupabaseError(error, 'insert', 'inventory');
-}
 };
 const handleSaveDrug = async (e: React.FormEvent) => {
 e.preventDefault();
