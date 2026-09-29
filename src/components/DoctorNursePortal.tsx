@@ -103,7 +103,7 @@ toast.success(`${name} added to this family card.`);
 };
 const [records, setRecords] = useState<MedicalRecord[]>([]);
 const [loading, setLoading] = useState(false);
-const [view, setView] = useState<'dashboard' | 'assessment' | 'consultations' | 'labResults' | 'records' | 'patients' | 'admissions'>('dashboard');
+const [view, setView] = useState<'dashboard' | 'assessment' | 'labResults' | 'records' | 'patients' | 'admissions'>('dashboard');
 const [expandedRecord, setExpandedRecord] = useState<string | null>(null);
 const [stats, setStats] = useState({
 totalPatients: 0,
@@ -496,7 +496,7 @@ const selectPatientDirectly = async (p: Patient) => {
 setSearchSuggestions([]);
 setSearchId('');
 setPatient(p);
-setView('consultations');
+setView('assessment');
 setIsNewConsultation(true);
 setSelectedVisit(null);
 await logAction(userId, 'SEARCH_PATIENT', `Selected patient ${p.name} (${p.cardId})`);
@@ -505,7 +505,7 @@ await logRecordAccess(userId, p.cardId);
 const handleActiveAdmissionsClick = () => {
 if (activeAdmissionsCount === 1 && globalAdmissions.length === 1 && globalAdmissions[0].patient) {
 setPatient(globalAdmissions[0].patient);
-setView('consultations');
+setView('assessment');
 setIsNewConsultation(false);
 setSelectedVisit(null);
 } else {
@@ -516,7 +516,7 @@ const handlePendingLabResultsClick = () => {
 const pending = globalLabTests.filter(t => !t.result && !t.structuredResults?.length && !t.panelResults);
 if (pending.length === 1 && pending[0].patient) {
 setPatient(pending[0].patient);
-setView('consultations');
+setView('assessment');
 setIsNewConsultation(false);
 setSelectedVisit(null);
 } else {
@@ -533,7 +533,7 @@ const { data, error } = await supabase.from('patients').select('*').eq('card_id'
 if (error) throw error;
 if (data) {
 setPatient(patientFromRow(data));
-setView('consultations');
+setView('assessment');
 setIsNewConsultation(true);
 setSelectedVisit(null);
 await logAction(userId, 'SEARCH_PATIENT', `Searched for patient with Card ID ${searchId}`);
@@ -709,10 +709,6 @@ if (!formData.diagnosis.trim() && (formData.prescriptionItems.length > 0 || form
 toast.error('Please provide a diagnosis before adding prescriptions or tests.');
 return;
 }
-if (!formData.bloodPressure || !formData.temperature) {
-toast.error('Blood Pressure and Temperature are required vitals.');
-return;
-}
 if (patient.category === 'family card' && !selectedFamilyMemberId) {
 toast.error('Please select which family member this visit is for.');
 return;
@@ -724,8 +720,8 @@ const { data: recordRow, error } = await supabase.from('medical_records').insert
 patient_id: patient.cardId,
 staff_id: userId,
 family_member_id: patient.category === 'family card' ? selectedFamilyMemberId : null,
-blood_pressure: formData.bloodPressure,
-temperature: formData.temperature,
+blood_pressure: formData.bloodPressure.trim() || null,
+temperature: formData.temperature.trim() || null,
 sugar_level: formData.sugarLevel,
 pulse: formData.pulse,
 respiratory_rate: formData.respiratoryRate,
@@ -1041,7 +1037,7 @@ placeholder="Search patient or test"
 {filteredGlobalLabTests.map((test) => (
 <tr
 key={test.id}
-onClick={() => { if (test.patient) { setPatient(test.patient); setView('consultations'); setIsNewConsultation(false); setSelectedVisit(null); } }}
+onClick={() => { if (test.patient) { setPatient(test.patient); setView('assessment'); setIsNewConsultation(false); setSelectedVisit(null); } }}
 className={cn("hover:bg-slate-50 transition-colors", test.patient && "cursor-pointer")}
 >
 <td className="py-4 text-sm text-slate-600">
@@ -1117,7 +1113,7 @@ No lab tests found.
 {globalAdmissions.map((admission) => (
 <tr
 key={admission.id}
-onClick={() => { if (admission.patient) { setPatient(admission.patient); setView('consultations'); setIsNewConsultation(false); setSelectedVisit(null); } }}
+onClick={() => { if (admission.patient) { setPatient(admission.patient); setView('assessment'); setIsNewConsultation(false); setSelectedVisit(null); } }}
 className={cn("hover:bg-slate-50 transition-colors", admission.patient && "cursor-pointer")}
 >
 <td className="py-4 text-sm text-slate-600">
@@ -1299,15 +1295,6 @@ className="w-full p-4 rounded-xl border border-slate-50 bg-slate-50/50 flex just
 </div>
 <div className="flex flex-col gap-2 mt-6">
 <button
-onClick={() => setView('consultations')}
-className={cn(
-"w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition-all border",
-view === 'consultations' ? "bg-purple-600 text-white border-purple-600" : "bg-purple-50 text-purple-600 hover:bg-purple-100 border-purple-100"
-)}
->
-<FolderOpen className="w-4 h-4" /> Consultations & Visits
-</button>
-<button
 onClick={() => setView('assessment')}
 className={cn(
 "w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold transition-all border",
@@ -1381,13 +1368,6 @@ Antenatal Follow-up
 <div className="mt-6 pt-6 border-t border-slate-100 space-y-2">
 <p className="text-xs font-bold text-slate-400 uppercase">Address</p>
 <p className="text-sm text-slate-600">{patient.address}</p>
-</div>
-<div className="mt-6 pt-6 border-t border-slate-100">
-<p className="text-xs font-bold text-slate-400 uppercase mb-2">Billing Summary</p>
-<div className="p-4 bg-orange-50 rounded-xl border border-orange-100 flex justify-between items-center">
-<span className="font-bold text-orange-700">Total Billed (Visits)</span>
-<span className="font-black text-orange-700 text-lg">₦{visits.reduce((sum, v) => sum + (v.billingAmount || 0), 0).toLocaleString()}</span>
-</div>
 </div>
 </div>
 {openConsultations.length > 0 && (
@@ -1565,285 +1545,7 @@ record.paymentStatus === 'paid' ? "bg-green-100 text-green-700" : "bg-yellow-100
 </div>
 {/* Main Assessment Form */}
 <div className="lg:col-span-8 space-y-8">
-{view === 'consultations' ? (
-<div className="bg-white rounded-2xl shadow-sm border border-slate-100 flex h-[800px] overflow-hidden">
-{/* Visits Sidebar */}
-<div className="w-1/3 border-r border-slate-100 bg-slate-50/50 flex flex-col">
-<div className="p-4 border-b border-slate-100">
-<button 
-onClick={() => {
-setIsNewConsultation(true);
-setSelectedVisit(null);
-setConsultationForm({ diagnosis: '', labResults: '', prescription: '', billingAmount: '' });
-}}
-className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-sm"
->
-<Plus className="w-4 h-4" /> Start New Consultation
-</button>
-</div>
-<div className="flex-1 overflow-y-auto p-4 space-y-2">
-{visits.map(visit => (
-<button
-key={visit.id}
-onClick={() => {
-setIsNewConsultation(false);
-setSelectedVisit(visit);
-}}
-className={cn(
-"w-full text-left p-4 rounded-xl border transition-all",
-selectedVisit?.id === visit.id && !isNewConsultation
-? "bg-white border-blue-200 shadow-sm ring-1 ring-blue-500"
-: "bg-white border-slate-100 hover:border-blue-200"
-)}
->
-<p className="font-bold text-slate-900 text-sm">{format(new Date(visit.timestamp), 'MMM d, yyyy - HH:mm')}</p>
-<p className="text-xs text-slate-500 truncate mt-1">{visit.diagnosis || 'No diagnosis'}</p>
-</button>
-))}
-{visits.length === 0 && (
-<div className="text-center py-8 text-slate-400 text-sm">
-No previous visits found.
-</div>
-)}
-</div>
-</div>
-{/* Main Form/View */}
-<div className="w-2/3 flex flex-col bg-white">
-{isNewConsultation ? (
-<form onSubmit={handleConsultationSubmit} className="flex-1 flex flex-col h-full">
-<div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-<div className="flex items-center gap-2">
-<FileText className="w-5 h-5 text-blue-600" />
-<h3 className="font-bold text-slate-900">New Consultation</h3>
-</div>
-<span className="text-xs font-bold text-slate-400">{format(new Date(), 'MMM d, yyyy')}</span>
-</div>
-<div className="flex-1 overflow-y-auto p-6 space-y-6">
-<div className="space-y-2">
-<label className="text-sm font-bold text-slate-700">Diagnosis</label>
-<textarea
-value={consultationForm.diagnosis}
-onChange={e => setConsultationForm({ ...consultationForm, diagnosis: e.target.value })}
-className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none min-h-[120px]"
-placeholder="Enter diagnosis details..."
-required
-/>
-</div>
-<div className="space-y-2 relative">
-<label className="text-sm font-bold text-slate-700">Prescription (Drugs)</label>
-<input
-type="text"
-value={checkupDrugSearch}
-onChange={e => setCheckupDrugSearch(e.target.value)}
-className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
-placeholder="Search pharmacy drugs & injections by name..."
-/>
-{checkupDrugSearch && (
-<div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
-{checkupFilteredDrugs.length === 0 ? (
-<p className="px-4 py-3 text-sm text-slate-400">No matching drugs in pharmacy inventory.</p>
-) : (
-checkupFilteredDrugs.map(drug => (
-<button
-key={drug.id}
-type="button"
-onClick={() => addCheckupDrug(drug.name)}
-className="w-full flex items-center justify-between text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors"
->
-<span className="font-medium">{drug.name}</span>
-<span className="text-xs font-bold text-slate-500">Stock: {drug.stock}</span>
-</button>
-))
-)}
-</div>
-)}
-{checkupSelectedDrugs.length > 0 ? (
-<div className="flex flex-wrap gap-2 pt-1">
-{checkupSelectedDrugs.map(name => (
-<span key={name} className="inline-flex items-center gap-1 bg-green-50 text-green-700 border border-green-100 text-xs font-bold px-3 py-1 rounded-full">
-{name}
-<button type="button" onClick={() => removeCheckupDrug(name)} className="hover:text-red-500"><X className="w-3 h-3" /></button>
-</span>
-))}
-</div>
-) : (
-<p className="text-xs text-slate-500">Search and tap a drug to add it — keep typing to add more.</p>
-)}
-</div>
-<div className="space-y-2">
-<label className="text-sm font-bold text-slate-700">Prescription Note</label>
-<textarea
-value={consultationForm.prescriptionNote}
-onChange={e => setConsultationForm({ ...consultationForm, prescriptionNote: e.target.value })}
-className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none min-h-[80px]"
-placeholder="Enter prescription notes..."
-/>
-</div>
-<div className="space-y-2">
-<label className="text-sm font-bold text-slate-700">Structured Lab Note</label>
-<textarea
-value={consultationForm.structuredLabNote}
-onChange={e => setConsultationForm({ ...consultationForm, structuredLabNote: e.target.value })}
-className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none min-h-[80px]"
-placeholder="Enter structured lab notes..."
-/>
-</div>
-<div className="space-y-2">
-<label className="text-sm font-bold text-slate-700">Lab Results</label>
-<textarea
-value={consultationForm.labResults}
-onChange={e => setConsultationForm({ ...consultationForm, labResults: e.target.value })}
-className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none min-h-[100px]"
-placeholder="Enter lab results..."
-/>
-</div>
-<div className="space-y-4 border-t border-slate-100 pt-4">
-<div className="flex items-center justify-between">
-<label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-<Camera className="w-4 h-4" /> Attach Image (Optional)
-</label>
-<button
-type="button"
-onClick={() => setShowImageUpload(!showImageUpload)}
-className="text-xs font-bold text-blue-600 hover:text-blue-800"
->
-{showImageUpload ? 'Cancel Upload' : 'Add Image (X-Ray/Lab)'}
-</button>
-</div>
-{showImageUpload && (
-<div className="flex items-center justify-center w-full">
-<label className="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
-<div className="flex flex-col items-center justify-center pt-5 pb-6">
-<Camera className="w-8 h-8 text-slate-400 mb-2" />
-<p className="text-sm text-slate-500 font-bold">Click to upload image</p>
-</div>
-<input 
-type="file" 
-className="hidden" 
-accept="image/*"
-onChange={(e) => {
-const file = e.target.files?.[0];
-if (file) {
-if (file.size > 1000000) {
-toast.error('Image too large (max 1MB)');
-return;
-}
-const reader = new FileReader();
-reader.onloadend = () => {
-setConsultationForm({ ...consultationForm, imageUrl: reader.result as string });
-};
-reader.readAsDataURL(file);
-}
-}}
-/>
-</label>
-</div>
-)}
-{consultationForm.imageUrl && (
-<div className="relative w-full h-48 rounded-xl overflow-hidden border border-slate-200">
-<img src={consultationForm.imageUrl} alt="Attachment" className="w-full h-full object-cover" />
-<button
-type="button"
-onClick={() => setConsultationForm({ ...consultationForm, imageUrl: '' })}
-className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700"
->
-<X className="w-4 h-4" />
-</button>
-</div>
-)}
-</div>
-<div className="space-y-2">
-<label className="text-sm font-bold text-slate-700">Billing Amount</label>
-<input
-type="number"
-value={consultationForm.billingAmount}
-onChange={e => setConsultationForm({ ...consultationForm, billingAmount: e.target.value })}
-className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-lg"
-placeholder="₦ 0.00"
-/>
-</div>
-</div>
-<div className="p-6 border-t border-slate-100 bg-slate-50/50">
-<button
-type="submit"
-disabled={loading}
-className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 disabled:opacity-50 flex items-center justify-center gap-2"
->
-<Save className="w-5 h-5" />
-{loading ? 'Saving...' : 'Save Consultation'}
-</button>
-</div>
-</form>
-) : selectedVisit ? (
-<div className="flex-1 flex flex-col h-full">
-<div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-<div className="flex items-center gap-2">
-<FolderOpen className="w-5 h-5 text-purple-600" />
-<h3 className="font-bold text-slate-900">Historical Folder</h3>
-</div>
-<span className="text-xs font-bold text-slate-400">{format(new Date(selectedVisit.timestamp), 'MMM d, yyyy - HH:mm')}</span>
-</div>
-<div className="flex-1 overflow-y-auto p-6 space-y-6">
-<div className="space-y-2">
-<label className="text-xs font-bold text-slate-400 uppercase">Diagnosis</label>
-<div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-slate-700 whitespace-pre-wrap">
-{selectedVisit.diagnosis || 'N/A'}
-</div>
-</div>
-{selectedVisit.prescriptionNote && (
-<div className="space-y-2">
-<label className="text-xs font-bold text-slate-400 uppercase">Prescription Note</label>
-<div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-slate-700 whitespace-pre-wrap">
-{selectedVisit.prescriptionNote}
-</div>
-</div>
-)}
-{selectedVisit.structuredLabNote && (
-<div className="space-y-2">
-<label className="text-xs font-bold text-slate-400 uppercase">Structured Lab Note</label>
-<div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-slate-700 whitespace-pre-wrap">
-{selectedVisit.structuredLabNote}
-</div>
-</div>
-)}
-<div className="space-y-2">
-<label className="text-xs font-bold text-slate-400 uppercase">Lab Results</label>
-<div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-slate-700 whitespace-pre-wrap">
-{selectedVisit.labResults || 'N/A'}
-</div>
-</div>
-<div className="space-y-2">
-<label className="text-xs font-bold text-slate-400 uppercase">Prescription</label>
-<div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-slate-700 whitespace-pre-wrap">
-{selectedVisit.prescription || 'N/A'}
-</div>
-</div>
-<div className="space-y-2">
-<label className="text-xs font-bold text-slate-400 uppercase">Billing Amount</label>
-<div className="p-4 bg-orange-50 rounded-xl border border-orange-100 text-orange-700 font-bold text-lg">
-₦{(selectedVisit.billingAmount || 0).toLocaleString()}
-</div>
-</div>
-{selectedVisit.imageUrl && (
-<div className="space-y-2">
-<label className="text-xs font-bold text-slate-400 uppercase">Attached Image</label>
-<div className="relative w-full rounded-xl overflow-hidden border border-slate-200">
-<img src={selectedVisit.imageUrl} alt="Attachment" className="w-full h-auto object-contain max-h-96" />
-</div>
-</div>
-)}
-</div>
-</div>
-) : (
-<div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8 text-center">
-<FolderOpen className="w-16 h-16 text-slate-200 mb-4" />
-<p className="font-bold text-slate-600 text-lg mb-2">Consultation Workspace</p>
-<p className="text-sm max-w-xs">Select a past visit from the sidebar to view its details, or start a new consultation.</p>
-</div>
-)}
-</div>
-</div>
-) : (
+{view === 'assessment' && (
 <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
 <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
 <div className="flex items-center gap-2">
@@ -2630,7 +2332,7 @@ setSearchId(globalConsultationSearch);
 setShowGlobalConsultation(false);
 handleSearch(e);
 setTimeout(() => {
-setView('consultations');
+setView('assessment');
 setIsNewConsultation(true);
 }, 1000);
 }} className="space-y-4">

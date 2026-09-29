@@ -24,8 +24,8 @@ weight: ''
 });
 const handleSubmit = async (e: React.FormEvent) => {
 e.preventDefault();
-if (!formData.bloodPressure || !formData.temperature) {
-toast.error('Blood Pressure and Temperature are required.');
+if (!(Object.values(formData) as string[]).some(x => x.trim())) {
+toast.error('Enter at least one vital sign.');
 return;
 }
 setLoading(true);
@@ -33,8 +33,8 @@ try {
 const { error } = await supabase.from('medical_records').insert({
 patient_id: patient.cardId,
 staff_id: userId,
-blood_pressure: formData.bloodPressure,
-temperature: formData.temperature,
+blood_pressure: formData.bloodPressure.trim() || null,
+temperature: formData.temperature.trim() || null,
 sugar_level: formData.sugarLevel,
 pulse: formData.pulse,
 respiratory_rate: formData.respiratoryRate,
