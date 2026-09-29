@@ -14,6 +14,7 @@ import { useFormDraft } from '../hooks/useFormDraft';
 import { ConfirmModal } from './ConfirmModal';
 import { LabReportPrint } from './LabReportPrint';
 import { LabReportEditor } from './LabReportEditor';
+import { LabResultFormSheet } from './LabResultFormSheet';
 import {
   LAB_REQUEST_FIELDS, emptyPanelResults, ComprehensivePanelResults, CULTURE_SPECIMEN_TYPES,
 } from '../data/labReportTemplates';
@@ -108,6 +109,7 @@ const [selectedTest, setSelectedTest] = useState<(LabTest & { patient?: Patient 
 const [imageUrl, setImageUrl] = useState('');
 const [showImageUpload, setShowImageUpload] = useState(false);
 const [view, setView] = useState<'dashboard' | 'queue' | 'catalog' | 'manual' | 'resources'>('dashboard');
+const [showResultForm, setShowResultForm] = useState(false);
 const [queueStatusFilter, setQueueStatusFilter] = useState<'all' | 'pending' | 'completed'>('all');
 const { data: manualEntry, setData: setManualEntry, clearDraft: clearManualDraft } = useFormDraft('lab_manual_entry', {
 patientId: '',
@@ -523,6 +525,7 @@ setLabFormRows(labFormRows.filter((_, i) => i !== index));
 };
 return (
 <div className="space-y-8 max-w-7xl mx-auto">
+{showResultForm && <LabResultFormSheet userId={userId} onClose={() => setShowResultForm(false)} />}
 <div className="flex items-center justify-between">
 <div>
 <h2 className="text-3xl font-bold text-slate-900">Laboratory Portal</h2>
@@ -573,6 +576,12 @@ view === 'manual' ? "bg-blue-600 text-white" : "bg-white text-slate-600 border b
 )}
 >
 <Plus className="w-4 h-4" /> Manual Entry
+</button>
+<button
+onClick={() => setShowResultForm(true)}
+className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all bg-white text-sky-700 border border-sky-200 hover:bg-sky-50"
+>
+<FileText className="w-4 h-4" /> Lab Results
 </button>
 </div>
 </div>

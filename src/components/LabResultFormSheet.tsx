@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
-import { Save, Plus } from 'lucide-react';
+import { Save, Plus, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { Patient, FamilyMember, LabRequestForm } from '../types';
 import { CULTURE_SPECIMEN_TYPES } from '../data/labReportTemplates';
@@ -9,11 +9,26 @@ import { VoiceDictationButton } from './VoiceDictationButton';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 
-interface Props {
+interface EditorProps {
   patient: Patient;
+  userId: string;
+  initialFormId?: string;
+  onChangePatient: () => void;
+  onClose: () => void;
+}
+
+interface Props {
   userId: string;
   onClose: () => void;
 }
+
+const patientFromRow = (r: any): Patient => ({
+  cardId: r.card_id, name: r.name, gender: r.gender,
+  stateOfOrigin: r.state_of_origin, age: r.age, occupation: r.occupation,
+  address: r.address, phone: r.phone, nextOfKin: r.next_of_kin,
+  relationship: r.relationship, nokAddress: r.nok_address, nokPhone: r.nok_phone,
+  category: r.category, createdAt: r.created_at, registrationType: r.registration_type || 'fresh',
+});
 
 const formFromRow = (r: any): LabRequestForm => ({
   id: r.id, patientId: r.patient_id, familyMemberId: r.family_member_id,
@@ -83,7 +98,7 @@ const Line: React.FC<{
   </div>
 );
 
-export const LabRequestFormSheet: React.FC<Props> = ({ patient, userId, onClose }) => {
+const ResultFormEditor: React.FC<EditorProps> = ({ patient, userId, initialFormId, onChangePatient, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [forms, setForms] = useState<LabRequestForm[]>([]);
@@ -101,7 +116,7 @@ export const LabRequestFormSheet: React.FC<Props> = ({ patient, userId, onClose 
       .from('lab_request_forms').select('*')
       .eq('patient_id', patient.cardId)
       .order('created_at', { ascending: false });
-    if (error) { console.error('[lab_request_forms:select]', error.message); toast.error('Could not load saved lab request forms.'); return []; }
+    if (error) { console.error('[lab_request_forms:select]', error.message); toast.error('Could not load saved forms.'); return []; }
     const list = (data || []).map(formFromRow);
     setForms(list);
     return list;
@@ -109,7 +124,9 @@ export const LabRequestFormSheet: React.FC<Props> = ({ patient, userId, onClose 
 
   useEffect(() => {
     (async () => {
-      await fetchForms();
+      const list = await fetchForms();
+      const initial = initialFormId ? list.find(x => x.id === initialFormId) : undefined;
+      if (initial) { setForm(stateFromForm(initial)); setSelectedId(initial.id); }
       const [w, c, m] = await Promise.all([
         supabase.from('ward_catalog').select('name').order('sort_order', { ascending: true }).order('name', { ascending: true }),
         supabase.from('users').select('name').in('role', ['CMD', 'Doctor']).eq('status', 'active').order('name', { ascending: true }),
@@ -182,17 +199,24 @@ export const LabRequestFormSheet: React.FC<Props> = ({ patient, userId, onClose 
       await fetchForms();
     }
     setDirty(false);
-    toast.success('Lab request form saved.');
+    toast.success('Lab result form saved.');
   };
 
   const specimenSuggestions = useMemo(() => CULTURE_SPECIMEN_TYPES, []);
 
   return (
     <FullScreenSheet
-      title="Lab Request Form"
+      title="Lab Results"
       subtitle={`${patient.name} · Card ${patient.cardId}`}
       onClose={handleClose}
       headerActions={
+        <>
+        <button
+          onClick={() => { if (confirmDiscard()) onChangePatient(); }}
+          className="px-3 py-2 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50"
+        >
+          Change patient
+        </button>
         <button
           onClick={handleSave}
           disabled={saving || loading}
@@ -200,6 +224,7 @@ export const LabRequestFormSheet: React.FC<Props> = ({ patient, userId, onClose 
         >
           <Save className="w-4 h-4" /> {saving ? 'Saving…' : 'Save'}
         </button>
+        </>
       }
     >
       {loading ? (
@@ -249,12 +274,12 @@ export const LabRequestFormSheet: React.FC<Props> = ({ patient, userId, onClose 
               </div>
             </div>
             <div className="mt-3 bg-sky-700 text-white text-center font-black tracking-wide py-1 uppercase text-sm">
-              Laboratory Request Form
+              Laboratory Result Form
             </div>
 
             {members.length > 0 && (
               <div className="mt-4 flex items-end gap-2">
-                <label className="text-sm font-semibold text-slate-700 whitespace-nowrap pb-1">Request is for:</label>
+                <label className="text-sm font-semibold text-slate-700 whitespace-nowrap pb-1">Result is for:</label>
                 <select
                   value={form.familyMemberId}
                   onChange={e => pickMember(e.target.value)}
@@ -312,10 +337,134 @@ export const LabRequestFormSheet: React.FC<Props> = ({ patient, userId, onClose 
           </div>
 
           <p className="text-[11px] text-slate-400 mt-3 text-center">
-            This form is a record only. It does not order or bill any lab test.
+            This form is a record of results only. It does not create or bill any lab test.
           </p>
         </div>
       )}
+    </FullScreenSheet>
+  );
+};
+
+
+interface RecentForm { id: string; patientId: string; patientName?: string; testsRequired?: string; createdAt: string }
+
+export const LabResultFormSheet: React.FC<Props> = ({ userId, onClose }) => {
+  const [patient, setPatient] = useState<Patient | null>(null);
+  const [initialFormId, setInitialFormId] = useState<string | undefined>(undefined);
+  const [query, setQuery] = useState('');
+  const [suggestions, setSuggestions] = useState<Patient[]>([]);
+  const [recent, setRecent] = useState<RecentForm[]>([]);
+  const [opening, setOpening] = useState(false);
+
+  const loadRecent = async () => {
+    const { data, error } = await supabase
+      .from('lab_request_forms')
+      .select('id, patient_id, patient_name, tests_required, created_at')
+      .order('updated_at', { ascending: false })
+      .limit(15);
+    if (error) { console.error('[lab_request_forms:recent]', error.message); return; }
+    setRecent((data || []).map((r: any) => ({
+      id: r.id, patientId: r.patient_id, patientName: r.patient_name,
+      testsRequired: r.tests_required, createdAt: r.created_at,
+    })));
+  };
+  useEffect(() => { if (!patient) loadRecent(); }, [patient]);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) { setSuggestions([]); return; }
+    const t = setTimeout(async () => {
+      const safe = q.replace(/[%,()]/g, ' ');
+      const { data, error } = await supabase
+        .from('patients').select('*')
+        .or(`name.ilike.%${safe}%,card_id.ilike.%${safe}%`)
+        .limit(8);
+      if (error) { console.error('[patients:search]', error.message); return; }
+      setSuggestions((data || []).map(patientFromRow));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const openRecent = async (r: RecentForm) => {
+    setOpening(true);
+    const { data, error } = await supabase.from('patients').select('*').eq('card_id', r.patientId).maybeSingle();
+    setOpening(false);
+    if (error || !data) { toast.error('Could not open that patient.'); return; }
+    setInitialFormId(r.id);
+    setPatient(patientFromRow(data));
+  };
+
+  if (patient) {
+    return (
+      <ResultFormEditor
+        key={patient.cardId + (initialFormId || '')}
+        patient={patient}
+        userId={userId}
+        initialFormId={initialFormId}
+        onChangePatient={() => { setPatient(null); setInitialFormId(undefined); setQuery(''); setSuggestions([]); }}
+        onClose={onClose}
+      />
+    );
+  }
+
+  return (
+    <FullScreenSheet title="Lab Results" subtitle="Choose a patient to record results" onClose={onClose}>
+      <div className="max-w-[700px] mx-auto p-4 pb-24 space-y-6">
+        <div>
+          <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Find patient</label>
+          <div className="relative mt-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              autoFocus
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Type a name or card number…"
+              className="w-full pl-9 pr-3 py-3 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          {query.trim().length >= 2 && suggestions.length === 0 && (
+            <p className="text-xs text-slate-400 mt-2">No matching patient.</p>
+          )}
+          {suggestions.length > 0 && (
+            <div className="mt-2 border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
+              {suggestions.map(p => (
+                <button
+                  key={p.cardId}
+                  onClick={() => { setInitialFormId(undefined); setPatient(p); }}
+                  className="w-full text-left px-4 py-3 hover:bg-blue-50 flex items-center justify-between"
+                >
+                  <span className="font-bold text-slate-800 text-sm">{p.name}</span>
+                  <span className="text-xs text-slate-400">Card {p.cardId}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Recently saved</p>
+          {recent.length === 0 ? (
+            <p className="text-sm text-slate-400">No saved lab result forms yet.</p>
+          ) : (
+            <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
+              {recent.map(r => (
+                <button
+                  key={r.id}
+                  disabled={opening}
+                  onClick={() => openRecent(r)}
+                  className="w-full text-left px-4 py-3 hover:bg-slate-50 flex items-center justify-between gap-3 disabled:opacity-50"
+                >
+                  <span className="min-w-0">
+                    <span className="block font-bold text-slate-800 text-sm truncate">{r.patientName || `Card ${r.patientId}`}</span>
+                    <span className="block text-xs text-slate-400 truncate">{r.testsRequired || 'No test listed'}</span>
+                  </span>
+                  <span className="text-xs text-slate-400 shrink-0">{format(new Date(r.createdAt), 'MMM d, HH:mm')}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </FullScreenSheet>
   );
 };
