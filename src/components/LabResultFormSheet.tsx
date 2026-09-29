@@ -9,8 +9,11 @@ import { VoiceDictationButton } from './VoiceDictationButton';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 
+const ReadOnlyContext = React.createContext(false);
+
 interface EditorProps {
   patient: Patient;
+  readOnly?: boolean;
   userId: string;
   initialFormId?: string;
   onChangePatient: () => void;
@@ -75,12 +78,15 @@ const stateFromForm = (f: LabRequestForm): FormState => ({
 const Line: React.FC<{
   label: string; value: string; onChange: (v: string) => void;
   list?: string; type?: string; className?: string; voice?: boolean; multiline?: boolean;
-}> = ({ label, value, onChange, list, type, className, voice, multiline }) => (
+}> = ({ label, value, onChange, list, type, className, voice, multiline }) => {
+  const ro = React.useContext(ReadOnlyContext);
+  return (
   <div className={cn('flex items-end gap-2', className)}>
     <label className="text-sm font-semibold text-slate-700 whitespace-nowrap pb-1">{label}:</label>
     {multiline ? (
       <textarea
         value={value}
+        readOnly={ro}
         onChange={e => onChange(e.target.value)}
         rows={2}
         className="flex-1 min-w-0 bg-transparent border-b border-slate-400 px-1 py-1 text-sm text-slate-900 outline-none focus:border-blue-600 resize-y"
@@ -88,17 +94,19 @@ const Line: React.FC<{
     ) : (
       <input
         type={type || 'text'}
-        list={list}
+        list={ro ? undefined : list}
         value={value}
+        readOnly={ro}
         onChange={e => onChange(e.target.value)}
         className="flex-1 min-w-0 bg-transparent border-b border-slate-400 px-1 py-1 text-sm text-slate-900 outline-none focus:border-blue-600"
       />
     )}
-    {voice && <VoiceDictationButton onFinalResult={text => onChange((value ? value + ' ' : '') + text)} />}
+    {voice && !ro && <VoiceDictationButton onFinalResult={text => onChange((value ? value + ' ' : '') + text)} />}
   </div>
-);
+  );
+};
 
-const ResultFormEditor: React.FC<EditorProps> = ({ patient, userId, initialFormId, onChangePatient, onClose }) => {
+const ResultFormEditor: React.FC<EditorProps> = ({ patient, userId, readOnly = false, initialFormId, onChangePatient, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [forms, setForms] = useState<LabRequestForm[]>([]);
@@ -125,7 +133,7 @@ const ResultFormEditor: React.FC<EditorProps> = ({ patient, userId, initialFormI
   useEffect(() => {
     (async () => {
       const list = await fetchForms();
-      const initial = initialFormId ? list.find(x => x.id === initialFormId) : undefined;
+      const initial = initialFormId ? list.find(x => x.id === initialFormId) : (readOnly ? list[0] : undefined);
       if (initial) { setForm(stateFromForm(initial)); setSelectedId(initial.id); }
       const [w, c, m] = await Promise.all([
         supabase.from('ward_catalog').select('name').order('sort_order', { ascending: true }).order('name', { ascending: true }),
@@ -166,6 +174,7 @@ const ResultFormEditor: React.FC<EditorProps> = ({ patient, userId, initialFormI
   };
 
   const handleSave = async () => {
+    if (readOnly) return;
     const empty = (Object.keys(form) as (keyof FormState)[])
       .filter(k => k !== 'familyMemberId')
       .every(k => !form[k].trim());
@@ -207,9 +216,9 @@ const ResultFormEditor: React.FC<EditorProps> = ({ patient, userId, initialFormI
   return (
     <FullScreenSheet
       title="Lab Results"
-      subtitle={`${patient.name} · Card ${patient.cardId}`}
+      subtitle={`${patient.name} · Card ${patient.cardId}${readOnly ? ' · view only' : ''}`}
       onClose={handleClose}
-      headerActions={
+      headerActions={readOnly ? undefined :
         <>
         <button
           onClick={() => { if (confirmDiscard()) onChangePatient(); }}
@@ -229,11 +238,14 @@ const ResultFormEditor: React.FC<EditorProps> = ({ patient, userId, initialFormI
     >
       {loading ? (
         <div className="p-10 text-center text-slate-400 text-sm">Loading…</div>
+      ) : readOnly && forms.length === 0 ? (
+        <div className="p-10 text-center text-slate-400 text-sm">No lab result forms have been recorded for this patient yet.</div>
       ) : (
+        <ReadOnlyContext.Provider value={readOnly}>
         <div className="max-w-[900px] mx-auto p-4 pb-24">
           {/* Saved forms for this patient */}
           <div className="flex gap-2 overflow-x-auto pb-3 mb-3">
-            <button
+            {!readOnly && <button
               onClick={() => openForm('new')}
               className={cn(
                 'shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-bold border',
@@ -241,7 +253,7 @@ const ResultFormEditor: React.FC<EditorProps> = ({ patient, userId, initialFormI
               )}
             >
               <Plus className="w-3.5 h-3.5" /> New form
-            </button>
+            </button>}
             {forms.map(f => (
               <button
                 key={f.id}
@@ -282,6 +294,7 @@ const ResultFormEditor: React.FC<EditorProps> = ({ patient, userId, initialFormI
                 <label className="text-sm font-semibold text-slate-700 whitespace-nowrap pb-1">Result is for:</label>
                 <select
                   value={form.familyMemberId}
+                  disabled={readOnly}
                   onChange={e => pickMember(e.target.value)}
                   className="flex-1 min-w-0 bg-transparent border-b border-slate-400 px-1 py-1 text-sm text-slate-900 outline-none focus:border-blue-600"
                 >
@@ -298,6 +311,7 @@ const ResultFormEditor: React.FC<EditorProps> = ({ patient, userId, initialFormI
                   <label className="text-sm font-semibold text-slate-700 pb-1">Sex:</label>
                   <select
                     value={form.sex}
+                    disabled={readOnly}
                     onChange={e => set({ sex: e.target.value })}
                     className="flex-1 min-w-0 bg-transparent border-b border-slate-400 px-1 py-1 text-sm text-slate-900 outline-none focus:border-blue-600"
                   >
@@ -340,6 +354,7 @@ const ResultFormEditor: React.FC<EditorProps> = ({ patient, userId, initialFormI
             This form is a record of results only. It does not create or bill any lab test.
           </p>
         </div>
+        </ReadOnlyContext.Provider>
       )}
     </FullScreenSheet>
   );
@@ -468,3 +483,9 @@ export const LabResultFormSheet: React.FC<Props> = ({ userId, onClose }) => {
     </FullScreenSheet>
   );
 };
+
+
+// Doctors and Nurses: same paper layout, view only.
+export const LabResultFormViewer: React.FC<{ patient: Patient; onClose: () => void }> = ({ patient, onClose }) => (
+  <ResultFormEditor patient={patient} userId="" readOnly onChangePatient={() => {}} onClose={onClose} />
+);

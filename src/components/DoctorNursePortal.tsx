@@ -55,6 +55,7 @@ import { DrugChartSheet } from './DrugChartSheet';
 import { VitalSignsSheet } from './VitalSignsSheet';
 import { AntenatalFollowupSheet } from './AntenatalFollowupSheet';
 import { AntenatalBookingSheet } from './AntenatalBookingSheet';
+import { LabResultFormViewer } from './LabResultFormSheet';
 import { LabReportPrint } from './LabReportPrint';
 import { VoiceDictationButton } from './VoiceDictationButton';
 import { parseSpokenAmount } from '../hooks/useVoiceDictation';
@@ -123,6 +124,7 @@ const [activeAdmission, setActiveAdmission] = useState<Admission | null>(null);
 const [showDrugChart, setShowDrugChart] = useState(false);
 const [showVitalSigns, setShowVitalSigns] = useState(false);
 const [showAntenatalBooking, setShowAntenatalBooking] = useState(false);
+const [showLabResultForm, setShowLabResultForm] = useState(false);
 const [showAntenatalFollowup, setShowAntenatalFollowup] = useState(false);
 const [continueRecord, setContinueRecord] = useState<MedicalRecord | null>(null);
 const [continueRxItems, setContinueRxItems] = useState<{ drugId: string, drugName: string, drugPrice: number, route: 'Oral' | 'Injection' | 'Topical' | 'IV' | 'Other', morning: number, afternoon: number, night: number, durationDays: number, instructions: string, billingBasis?: 'per_unit' | 'per_pack', priceVerified?: boolean }[]>([]);
@@ -1315,6 +1317,12 @@ className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-50 text
 >
 <FileText className="w-4 h-4" /> Diagnosis / Referral Letter
 </button>
+<button
+onClick={() => setShowLabResultForm(true)}
+className="w-full flex items-center justify-center gap-2 py-3 bg-sky-50 text-sky-700 rounded-xl font-bold hover:bg-sky-100 transition-all border border-sky-100"
+>
+<FlaskConical className="w-4 h-4" /> Lab Results Form
+</button>
 {activeAdmission ? (
 <>
 <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-center">
@@ -2166,6 +2174,9 @@ onCancel={() => setShowDischargeConfirm(false)}
 )}
 {showVitalSigns && patient && activeAdmission && (
 <VitalSignsSheet patient={patient} admission={activeAdmission} userId={userId} onClose={() => setShowVitalSigns(false)} />
+)}
+{showLabResultForm && patient && (
+<LabResultFormViewer patient={patient} onClose={() => setShowLabResultForm(false)} />
 )}
 {showAntenatalBooking && patient && (
 <AntenatalBookingSheet patient={patient} userId={userId} onClose={() => setShowAntenatalBooking(false)} />
