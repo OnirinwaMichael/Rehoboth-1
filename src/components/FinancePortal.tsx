@@ -56,6 +56,7 @@ onDelete: (id: string) => void
 )}
 </p>
 <p className="text-[10px] text-slate-400">{record.patientId}</p>
+{record.familyMemberName && <p className="text-[10px] font-bold text-amber-700">For: {record.familyMemberName}</p>}
 </div>
 </div>
 </td>
@@ -173,6 +174,23 @@ setAllPatients(prev => applyPatientChange(prev, payload, patientFromRow));
 .subscribe();
 return () => { supabase.removeChannel(channel); };
 }, []);
+// Who a payment was for: the family member recorded on the consultation / lab test it paid for.
+const resolveMemberNames = async (rows: any[]): Promise<Record<string, string>> => {
+const out: Record<string, string> = {};
+const familyRows = rows.filter(r => r.reference_id && r.patients?.category === 'family card');
+const recIds = [...new Set(familyRows.filter(r => ['consultation', 'prescription_group', 'lab_test_group'].includes(r.reference_type)).map(r => r.reference_id as string))];
+const labIds = [...new Set(familyRows.filter(r => r.reference_type === 'lab_test').map(r => r.reference_id as string))];
+const run = async (table: string, ids: string[]) => {
+for (let i = 0; i < ids.length; i += 150) {
+const { data, error } = await supabase.from(table).select('id, family_members(name)')
+.in('id', ids.slice(i, i + 150)).not('family_member_id', 'is', null);
+if (error) { console.error(`[Supabase:${table}:member-names]`, error.message); continue; }
+(data || []).forEach((d: any) => { if (d.family_members?.name) out[d.id] = d.family_members.name; });
+}
+};
+await Promise.all([run('medical_records', recIds), run('lab_tests', labIds)]);
+return out;
+};
 const fetchFinancials = async () => {
 const { data: rows, error } = await fetchAllRows<any>('financials', q =>
 q.select('*, patients(*)').order('created_at', { ascending: false })
@@ -182,8 +200,10 @@ handleSupabaseError(error, 'select', 'financials');
 setLoading(false);
 return;
 }
+const memberNames = await resolveMemberNames(rows);
 const recordsWithPatients = rows.map((row: any) => ({
 ...financialFromRow(row),
+familyMemberName: row.reference_id ? memberNames[row.reference_id] : undefined,
 patient: row.patients ? patientFromRow(row.patients) : undefined,
 }));
 setRecords(recordsWithPatients);
@@ -624,6 +644,7 @@ className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items
 <div>
 <p className="font-bold text-slate-900">₦{record.paidAmount.toLocaleString()}</p>
 <p className="text-xs text-slate-500">Patient: {record.patient?.name || record.patientId}</p>
+{record.familyMemberName && <p className="text-[10px] font-bold text-amber-700">For: {record.familyMemberName}</p>}
 </div>
 </div>
 <div className="text-right">
@@ -1140,6 +1161,7 @@ className="hover:bg-orange-50/60 cursor-pointer transition-colors"
 <div>
 <p className="text-sm font-bold text-slate-900">{record.patient?.name || record.patientId}</p>
 <p className="text-[10px] text-slate-400">{record.patientId}</p>
+{record.familyMemberName && <p className="text-[10px] font-bold text-amber-700">For: {record.familyMemberName}</p>}
 </div>
 </div>
 </td>

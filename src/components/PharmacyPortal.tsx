@@ -23,6 +23,7 @@ oversoldCount: r.oversold_count, oversoldUnits: r.oversold_units,
 });
 const prescriptionFromRow = (r: any): Prescription & { patient?: Patient } => ({
 id: r.id, patientId: r.patient_id, recordId: r.record_id, staffId: r.staff_id,
+familyMemberId: r.family_member_id ?? undefined, familyMemberName: r.family_members?.name,
 drugName: r.drug_name, drugPrice: r.drug_price, quantity: r.quantity,
 paymentStatus: r.payment_status, createdAt: r.created_at,
 dosageMorning: r.dosage_morning, dosageAfternoon: r.dosage_afternoon, dosageNight: r.dosage_night,
@@ -122,7 +123,7 @@ return () => { supabase.removeChannel(channel); };
 const fetchStructuredPrescriptions = async () => {
 const { data, error } = await supabase
 .from('prescriptions')
-.select('*, patients(*)')
+.select('*, patients(*), family_members(name)')
 .order('created_at', { ascending: false });
 if (error) return handleSupabaseError(error, 'select', 'prescriptions');
 setStructuredRx((data || []).map(prescriptionFromRow));
@@ -283,7 +284,7 @@ dispensed_at: new Date().toISOString(),
 dispensed_by: userId,
 }).eq('id', rx.id);
 if (error) { toast.error(error.message || 'Could not dispense this prescription.'); return; }
-await logAction(userId, 'DISPENSE_DRUGS', `Dispensed ${rx.drugName} x${rx.quantity} for patient ${rx.patientId}`);
+await logAction(userId, 'DISPENSE_DRUGS', `Dispensed ${rx.drugName} x${rx.quantity} for patient ${rx.patientId}${rx.familyMemberName ? ` (member: ${rx.familyMemberName})` : ''}`);
 if (shortBy && drug) {
 const left = Math.max(0, 3 - (drug.oversoldCount || 0) - 1);
 toast.warning(`${rx.drugName} was short in stock. ${left} more dispense${left === 1 ? '' : 's'} allowed before it must be restocked.`);
@@ -597,9 +598,6 @@ className="p-2 text-slate-400 hover:text-red-500 transition-colors"
 <div>
 <p className="font-bold text-slate-900">{rx.patient?.name}</p>
 <p className="text-[10px] text-slate-400">{rx.patientId}</p>
-{rx.familyMemberId && familyNameById[rx.familyMemberId] && (
-<p className="text-[10px] font-bold text-amber-700">For: {familyNameById[rx.familyMemberId]}</p>
-)}
 </div>
 </div>
 <div className="text-right">
@@ -612,6 +610,14 @@ rx.paymentStatus === 'paid' ? "text-green-600" : rx.paymentStatus === 'partial' 
 </span>
 </div>
 </div>
+{rx.familyMemberName ? (
+<div className="mb-3 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
+<p className="text-[10px] font-bold uppercase tracking-wide text-amber-600">Give to</p>
+<p className="text-sm font-black text-amber-800">{rx.familyMemberName}</p>
+</div>
+) : rx.patient?.category === 'family card' ? (
+<p className="mb-3 text-[10px] font-bold uppercase text-slate-400">Family card — member not recorded</p>
+) : null}
 <div className="space-y-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
 <div className="flex items-center justify-between">
 <p className="font-bold text-slate-900">{rx.drugName}</p>

@@ -247,6 +247,8 @@ export interface Prescription {
 id: string;
 patientId: string;
 recordId?: string;
+familyMemberId?: string | null;
+familyMemberName?: string;
 staffId: string;
 drugName: string;
 drugPrice: number;
@@ -322,6 +324,7 @@ reconciledAt?: string;
 reconciledBy?: string;
 createdAt: string;
 referenceType?: string | null;
+familyMemberName?: string;
 }
 export interface RegistrationFeeSettings {
 singleCardPrice: number;
