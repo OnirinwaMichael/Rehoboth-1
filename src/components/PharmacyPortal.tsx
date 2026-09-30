@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase, handleSupabaseError } from '../lib/supabase';
 import { InventoryItem, MedicalRecord, Patient, Prescription } from '../types';
 import { toast } from 'sonner';
-import { Pill, Search, Plus, Trash2, Edit, Save, X, ClipboardList, FileText, User, Activity, DollarSign, LayoutDashboard, Package, AlertCircle, TrendingUp, History } from 'lucide-react';
+import { Pill, Search, Plus, Trash2, Edit, Save, X, ClipboardList, FileText, User, Activity, DollarSign, LayoutDashboard, Package, AlertCircle, TrendingUp, History, CalendarClock } from 'lucide-react';
+import { expiryStatus, formatExpiry, EXPIRY_WARNING_DAYS } from '../lib/expiry';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -17,7 +18,7 @@ category: r.category, createdAt: r.created_at, registrationType: r.registration_
 const inventoryFromRow = (r: any): InventoryItem => ({
 id: r.id, name: r.name, price: r.price, stock: r.stock,
 category: r.category, lastUpdated: r.last_updated,
-billingBasis: r.billing_basis, priceVerified: r.price_verified, stockVerified: r.stock_verified,
+billingBasis: r.billing_basis, expiryDate: r.expiry_date, priceVerified: r.price_verified, stockVerified: r.stock_verified,
 oversoldCount: r.oversold_count, oversoldUnits: r.oversold_units,
 });
 const prescriptionFromRow = (r: any): Prescription & { patient?: Patient } => ({
@@ -39,15 +40,25 @@ export const PharmacyPortal: React.FC<Props> = ({ userId }) => {
 const [inventory, setInventory] = useState<InventoryItem[]>([]);
 const [inventorySearch, setInventorySearch] = useState('');
 const [showLowStockOnly, setShowLowStockOnly] = useState(false);
+const [expiryFilter, setExpiryFilter] = useState<'all' | 'soon' | 'expired'>('all');
+const expiryCounts = useMemo(() => {
+let expired = 0, soon = 0;
+for (const item of inventory) {
+const st = expiryStatus(item.expiryDate).state;
+if (st === 'expired') expired++; else if (st === 'soon') soon++;
+}
+return { expired, soon };
+}, [inventory]);
 const filteredInventory = useMemo(() => {
 const q = inventorySearch.trim().toLowerCase();
 let list = inventory;
 if (showLowStockOnly) list = list.filter(item => (item.stock || 0) < 10);
+if (expiryFilter !== 'all') list = list.filter(item => expiryStatus(item.expiryDate).state === expiryFilter);
 if (!q) return list;
 return list.filter(item =>
 item.name.toLowerCase().includes(q) || (item.category || '').toLowerCase().includes(q)
 );
-}, [inventory, inventorySearch, showLowStockOnly]);
+}, [inventory, inventorySearch, showLowStockOnly, expiryFilter]);
 const [prescriptions, setPrescriptions] = useState<(MedicalRecord & { patient?: Patient })[]>([]);
 const [familyNameById, setFamilyNameById] = useState<Record<string, string>>({});
 const [structuredRx, setStructuredRx] = useState<(Prescription & { patient?: Patient })[]>([]);
@@ -65,6 +76,7 @@ name: '',
 price: '',
 stock: '',
 billingBasis: 'per_unit' as 'per_unit' | 'per_pack',
+expiryDate: '',
 priceVerified: false,
 stockVerified: false,
 });
@@ -199,6 +211,7 @@ price: parseFloat(drugForm.price),
 stock: parseInt(drugForm.stock, 10) || 0,
 category: 'General',
 billing_basis: drugForm.billingBasis,
+expiry_date: drugForm.expiryDate || null,
 price_verified: drugForm.priceVerified,
 stock_verified: drugForm.stockVerified,
 last_updated: new Date().toISOString(),
@@ -214,7 +227,7 @@ if (error) throw error;
 await logAction(userId, 'ADD_INVENTORY', `Added new drug: ${drugData.name}`);
 toast.success('Drug added successfully!');
 }
-setDrugForm({ name: '', price: '', stock: '', billingBasis: 'per_unit', priceVerified: false, stockVerified: false });
+setDrugForm({ name: '', price: '', stock: '', billingBasis: 'per_unit', expiryDate: '', priceVerified: false, stockVerified: false });
 setIsAddingDrug(false);
 setEditingDrug(null);
 } catch (error) {
@@ -240,6 +253,10 @@ dispensed_by: userId,
 if (error) return handleSupabaseError(error, 'update', table);
 await logAction(userId, 'DISPENSE_DRUGS', `Dispensed drugs for record ${record.id}`);
 toast.success('Prescription marked as dispensed!');
+};
+const isRxExpired = (rx: Prescription) => {
+const d = inventory.find(x => x.name.toLowerCase() === rx.drugName.toLowerCase());
+return expiryStatus(d?.expiryDate).state === 'expired';
 };
 const handleConfirmQuantity = async (rx: Prescription) => {
 const raw = qtyEdits[rx.id];
@@ -415,7 +432,27 @@ Rx
 <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
 <Package className="w-6 h-6 text-blue-600" /> Drug Inventory
 </h3>
-<div className="flex items-center gap-3">
+<div className="flex items-center gap-3 flex-wrap">
+<button
+type="button"
+onClick={() => setExpiryFilter(f => f === 'expired' ? 'all' : 'expired')}
+className={cn(
+"flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors",
+expiryFilter === 'expired' ? "bg-red-600 text-white" : "bg-red-50 text-red-600 hover:bg-red-100"
+)}
+>
+<CalendarClock className="w-3.5 h-3.5" /> Expired ({expiryCounts.expired})
+</button>
+<button
+type="button"
+onClick={() => setExpiryFilter(f => f === 'soon' ? 'all' : 'soon')}
+className={cn(
+"flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors",
+expiryFilter === 'soon' ? "bg-amber-500 text-white" : "bg-amber-50 text-amber-600 hover:bg-amber-100"
+)}
+>
+<CalendarClock className="w-3.5 h-3.5" /> Expiring ≤{EXPIRY_WARNING_DAYS}d ({expiryCounts.soon})
+</button>
 <button
 type="button"
 onClick={() => setShowLowStockOnly(v => !v)}
@@ -439,7 +476,7 @@ className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2
 <button
 onClick={() => {
 setEditingDrug(null);
-setDrugForm({ name: '', price: '', stock: '', billingBasis: 'per_unit', priceVerified: false, stockVerified: false });
+setDrugForm({ name: '', price: '', stock: '', billingBasis: 'per_unit', expiryDate: '', priceVerified: false, stockVerified: false });
 setIsAddingDrug(true);
 }}
 className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center gap-2"
@@ -458,6 +495,7 @@ className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-7
 <th className="px-6 py-4">Price (₦)</th>
 <th className="px-6 py-4">Billed</th>
 <th className="px-6 py-4">Stock</th>
+<th className="px-6 py-4">Expiry</th>
 <th className="px-6 py-4">Actions</th>
 </tr>
 </thead>
@@ -486,6 +524,21 @@ className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-7
 {(item.oversoldUnits || 0) > 0 && <span className="block text-[9px] font-bold uppercase text-red-600">{item.oversoldUnits} dispensed beyond stock</span>}
 </td>
 <td className="px-6 py-4">
+{(() => {
+const ex = expiryStatus(item.expiryDate);
+if (ex.state === 'none') return <span className="text-[10px] font-bold uppercase text-slate-300">not recorded</span>;
+return (
+<span className="block">
+<span className={cn("text-xs font-bold", ex.state === 'expired' ? "text-red-600" : ex.state === 'soon' ? "text-amber-600" : "text-slate-700")}>
+{formatExpiry(item.expiryDate as string)}
+</span>
+{ex.state === 'expired' && <span className="block text-[9px] font-bold uppercase text-red-600">Expired {Math.abs(ex.daysLeft as number)} day{Math.abs(ex.daysLeft as number) === 1 ? '' : 's'} ago</span>}
+{ex.state === 'soon' && <span className="block text-[9px] font-bold uppercase text-amber-600">{ex.daysLeft === 0 ? 'Expires today' : `Expires in ${ex.daysLeft} day${ex.daysLeft === 1 ? '' : 's'}`}</span>}
+</span>
+);
+})()}
+</td>
+<td className="px-6 py-4">
 <div className="flex gap-2">
 <button
 onClick={() => {
@@ -495,6 +548,7 @@ name: item.name,
 price: item.price.toString(),
 stock: (item.stock || 0).toString(),
 billingBasis: item.billingBasis || 'per_unit',
+expiryDate: item.expiryDate ? item.expiryDate.slice(0, 10) : '',
 priceVerified: !!item.priceVerified,
 stockVerified: !!item.stockVerified,
 });
@@ -516,8 +570,8 @@ className="p-2 text-slate-400 hover:text-red-500 transition-colors"
 ))}
 {filteredInventory.length === 0 && (
 <tr>
-<td colSpan={6} className="p-12 text-center text-slate-400 italic">
-{inventory.length === 0 ? 'No drugs in inventory.' : showLowStockOnly ? 'No low-stock drugs right now.' : 'No drugs match your search.'}
+<td colSpan={7} className="p-12 text-center text-slate-400 italic">
+{inventory.length === 0 ? 'No drugs in inventory.' : expiryFilter === 'expired' ? 'No expired drugs recorded.' : expiryFilter === 'soon' ? `Nothing expires within ${EXPIRY_WARNING_DAYS} days.` : showLowStockOnly ? 'No low-stock drugs right now.' : 'No drugs match your search.'}
 </td>
 </tr>
 )}
@@ -594,10 +648,10 @@ Confirm {rx.billingBasis === 'per_pack' ? 'packs' : 'quantity'}
 </div>
 <button 
 onClick={() => handleDispenseStructured(rx)}
-disabled={!rx.quantityConfirmed || (rx.paymentStatus !== 'paid' && (rx.drugPrice || 0) * (rx.quantity || 1) > 0)}
+disabled={!rx.quantityConfirmed || isRxExpired(rx) || (rx.paymentStatus !== 'paid' && (rx.drugPrice || 0) * (rx.quantity || 1) > 0)}
 className="w-full mt-4 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all text-sm disabled:opacity-40 disabled:cursor-not-allowed"
 >
-{!rx.quantityConfirmed ? 'Confirm quantity first' : rx.paymentStatus !== 'paid' && (rx.drugPrice || 0) * (rx.quantity || 1) > 0 ? 'Awaiting full payment' : 'Mark as Dispensed'}
+{isRxExpired(rx) ? 'Drug expired — update stock' : !rx.quantityConfirmed ? 'Confirm quantity first' : rx.paymentStatus !== 'paid' && (rx.drugPrice || 0) * (rx.quantity || 1) > 0 ? 'Awaiting full payment' : 'Mark as Dispensed'}
 </button>
 </div>
 ))}
@@ -720,6 +774,16 @@ onChange={e => setDrugForm({ ...drugForm, stock: e.target.value })}
 className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold"
 placeholder="0"
 />
+</div>
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Expiry date</label>
+<input
+type="date"
+value={drugForm.expiryDate}
+onChange={e => setDrugForm({ ...drugForm, expiryDate: e.target.value })}
+className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold"
+/>
+<p className="text-xs text-slate-500">Expiry of the stock on the shelf. If batches differ, enter the earliest, and update it when a new batch arrives. Expired drugs can't be prescribed or dispensed. Leave blank if unknown.</p>
 </div>
 <div className="space-y-2">
 <label className="text-sm font-bold text-slate-700">How is this drug billed?</label>

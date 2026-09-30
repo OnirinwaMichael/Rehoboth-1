@@ -338,6 +338,7 @@ stock: number;
 category: string;
 lastUpdated: string;
 billingBasis?: 'per_unit' | 'per_pack';
+expiryDate?: string | null;
 priceVerified?: boolean;
 stockVerified?: boolean;
 oversoldCount?: number;

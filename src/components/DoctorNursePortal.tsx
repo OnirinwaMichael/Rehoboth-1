@@ -58,6 +58,7 @@ import { AntenatalBookingSheet } from './AntenatalBookingSheet';
 import { LabResultFormViewer } from './LabResultFormSheet';
 import { StandardFeeDialog } from './StandardFeeDialog';
 import { useStandardFee } from '../lib/useStandardFee';
+import { expiryStatus, formatExpiry } from '../lib/expiry';
 import { LabReportPrint } from './LabReportPrint';
 import { VoiceDictationButton } from './VoiceDictationButton';
 import { parseSpokenAmount } from '../hooks/useVoiceDictation';
@@ -204,7 +205,7 @@ const { data, error } = await supabase.from('inventory').select('*').order('name
 if (error) return handleSupabaseError(error, 'select', 'inventory');
 setDrugCatalog((data || []).map((r: any) => ({
 id: r.id, name: r.name, price: r.price, stock: r.stock, category: r.category, lastUpdated: r.last_updated,
-billingBasis: r.billing_basis, priceVerified: r.price_verified,
+billingBasis: r.billing_basis, expiryDate: r.expiry_date, priceVerified: r.price_verified,
 })));
 };
 fetchDrugCatalog();
@@ -229,6 +230,10 @@ testCatalog.filter(t => t.name.toLowerCase().includes(testSearch.toLowerCase()))
 [testSearch, testCatalog]
 );
 const addDrug = (drug: InventoryItem) => {
+if (expiryStatus(drug.expiryDate).state === 'expired') {
+toast.error(`${drug.name} expired on ${formatExpiry(drug.expiryDate as string)} and can't be prescribed.`);
+return;
+}
 const existingIndex = formData.prescriptionItems.findIndex(p => p.drugId === drug.id);
 if (existingIndex < 0) {
 setFormData({
@@ -274,6 +279,10 @@ const removeCheckupDrug = (name: string) => {
 setConsultationForm({ ...consultationForm, prescription: checkupSelectedDrugs.filter(d => d !== name).join(', ') });
 };
 const addContinueDrug = (drug: InventoryItem) => {
+if (expiryStatus(drug.expiryDate).state === 'expired') {
+toast.error(`${drug.name} expired on ${formatExpiry(drug.expiryDate as string)} and can't be prescribed.`);
+return;
+}
 if (!continueRxItems.some(p => p.drugId === drug.id)) {
 setContinueRxItems([...continueRxItems, {
 drugId: drug.id, drugName: drug.name, drugPrice: drug.price,
@@ -1796,8 +1805,10 @@ type="button"
 onClick={() => addDrug(drug)}
 className="w-full flex items-center justify-between text-left px-4 py-2 text-sm hover:bg-slate-50 transition-colors"
 >
-<span className="font-medium">{drug.name}</span>
-<span className="text-xs font-bold text-slate-500">₦{drug.price.toLocaleString()} · Stock: {drug.stock}</span>
+<span className={cn("font-medium", expiryStatus(drug.expiryDate).state === 'expired' && "text-slate-400 line-through")}>{drug.name}</span>
+<span className={cn("text-xs font-bold", expiryStatus(drug.expiryDate).state === 'expired' ? "text-red-600" : "text-slate-500")}>
+{expiryStatus(drug.expiryDate).state === 'expired' ? 'EXPIRED' : `₦${drug.price.toLocaleString()} · Stock: ${drug.stock}`}
+</span>
 </button>
 ))
 )}
@@ -2316,8 +2327,10 @@ type="button"
 onClick={() => addContinueDrug(drug)}
 className="w-full flex items-center justify-between text-left px-4 py-2 text-sm hover:bg-slate-50"
 >
-<span className="font-medium">{drug.name}</span>
-<span className="text-xs font-bold text-slate-500">₦{drug.price.toLocaleString()}</span>
+<span className={cn("font-medium", expiryStatus(drug.expiryDate).state === 'expired' && "text-slate-400 line-through")}>{drug.name}</span>
+<span className={cn("text-xs font-bold", expiryStatus(drug.expiryDate).state === 'expired' ? "text-red-600" : "text-slate-500")}>
+{expiryStatus(drug.expiryDate).state === 'expired' ? 'EXPIRED' : `₦${drug.price.toLocaleString()}`}
+</span>
 </button>
 ))
 )}
