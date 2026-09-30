@@ -129,6 +129,7 @@ const [showAntenatalBooking, setShowAntenatalBooking] = useState(false);
 const [showLabResultForm, setShowLabResultForm] = useState(false);
 const standardFee = useStandardFee();
 const [showFeeDialog, setShowFeeDialog] = useState(false);
+const canEditFee = role === 'CMD';
 const [showAntenatalFollowup, setShowAntenatalFollowup] = useState(false);
 const [continueRecord, setContinueRecord] = useState<MedicalRecord | null>(null);
 const [continueRxItems, setContinueRxItems] = useState<{ drugId: string, drugName: string, drugPrice: number, route: 'Oral' | 'Injection' | 'Topical' | 'IV' | 'Other', morning: number, afternoon: number, night: number, durationDays: number, instructions: string, billingBasis?: 'per_unit' | 'per_pack', priceVerified?: boolean }[]>([]);
@@ -1245,9 +1246,11 @@ className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items
 </h4>
 </div>
 </div>
+{canEditFee && (
 <button type="button" onClick={() => setShowFeeDialog(true)} className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 hover:bg-slate-50 shrink-0">
 {standardFee.fee === null ? 'Set fee' : 'Edit'}
 </button>
+)}
 </div>
 <div className="md:col-span-2 lg:col-span-4 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
 <div className="flex items-center justify-between mb-6">
@@ -2000,9 +2003,11 @@ Use standard
 </button>
 )}
 </span>
+{canEditFee && (
 <button type="button" onClick={() => setShowFeeDialog(true)} className="font-bold text-blue-600 hover:underline shrink-0">
 {standardFee.fee === null ? 'Set standard fee' : 'Change standard fee'}
 </button>
+)}
 </div>
 </div>
 </div>
@@ -2224,7 +2229,7 @@ onCancel={() => setShowDischargeConfirm(false)}
 {showVitalSigns && patient && activeAdmission && (
 <VitalSignsSheet patient={patient} admission={activeAdmission} userId={userId} onClose={() => setShowVitalSigns(false)} />
 )}
-{showFeeDialog && <StandardFeeDialog state={standardFee} onClose={() => setShowFeeDialog(false)} />}
+{showFeeDialog && canEditFee && <StandardFeeDialog state={standardFee} onClose={() => setShowFeeDialog(false)} />}
 {showLabResultForm && patient && (
 <LabResultFormViewer patient={patient} onClose={() => setShowLabResultForm(false)} />
 )}
