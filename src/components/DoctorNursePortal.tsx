@@ -56,6 +56,8 @@ import { VitalSignsSheet } from './VitalSignsSheet';
 import { AntenatalFollowupSheet } from './AntenatalFollowupSheet';
 import { AntenatalBookingSheet } from './AntenatalBookingSheet';
 import { LabResultFormViewer } from './LabResultFormSheet';
+import { StandardFeeDialog } from './StandardFeeDialog';
+import { useStandardFee } from '../lib/useStandardFee';
 import { LabReportPrint } from './LabReportPrint';
 import { VoiceDictationButton } from './VoiceDictationButton';
 import { parseSpokenAmount } from '../hooks/useVoiceDictation';
@@ -125,6 +127,8 @@ const [showDrugChart, setShowDrugChart] = useState(false);
 const [showVitalSigns, setShowVitalSigns] = useState(false);
 const [showAntenatalBooking, setShowAntenatalBooking] = useState(false);
 const [showLabResultForm, setShowLabResultForm] = useState(false);
+const standardFee = useStandardFee();
+const [showFeeDialog, setShowFeeDialog] = useState(false);
 const [showAntenatalFollowup, setShowAntenatalFollowup] = useState(false);
 const [continueRecord, setContinueRecord] = useState<MedicalRecord | null>(null);
 const [continueRxItems, setContinueRxItems] = useState<{ drugId: string, drugName: string, drugPrice: number, route: 'Oral' | 'Injection' | 'Topical' | 'IV' | 'Other', morning: number, afternoon: number, night: number, durationDays: number, instructions: string, billingBasis?: 'per_unit' | 'per_pack', priceVerified?: boolean }[]>([]);
@@ -162,9 +166,19 @@ prescriptionItems: [] as { drugId: string, drugName: string, drugPrice: number, 
 recommendedTests: [] as { name: string, price: string }[],
 admissionRecommended: false,
 cSectionRecommended: false,
-paymentFee: ''
+paymentFee: '',
+paymentFeeTouched: false
 };
 const { data: formData, setData: setFormData, clearDraft: clearFormDraft } = useFormDraft('medical_assessment', initialFormData);
+// The standard fee pre-fills each new consultation until staff type a different amount for this patient.
+useEffect(() => {
+if (standardFee.fee === null) return;
+const touched = formData.paymentFeeTouched ?? (formData.paymentFee !== '');
+if (!touched && formData.paymentFee !== String(standardFee.fee)) {
+setFormData({ ...formData, paymentFee: String(standardFee.fee), paymentFeeTouched: false });
+}
+// eslint-disable-next-line react-hooks/exhaustive-deps
+}, [standardFee.fee, formData.paymentFee, formData.paymentFeeTouched]);
 const [drugSearch, setDrugSearch] = useState('');
 const [drugCatalog, setDrugCatalog] = useState<InventoryItem[]>([]);
 const drugSearchRef = useRef<HTMLInputElement>(null);
@@ -1219,6 +1233,22 @@ className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items
 <h4 className="text-2xl font-black text-slate-900">{pendingLabResultsCount}</h4>
 </div>
 </button>
+<div className="md:col-span-2 lg:col-span-4 bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between gap-4">
+<div className="flex items-center gap-4 min-w-0">
+<div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center text-green-600 shrink-0">
+<CreditCard className="w-6 h-6" />
+</div>
+<div className="min-w-0">
+<p className="text-xs font-bold text-slate-400 uppercase">Standard Consultation Fee</p>
+<h4 className="text-2xl font-black text-slate-900">
+{standardFee.loading ? '…' : standardFee.fee === null ? 'Not set' : `₦${standardFee.fee.toLocaleString()}`}
+</h4>
+</div>
+</div>
+<button type="button" onClick={() => setShowFeeDialog(true)} className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-700 hover:bg-slate-50 shrink-0">
+{standardFee.fee === null ? 'Set fee' : 'Edit'}
+</button>
+</div>
 <div className="md:col-span-2 lg:col-span-4 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
 <div className="flex items-center justify-between mb-6">
 <h3 className="font-bold text-slate-900 flex items-center gap-2">
@@ -1942,7 +1972,7 @@ className="p-1 text-red-500 hover:bg-red-50 rounded"
 <VoiceDictationButton onFinalResult={text => {
 const parsed = parseSpokenAmount(text);
 if (parsed) {
-setFormData({ ...formData, paymentFee: parsed });
+setFormData({ ...formData, paymentFee: parsed, paymentFeeTouched: true });
 } else {
 toast.error(`Couldn't understand "${text}" as an amount — please type it in.`);
 }
@@ -1951,10 +1981,29 @@ toast.error(`Couldn't understand "${text}" as an amount — please type it in.`)
 <input
 type="number"
 value={formData.paymentFee}
-onChange={e => setFormData({ ...formData, paymentFee: e.target.value })}
+onChange={e => setFormData({ ...formData, paymentFee: e.target.value, paymentFeeTouched: true })}
 className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-lg"
 placeholder="₦ 0.00 — or tap the mic and say an amount"
 />
+<div className="flex items-center justify-between gap-3 text-xs">
+<span className="text-slate-500">
+{standardFee.fee === null
+? 'No standard fee set yet.'
+: `Standard fee: ₦${standardFee.fee.toLocaleString()}`}
+{standardFee.fee !== null && formData.paymentFee !== String(standardFee.fee) && (
+<button
+type="button"
+onClick={() => setFormData({ ...formData, paymentFee: String(standardFee.fee), paymentFeeTouched: false })}
+className="ml-2 font-bold text-blue-600 hover:underline"
+>
+Use standard
+</button>
+)}
+</span>
+<button type="button" onClick={() => setShowFeeDialog(true)} className="font-bold text-blue-600 hover:underline shrink-0">
+{standardFee.fee === null ? 'Set standard fee' : 'Change standard fee'}
+</button>
+</div>
 </div>
 </div>
 {/* Toggles */}
@@ -2175,6 +2224,7 @@ onCancel={() => setShowDischargeConfirm(false)}
 {showVitalSigns && patient && activeAdmission && (
 <VitalSignsSheet patient={patient} admission={activeAdmission} userId={userId} onClose={() => setShowVitalSigns(false)} />
 )}
+{showFeeDialog && <StandardFeeDialog state={standardFee} onClose={() => setShowFeeDialog(false)} />}
 {showLabResultForm && patient && (
 <LabResultFormViewer patient={patient} onClose={() => setShowLabResultForm(false)} />
 )}
