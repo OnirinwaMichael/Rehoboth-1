@@ -37,25 +37,43 @@ throw new Error(`Database operation failed (${operation} on ${table}). See conso
 export async function fetchAllRows<T = any>(
 table: string,
 buildQuery: (query: ReturnType<typeof supabase.from>) => any = (q) => q.select('*'),
-opts: { pageSize?: number; maxRetries?: number } = {}
+opts: { pageSize?: number; maxRetries?: number; orderBy?: string; concurrency?: number } = {}
 ): Promise<{ data: T[]; error: unknown | null }> {
 const pageSize = opts.pageSize ?? 1000;
 const maxRetries = opts.maxRetries ?? 3;
-let from = 0;
-let allRows: T[] = [];
-while (true) {
-let page: T[] | null = null;
+const concurrency = opts.concurrency ?? 4;
+// Without an ORDER BY, Postgres may return overlapping/missing rows between
+// pages, so callers that load a whole table pass a unique column to order by.
+const fetchPage = async (from: number): Promise<{ page: T[]; error: unknown | null }> => {
 let lastError: unknown = null;
 for (let attempt = 0; attempt < maxRetries; attempt++) {
-const { data, error } = await buildQuery(supabase.from(table)).range(from, from + pageSize - 1);
-if (!error) { page = data; lastError = null; break; }
+let q = buildQuery(supabase.from(table));
+if (opts.orderBy) q = q.order(opts.orderBy, { ascending: true });
+const { data, error } = await q.range(from, from + pageSize - 1);
+if (!error) return { page: (data || []) as T[], error: null };
 lastError = error;
 await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
 }
-if (lastError) return { data: allRows, error: lastError };
-allRows = allRows.concat(page || []);
-if (!page || page.length < pageSize) break;
-from += pageSize;
+return { page: [], error: lastError };
+};
+// First page alone (most tables fit in it), then the rest in parallel batches
+// instead of one slow request after another.
+const first = await fetchPage(0);
+if (first.error) return { data: [], error: first.error };
+let allRows: T[] = first.page;
+if (first.page.length < pageSize) return { data: allRows, error: null };
+let from = pageSize;
+while (true) {
+const offsets = Array.from({ length: concurrency }, (_, i) => from + i * pageSize);
+const batch = await Promise.all(offsets.map(fetchPage));
+let done = false;
+for (const r of batch) {
+if (r.error) return { data: allRows, error: r.error };
+allRows = allRows.concat(r.page);
+if (r.page.length < pageSize) { done = true; break; }
+}
+if (done) break;
+from += concurrency * pageSize;
 }
 return { data: allRows, error: null };
 }

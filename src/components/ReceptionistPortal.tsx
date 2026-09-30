@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, memo } from 'react';
+import { upsertPatient } from '../lib/patientSync';
 import { supabase, handleSupabaseError, fetchAllRows } from '../lib/supabase';
 import { Patient, Appointment, User, RegistrationFeeSettings } from '../types';
 import { toast } from 'sonner';
@@ -307,7 +308,7 @@ setStats(prev => ({ ...prev, appointmentsToday: todayCount }));
 };
 const fetchAllPatients = async () => {
 setPatientsLoading(true);
-const { data: allRows, error } = await fetchAllRows<any>('patients');
+const { data: allRows, error } = await fetchAllRows<any>('patients', undefined, { orderBy: 'card_id' });
 if (error) {
 console.error('[Supabase:patients:select]', error instanceof Error ? error.message : String(error));
 setPatientsLoadError(true);
@@ -528,7 +529,10 @@ occupation: '', address: '', phone: '', nextOfKin: '',
 relationship: '', nokAddress: '', nokPhone: '', category: 'single card', antenatalStatus: 'new'
 });
 fetchRecentPatients();
-fetchAllPatients();
+{
+const { data: updatedRow } = await supabase.from('patients').select('*').eq('card_id', newCardId).maybeSingle();
+if (updatedRow) setAllPatients(prev => upsertPatient(prev, patientFromRow(updatedRow), editingPatient.cardId));
+}
 setView('directory');
 } catch (error) {
 handleSupabaseError(error, 'update', 'patients');
@@ -550,7 +554,7 @@ await logAction(userId, 'DELETE_PATIENT_FULL', `Deleted patient ${id} and all as
 toast.success('Patient and all records deleted successfully');
 setPatientToDelete(null);
 fetchRecentPatients();
-fetchAllPatients();
+setAllPatients(prev => prev.filter(p => p.cardId !== id));
 } catch (error) {
 handleSupabaseError(error, 'delete', 'patients');
 } finally {

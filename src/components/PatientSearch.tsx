@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase, handleSupabaseError, fetchAllRows } from '../lib/supabase';
+import { supabase, handleSupabaseError } from '../lib/supabase';
 import { Patient } from '../types';
 import { Search, User, Phone, CreditCard, ChevronRight, History, Activity, X } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -19,24 +19,29 @@ const [patients, setPatients] = useState<Patient[]>([]);
 const [loading, setLoading] = useState(false);
 const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
 const [recentPatients, setRecentPatients] = useState<Patient[]>([]);
+const [recentLimit, setRecentLimit] = useState(50);
 useEffect(() => {
 fetchRecent();
 const channel = supabase
 .channel('patient-search-recent')
-.on('postgres_changes', { event: '*', schema: 'public', table: 'patients' }, fetchRecent)
+.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'patients' }, fetchRecent)
 .subscribe();
 return () => { supabase.removeChannel(channel); };
-}, []);
+// eslint-disable-next-line react-hooks/exhaustive-deps
+}, [recentLimit]);
+// Only the newest patients are listed (the full register is 7,000+ people);
+// anyone else is found with the search box.
 const fetchRecent = async () => {
-const { data: allRows, error } = await fetchAllRows<any>('patients');
+const { data, error } = await supabase
+.from('patients').select('*')
+.order('created_at', { ascending: false })
+.limit(recentLimit);
 if (error) {
-console.error('[Supabase:patients:select]', error instanceof Error ? error.message : String(error));
-toast.error('Could not load the full patient list - showing what was last loaded.');
+console.error('[Supabase:patients:select]', error.message);
+toast.error('Could not load the patient list. Check your connection and try again.');
 return;
 }
-const sorted = allRows.map(patientFromRow)
-.sort((a, b) => a.cardId.localeCompare(b.cardId, undefined, { numeric: true, sensitivity: 'base' }));
-setRecentPatients(sorted);
+setRecentPatients((data || []).map(patientFromRow));
 };
 const handleSearch = async (e: React.FormEvent) => {
 e.preventDefault();
@@ -54,7 +59,7 @@ setPatients(cardData.map(patientFromRow));
 // ILIKE gives case-insensitive partial matching, so "john"
 // finds "John Adeyemi" too.
 const { data: nameData, error: nameErr } = await supabase
-.from('patients').select('*').ilike('name', `%${term}%`);
+.from('patients').select('*').ilike('name', `%${term}%`).limit(100);
 if (nameErr) throw nameErr;
 setPatients((nameData || []).map(patientFromRow));
 }
@@ -93,7 +98,7 @@ Search
 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
 <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
 <History className="w-4 h-4 text-slate-400" />
-<h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">All Patients (by Card ID)</h3>
+<h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Recently Registered</h3>
 </div>
 <div className="divide-y divide-slate-50">
 {(searchTerm ? patients : recentPatients).map((p) => (
@@ -120,6 +125,14 @@ selectedPatientId === p.cardId ? "translate-x-1 text-blue-600" : ""
 )} />
 </button>
 ))}
+{!searchTerm && recentPatients.length >= recentLimit && (
+<button
+onClick={() => setRecentLimit(l => l + 50)}
+className="w-full p-4 text-xs font-bold text-blue-600 hover:bg-blue-50 transition-all"
+>
+Show 50 more
+</button>
+)}
 {patients.length === 0 && searchTerm && !loading && (
 <div className="p-8 text-center">
 <p className="text-xs text-slate-400 font-bold">No patients found matching "{searchTerm}"</p>

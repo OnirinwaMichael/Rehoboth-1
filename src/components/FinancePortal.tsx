@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, memo } from 'react';
+import { applyPatientChange } from '../lib/patientSync';
 import { supabase, handleSupabaseError, fetchAllRows } from '../lib/supabase';
 import { FinancialRecord, Patient, MedicalRecord, Visit, Expense, BillingItem } from '../types';
 import { toast } from 'sonner';
@@ -166,7 +167,9 @@ const channel = supabase
 .channel('accountant-portal')
 .on('postgres_changes', { event: '*', schema: 'public', table: 'financials' }, fetchFinancials)
 .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, fetchExpenses)
-.on('postgres_changes', { event: '*', schema: 'public', table: 'patients' }, fetchAllPatients)
+.on('postgres_changes', { event: '*', schema: 'public', table: 'patients' }, (payload: any) => {
+setAllPatients(prev => applyPatientChange(prev, payload, patientFromRow));
+})
 .subscribe();
 return () => { supabase.removeChannel(channel); };
 }, []);
@@ -210,7 +213,7 @@ if (error) return handleSupabaseError(error, 'select', 'expenses');
 setExpenses(rows.map(expenseFromRow));
 };
 const fetchAllPatients = async () => {
-const { data: rows, error } = await fetchAllRows<any>('patients');
+const { data: rows, error } = await fetchAllRows<any>('patients', undefined, { orderBy: 'card_id' });
 if (error) { handleSupabaseError(error, 'select', 'patients'); return; }
 const sorted = rows.map(patientFromRow)
 .sort((a, b) => a.cardId.localeCompare(b.cardId, undefined, { numeric: true, sensitivity: 'base' }));
