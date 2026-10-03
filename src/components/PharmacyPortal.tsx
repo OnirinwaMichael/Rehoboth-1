@@ -8,6 +8,8 @@ import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { logAction } from '../lib/audit';
+import { groupPrescriptions } from '../lib/groupPrescriptions';
+import { PharmacyRxGroupCard } from './PharmacyRxGroupCard';
 const patientFromRow = (r: any): Patient => ({
 cardId: r.card_id, name: r.name, gender: r.gender,
 stateOfOrigin: r.state_of_origin, age: r.age, occupation: r.occupation,
@@ -82,6 +84,13 @@ priceVerified: false,
 stockVerified: false,
 });
 const [qtyEdits, setQtyEdits] = useState<Record<string, string>>({});
+const [rxBusy, setRxBusy] = useState(false);
+// Drugs prescribed together are shown as one patient request. A request stays in the
+// queue while any of its drugs is still undispensed.
+const pendingRxGroups = useMemo(
+() => groupPrescriptions(structuredRx).filter(g => g.items.some(i => !i.dispensed)),
+[structuredRx]
+);
 // Real trend data for the Dispensed This Week sparkline — derived from
 // `prescriptions` (medical_records + visits), which is already the full,
 // uncapped list (no .limit() on either fetch), so no extra query needed.
@@ -259,23 +268,41 @@ const isRxExpired = (rx: Prescription) => {
 const d = inventory.find(x => x.name.toLowerCase() === rx.drugName.toLowerCase());
 return expiryStatus(d?.expiryDate).state === 'expired';
 };
-const handleConfirmQuantity = async (rx: Prescription) => {
+// One drug's quantity confirmation. Returns whether it worked; the caller refreshes.
+const confirmOne = async (rx: Prescription, quiet = false): Promise<boolean> => {
 const raw = qtyEdits[rx.id];
 const qty = raw !== undefined && raw !== '' ? parseInt(raw, 10) : rx.quantity;
-if (!Number.isFinite(qty) || qty < 1) { toast.error('Quantity must be at least 1.'); return; }
+if (!Number.isFinite(qty) || qty < 1) { toast.error(`${rx.drugName}: quantity must be at least 1.`); return false; }
 const { error } = await supabase.from('prescriptions')
 .update({ quantity: qty, quantity_confirmed: true }).eq('id', rx.id);
-if (error) { toast.error(error.message || 'Could not confirm the quantity.'); return; }
+if (error) { toast.error(`${rx.drugName}: ${error.message || 'could not confirm the quantity.'}`); return false; }
 await logAction(userId, 'CONFIRM_RX_QUANTITY',
 `Confirmed ${rx.drugName} x${qty} (proposed ${rx.proposedQuantity ?? rx.quantity}) for patient ${rx.patientId}`);
-toast.success(`Quantity confirmed: ${qty}`);
+if (!quiet) toast.success(`Quantity confirmed: ${qty}`);
 setQtyEdits(prev => { const n = { ...prev }; delete n[rx.id]; return n; });
-fetchStructuredPrescriptions();
+return true;
 };
-const handleDispenseStructured = async (rx: Prescription) => {
+const handleConfirmQuantity = async (rx: Prescription) => {
+setRxBusy(true);
+try { await confirmOne(rx); await fetchStructuredPrescriptions(); } finally { setRxBusy(false); }
+};
+const handleConfirmAll = async (items: Prescription[]) => {
+if (items.length === 0) return;
+setRxBusy(true);
+try {
+let done = 0;
+for (const rx of items) { if (await confirmOne(rx, true)) done++; }
+await fetchStructuredPrescriptions();
+if (done === items.length) toast.success(`Quantities confirmed for ${done} drug${done === 1 ? '' : 's'}.`);
+else toast.warning(`Confirmed ${done} of ${items.length}. Check the ones that failed.`);
+} finally { setRxBusy(false); }
+};
+// One drug's dispensing, with the same gates as before: quantity confirmed, paid (or free), not expired.
+const dispenseOne = async (rx: Prescription, quiet = false): Promise<{ ok: boolean; shortWarning?: string }> => {
 const isFree = (rx.drugPrice || 0) * (rx.quantity || 1) === 0;
-if (!rx.quantityConfirmed) { toast.error('Confirm the quantity before dispensing.'); return; }
-if (rx.paymentStatus !== 'paid' && !isFree) { toast.error('Payment must be completed before dispensing.'); return; }
+if (!rx.quantityConfirmed) { toast.error(`${rx.drugName}: confirm the quantity before dispensing.`); return { ok: false }; }
+if (rx.paymentStatus !== 'paid' && !isFree) { toast.error(`${rx.drugName}: payment must be completed before dispensing.`); return { ok: false }; }
+if (isRxExpired(rx)) { toast.error(`${rx.drugName} is expired — update stock first.`); return { ok: false }; }
 const drug = inventory.find(d => d.name.toLowerCase() === rx.drugName.toLowerCase());
 const shortBy = !!drug && !!drug.stockVerified && (drug.stock || 0) < rx.quantity;
 const { error } = await supabase.from('prescriptions').update({
@@ -283,15 +310,38 @@ dispensed: true,
 dispensed_at: new Date().toISOString(),
 dispensed_by: userId,
 }).eq('id', rx.id);
-if (error) { toast.error(error.message || 'Could not dispense this prescription.'); return; }
+if (error) { toast.error(`${rx.drugName}: ${error.message || 'could not dispense this prescription.'}`); return { ok: false }; }
 await logAction(userId, 'DISPENSE_DRUGS', `Dispensed ${rx.drugName} x${rx.quantity} for patient ${rx.patientId}${rx.familyMemberName ? ` (member: ${rx.familyMemberName})` : ''}`);
 if (shortBy && drug) {
 const left = Math.max(0, 3 - (drug.oversoldCount || 0) - 1);
-toast.warning(`${rx.drugName} was short in stock. ${left} more dispense${left === 1 ? '' : 's'} allowed before it must be restocked.`);
-} else {
-toast.success('Marked as dispensed!');
+const msg = `${rx.drugName} was short in stock. ${left} more dispense${left === 1 ? '' : 's'} allowed before it must be restocked.`;
+if (!quiet) toast.warning(msg);
+return { ok: true, shortWarning: msg };
 }
-fetchStructuredPrescriptions();
+if (!quiet) toast.success('Marked as dispensed!');
+return { ok: true };
+};
+const handleDispenseStructured = async (rx: Prescription) => {
+setRxBusy(true);
+try { await dispenseOne(rx); await fetchStructuredPrescriptions(); } finally { setRxBusy(false); }
+};
+// Drugs are dispensed one after another (not in parallel) so each one's stock check sees the previous one.
+const handleDispenseAll = async (items: Prescription[]) => {
+if (items.length === 0) return;
+setRxBusy(true);
+try {
+let done = 0;
+const warnings: string[] = [];
+for (const rx of items) {
+const r = await dispenseOne(rx, true);
+if (r.ok) done++;
+if (r.shortWarning) warnings.push(r.shortWarning);
+}
+await fetchStructuredPrescriptions();
+if (done === items.length) toast.success(`${done} drug${done === 1 ? '' : 's'} dispensed.`);
+else toast.warning(`Dispensed ${done} of ${items.length}. Check the ones that failed.`);
+warnings.forEach(w => toast.warning(w));
+} finally { setRxBusy(false); }
 };
 return (
 <div className="space-y-8 max-w-7xl mx-auto">
@@ -365,7 +415,7 @@ className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items
 <div>
 <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Pending Rx</p>
 <h4 className="text-3xl font-black text-slate-900">
-{stats.pendingPrescriptions + structuredRx.filter(c => !c.dispensed).length}
+{stats.pendingPrescriptions + pendingRxGroups.length}
 </h4>
 </div>
 </button>
@@ -587,81 +637,22 @@ className="p-2 text-slate-400 hover:text-red-500 transition-colors"
 <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
 <Pill className="w-6 h-6 text-green-600" /> Prescriptions
 </h3>
-<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-{structuredRx.filter(rx => !rx.dispensed).map((rx) => (
-<div key={rx.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-<div className="flex justify-between items-start mb-4">
-<div className="flex items-center gap-3">
-<div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-600 font-bold">
-{rx.patient?.name.charAt(0)}
-</div>
-<div>
-<p className="font-bold text-slate-900">{rx.patient?.name}</p>
-<p className="text-[10px] text-slate-400">{rx.patientId}</p>
-</div>
-</div>
-<div className="text-right">
-<span className="text-[10px] text-slate-400 block">{format(new Date(rx.createdAt), 'HH:mm')}</span>
-<span className={cn(
-"text-[10px] font-bold uppercase",
-rx.paymentStatus === 'paid' ? "text-green-600" : rx.paymentStatus === 'partial' ? "text-blue-600" : "text-yellow-600"
-)}>
-{rx.paymentStatus}
-</span>
-</div>
-</div>
-{rx.familyMemberName ? (
-<div className="mb-3 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
-<p className="text-[10px] font-bold uppercase tracking-wide text-amber-600">Give to</p>
-<p className="text-sm font-black text-amber-800">{rx.familyMemberName}</p>
-</div>
-) : rx.patient?.category === 'family card' ? (
-<p className="mb-3 text-[10px] font-bold uppercase text-slate-400">Family card — member not recorded</p>
-) : null}
-<div className="space-y-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
-<div className="flex items-center justify-between">
-<p className="font-bold text-slate-900">{rx.drugName}</p>
-<span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 border border-purple-100">
-{rx.route}
-</span>
-</div>
-<p className="text-xs text-slate-600">
-{[rx.dosageMorning && `${rx.dosageMorning} morning`, rx.dosageAfternoon && `${rx.dosageAfternoon} afternoon`, rx.dosageNight && `${rx.dosageNight} night`].filter(Boolean).join(', ') || 'As directed'}
-{' · '}{rx.durationDays} day{rx.durationDays !== 1 ? 's' : ''} · {rx.billingBasis === 'per_pack' ? `${rx.quantity} pack${rx.quantity !== 1 ? 's' : ''}` : `${rx.quantity} unit${rx.quantity !== 1 ? 's' : ''}`} billed
-</p>
-{rx.quantityConfirmed ? (
-<p className="text-[11px] font-bold text-green-700">✓ Quantity confirmed: {rx.quantity}{rx.proposedQuantity && rx.proposedQuantity !== rx.quantity ? ` (proposed ${rx.proposedQuantity})` : ''}</p>
-) : (
-<div className="flex items-center gap-2 pt-1">
-<input
-type="number" min="1"
-disabled={rx.paymentStatus !== 'pending'}
-value={qtyEdits[rx.id] ?? String(rx.quantity)}
-onChange={e => setQtyEdits(prev => ({ ...prev, [rx.id]: e.target.value }))}
-className="w-20 p-2 rounded-lg border border-slate-200 text-sm font-bold"
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+{pendingRxGroups.map(group => (
+<PharmacyRxGroupCard
+key={group.key}
+group={group}
+qtyEdits={qtyEdits}
+onQtyChange={(id, value) => setQtyEdits(prev => ({ ...prev, [id]: value }))}
+isExpired={isRxExpired}
+onConfirm={handleConfirmQuantity}
+onDispense={handleDispenseStructured}
+onConfirmAll={handleConfirmAll}
+onDispenseAll={handleDispenseAll}
+busy={rxBusy}
 />
-<button
-onClick={() => handleConfirmQuantity(rx)}
-className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700"
->
-Confirm {rx.billingBasis === 'per_pack' ? 'packs' : 'quantity'}
-</button>
-</div>
-)}
-{rx.instructions && (
-<p className="text-xs text-slate-500 italic">Note: {rx.instructions}</p>
-)}
-</div>
-<button 
-onClick={() => handleDispenseStructured(rx)}
-disabled={!rx.quantityConfirmed || isRxExpired(rx) || (rx.paymentStatus !== 'paid' && (rx.drugPrice || 0) * (rx.quantity || 1) > 0)}
-className="w-full mt-4 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all text-sm disabled:opacity-40 disabled:cursor-not-allowed"
->
-{isRxExpired(rx) ? 'Drug expired — update stock' : !rx.quantityConfirmed ? 'Confirm quantity first' : rx.paymentStatus !== 'paid' && (rx.drugPrice || 0) * (rx.quantity || 1) > 0 ? 'Awaiting full payment' : 'Mark as Dispensed'}
-</button>
-</div>
 ))}
-{structuredRx.filter(rx => !rx.dispensed).length === 0 && (
+{pendingRxGroups.length === 0 && (
 <div className="col-span-full py-20 text-center bg-white rounded-2xl border border-dashed border-slate-200">
 <Pill className="w-12 h-12 text-slate-200 mx-auto mb-4" />
 <p className="text-slate-400 font-medium">No pending prescriptions</p>

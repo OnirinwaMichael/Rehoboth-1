@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase, handleSupabaseError } from '../lib/supabase';
 import { Patient, MedicalRecord, LabTest, FinancialRecord, Visit, ClinicalLetter, Prescription } from '../types';
+import { groupPrescriptions, summariseGroup } from '../lib/groupPrescriptions';
 import { format } from 'date-fns';
 import { ClipboardList, FlaskConical, Receipt, Clock, User, Phone, MapPin, Calendar, Heart, Activity, ChevronRight, Search, X, FolderOpen, FileText, Pill } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -16,6 +17,7 @@ createdAt: r.created_at, updatedAt: r.updated_at,
 });
 const prescriptionFromRow = (r: any): Prescription => ({
 id: r.id, patientId: r.patient_id, recordId: r.record_id, staffId: r.staff_id,
+familyMemberId: r.family_member_id ?? null,
 drugName: r.drug_name, drugPrice: r.drug_price, quantity: r.quantity,
 paymentStatus: r.payment_status, createdAt: r.created_at,
 dosageMorning: r.dosage_morning, dosageAfternoon: r.dosage_afternoon, dosageNight: r.dosage_night,
@@ -521,38 +523,63 @@ className="space-y-4"
 </div>
 ) : (
 <div className="grid grid-cols-1 gap-4">
-{prescriptions.map((rx) => (
-<div key={rx.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center">
+{groupPrescriptions(prescriptions).map((group) => {
+const sum = summariseGroup(group.items);
+const member = group.familyMemberId ? familyNameById[group.familyMemberId] : undefined;
+const payTone = sum.payment === 'paid' ? "bg-green-50 text-green-600 border-green-100"
+: sum.payment === 'partial' ? "bg-blue-50 text-blue-600 border-blue-100"
+: sum.payment === 'none' ? "bg-slate-50 text-slate-500 border-slate-100"
+: "bg-orange-50 text-orange-600 border-orange-100";
+const payLabel = sum.payment === 'none' ? 'no charge' : sum.payment === 'paid' ? 'paid' : `${sum.paidCount} of ${sum.billableCount} paid`;
+return (
+<div key={group.key} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+<div className="flex justify-between items-start gap-3">
 <div className="flex items-center gap-4 min-w-0">
 <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-green-50 text-green-600 shrink-0">
 <Pill className="w-6 h-6" />
 </div>
 <div className="min-w-0">
-<p className="font-bold text-slate-900 truncate">{rx.drugName} <span className="font-normal text-slate-400">({rx.route})</span></p>
+<p className="font-bold text-slate-900">{sum.count} drug{sum.count === 1 ? '' : 's'} prescribed</p>
+<p className="text-xs text-slate-400 mt-0.5">{format(new Date(group.createdAt), 'MMM d, yyyy HH:mm')}{sum.total > 0 ? ` · ₦${sum.total.toLocaleString()}` : ''}</p>
+{member && <p className="text-xs font-bold text-amber-700 mt-0.5">For: {member}</p>}
+</div>
+</div>
+<div className="flex flex-col items-end gap-1 shrink-0">
+<span className={cn("text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border", payTone)}>{payLabel}</span>
+<span className={cn(
+"text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border",
+sum.allDispensed ? "bg-purple-50 text-purple-600 border-purple-100" : "bg-slate-50 text-slate-500 border-slate-100"
+)}>
+{sum.allDispensed ? 'All dispensed' : `${sum.dispensed} of ${sum.count} dispensed`}
+</span>
+</div>
+</div>
+<div className="divide-y divide-slate-100 border border-slate-100 rounded-xl">
+{group.items.map((rx) => (
+<div key={rx.id} className="p-3 flex justify-between items-start gap-3">
+<div className="min-w-0">
+<p className="font-bold text-slate-900 break-words">{rx.drugName} <span className="font-normal text-slate-400">({rx.route})</span></p>
 <p className="text-xs text-slate-500 mt-0.5">
 {[rx.dosageMorning && `${rx.dosageMorning} morning`, rx.dosageAfternoon && `${rx.dosageAfternoon} afternoon`, rx.dosageNight && `${rx.dosageNight} night`].filter(Boolean).join(', ') || 'As directed'} · {rx.durationDays} day{rx.durationDays !== 1 ? 's' : ''}
 </p>
 {rx.instructions && <p className="text-xs text-slate-400 italic mt-0.5">{rx.instructions}</p>}
-<p className="text-xs text-slate-400 mt-0.5">{format(new Date(rx.createdAt), 'MMM d, yyyy HH:mm')} · ₦{(rx.drugPrice * rx.quantity).toLocaleString()} ({rx.quantity} units)</p>
-</div>
+<p className="text-xs text-slate-400 mt-0.5">₦{(rx.drugPrice * rx.quantity).toLocaleString()} ({rx.quantity} units)</p>
 </div>
 <div className="flex flex-col items-end gap-1 shrink-0">
 <span className={cn(
-"text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border",
-rx.paymentStatus === 'paid' && "bg-green-50 text-green-600 border-green-100",
-rx.paymentStatus === 'partial' && "bg-blue-50 text-blue-600 border-blue-100",
-rx.paymentStatus === 'pending' && "bg-orange-50 text-orange-600 border-orange-100",
+"text-[10px] font-bold uppercase",
+rx.paymentStatus === 'paid' ? "text-green-600" : rx.paymentStatus === 'partial' ? "text-blue-600" : "text-orange-600"
 )}>
 {rx.paymentStatus}
 </span>
-{rx.dispensed && (
-<span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border bg-purple-50 text-purple-600 border-purple-100">
-Dispensed
-</span>
-)}
+{rx.dispensed && <span className="text-[10px] font-bold uppercase text-purple-600">Dispensed</span>}
 </div>
 </div>
 ))}
+</div>
+</div>
+);
+})}
 </div>
 )}
 </motion.div>
