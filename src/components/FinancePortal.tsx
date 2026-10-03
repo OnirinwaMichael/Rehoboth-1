@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, memo } from 'react';
+import React, { useState, useEffect, useMemo, memo, useRef } from 'react';
 import { applyPatientChange } from '../lib/patientSync';
 import { supabase, handleSupabaseError, fetchAllRows } from '../lib/supabase';
 import { FinancialRecord, Patient, MedicalRecord, Visit, Expense, BillingItem } from '../types';
@@ -11,6 +11,20 @@ import { PatientHistory } from './PatientHistory';
 import { motion, AnimatePresence } from 'motion/react';
 import { useFormDraft } from '../hooks/useFormDraft';
 import { ConfirmModal } from './ConfirmModal';
+// One row of the pending_bills_summary() database function: every unpaid item for a
+// patient (consultation, lab tests, prescriptions, visits), whether or not any payment
+// has been recorded against it yet.
+interface PendingBillRow {
+patientId: string;
+patientName: string;
+familyMemberNames: string;
+itemCount: number;
+totalAmount: number;
+paidAmount: number;
+outstanding: number;
+oldestAt: string;
+kinds: string;
+}
 const patientFromRow = (r: any): Patient => ({
 cardId: r.card_id, name: r.name, gender: r.gender,
 stateOfOrigin: r.state_of_origin, age: r.age, occupation: r.occupation,
@@ -144,10 +158,11 @@ const [patientSearchQuery, setPatientSearchQuery] = useState('');
 const [financePatientsPage, setFinancePatientsPage] = useState(1);
 const FINANCE_PATIENTS_PAGE_SIZE = 50;
 const [billingItems, setBillingItems] = useState<BillingItem[]>([]);
+const [pendingBills, setPendingBills] = useState<PendingBillRow[]>([]);
+const pendingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 const [stats, setStats] = useState({
 totalRevenue: 0,
 todayRevenue: 0,
-pendingPayments: 0,
 totalExpenses: 0,
 netProfit: 0
 });
@@ -160,19 +175,48 @@ description: '',
 amount: '',
 category: 'others' as Expense['category']
 });
+const fetchPendingBills = async () => {
+const { data, error } = await supabase.rpc('pending_bills_summary');
+if (error) { handleSupabaseError(error, 'select', 'pending_bills_summary'); return; }
+setPendingBills((data || []).map((r: any) => ({
+patientId: r.patient_id,
+patientName: r.patient_name,
+familyMemberNames: r.family_member_names || '',
+itemCount: Number(r.item_count) || 0,
+totalAmount: Number(r.total_amount) || 0,
+paidAmount: Number(r.paid_amount) || 0,
+outstanding: Number(r.outstanding) || 0,
+oldestAt: r.oldest_at,
+kinds: r.kinds || '',
+})));
+};
+// Many tables feed the pending list, and one action can touch several at once, so
+// refresh once after the burst instead of once per change.
+const schedulePendingRefresh = () => {
+if (pendingTimer.current) clearTimeout(pendingTimer.current);
+pendingTimer.current = setTimeout(fetchPendingBills, 400);
+};
 useEffect(() => {
 fetchFinancials();
 fetchExpenses();
 fetchAllPatients();
+fetchPendingBills();
 const channel = supabase
 .channel('accountant-portal')
-.on('postgres_changes', { event: '*', schema: 'public', table: 'financials' }, fetchFinancials)
+.on('postgres_changes', { event: '*', schema: 'public', table: 'financials' }, () => { fetchFinancials(); schedulePendingRefresh(); })
+.on('postgres_changes', { event: '*', schema: 'public', table: 'prescriptions' }, schedulePendingRefresh)
+.on('postgres_changes', { event: '*', schema: 'public', table: 'lab_tests' }, schedulePendingRefresh)
+.on('postgres_changes', { event: '*', schema: 'public', table: 'medical_records' }, schedulePendingRefresh)
+.on('postgres_changes', { event: '*', schema: 'public', table: 'visits' }, schedulePendingRefresh)
 .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, fetchExpenses)
 .on('postgres_changes', { event: '*', schema: 'public', table: 'patients' }, (payload: any) => {
 setAllPatients(prev => applyPatientChange(prev, payload, patientFromRow));
 })
 .subscribe();
-return () => { supabase.removeChannel(channel); };
+return () => {
+if (pendingTimer.current) clearTimeout(pendingTimer.current);
+supabase.removeChannel(channel);
+};
 }, []);
 // Who a payment was for: the family member recorded on the consultation / lab test it paid for.
 const resolveMemberNames = async (rows: any[]): Promise<Record<string, string>> => {
@@ -219,7 +263,6 @@ const totalExp = mappedExpenses.reduce((acc, e) => acc + e.amount, 0);
 setStats({
 totalRevenue: totalRev,
 todayRevenue: todayRev,
-pendingPayments: recordsWithPatients.filter(r => r.paymentStatus !== 'fully paid').length,
 totalExpenses: totalExp,
 netProfit: totalRev - totalExp,
 });
@@ -273,8 +316,13 @@ setSearchSuggestions((data || []).map(patientFromRow));
 }, 250);
 return () => clearTimeout(timeout);
 }, [searchId]);
-const openPendingBill = async (record: FinancialRecord & { patient?: Patient }) => {
-const patient = record.patient || allPatients.find(p => p.cardId === record.patientId);
+const openPendingBill = async (row: PendingBillRow) => {
+let patient = allPatients.find(p => p.cardId === row.patientId);
+if (!patient) {
+const { data, error } = await supabase.from('patients').select('*').eq('card_id', row.patientId).maybeSingle();
+if (error) return handleSupabaseError(error, 'select', 'patients');
+if (data) patient = patientFromRow(data);
+}
 if (!patient) {
 toast.error('Could not find that patient\'s record.');
 return;
@@ -609,7 +657,7 @@ className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items
 </div>
 <div>
 <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Pending Bills</p>
-<h4 className="text-3xl font-black text-slate-900">{stats.pendingPayments}</h4>
+<h4 className="text-3xl font-black text-slate-900">{pendingBills.length}</h4>
 </div>
 </button>
 <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
@@ -1141,42 +1189,47 @@ Next
 <thead>
 <tr className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100">
 <th className="px-6 py-4">Patient</th>
+<th className="px-6 py-4">Unpaid</th>
 <th className="px-6 py-4">Total</th>
 <th className="px-6 py-4">Pending</th>
 <th className="px-6 py-4">Status</th>
 </tr>
 </thead>
 <tbody className="divide-y divide-slate-50">
-{records.filter(r => r.paymentStatus !== 'fully paid').map((record, idx) => (
+{pendingBills.map(row => (
 <tr
-key={record.id || idx}
-onClick={() => openPendingBill(record)}
+key={row.patientId}
+onClick={() => openPendingBill(row)}
 className="hover:bg-orange-50/60 cursor-pointer transition-colors"
 >
 <td className="px-6 py-4">
 <div className="flex items-center gap-3">
 <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 font-bold text-xs">
-{record.patient?.name.charAt(0) || '?'}
+{row.patientName?.charAt(0) || '?'}
 </div>
 <div>
-<p className="text-sm font-bold text-slate-900">{record.patient?.name || record.patientId}</p>
-<p className="text-[10px] text-slate-400">{record.patientId}</p>
-{record.familyMemberName && <p className="text-[10px] font-bold text-amber-700">For: {record.familyMemberName}</p>}
+<p className="text-sm font-bold text-slate-900">{row.patientName || row.patientId}</p>
+<p className="text-[10px] text-slate-400">{row.patientId}</p>
+{row.familyMemberNames && <p className="text-[10px] font-bold text-amber-700">For: {row.familyMemberNames}</p>}
 </div>
 </div>
 </td>
-<td className="px-6 py-4 text-sm font-semibold text-slate-700">₦{record.totalAmount.toLocaleString()}</td>
-<td className="px-6 py-4 text-sm font-bold text-red-500">₦{record.pendingAmount.toLocaleString()}</td>
+<td className="px-6 py-4">
+<p className="text-sm font-semibold text-slate-700">{row.kinds}</p>
+<p className="text-[10px] text-slate-400">{row.itemCount} unpaid item{row.itemCount === 1 ? '' : 's'}</p>
+</td>
+<td className="px-6 py-4 text-sm font-semibold text-slate-700">₦{row.totalAmount.toLocaleString()}</td>
+<td className="px-6 py-4 text-sm font-bold text-red-500">₦{row.outstanding.toLocaleString()}</td>
 <td className="px-6 py-4">
 <span className="text-[10px] font-bold px-2 py-1 rounded-full uppercase bg-orange-100 text-orange-600">
-{record.paymentStatus}
+{row.paidAmount > 0 ? 'partial' : 'pending'}
 </span>
 </td>
 </tr>
 ))}
-{records.filter(r => r.paymentStatus !== 'fully paid').length === 0 && (
+{pendingBills.length === 0 && (
 <tr>
-<td colSpan={4} className="px-6 py-20 text-center text-slate-400">
+<td colSpan={5} className="px-6 py-20 text-center text-slate-400">
 No pending bills right now.
 </td>
 </tr>
