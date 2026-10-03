@@ -3,14 +3,20 @@ import { LabTest, Patient } from '../types';
 import { format } from 'date-fns';
 import { Printer } from 'lucide-react';
 import { FullScreenSheet } from './FullScreenSheet';
+import { LabRequestFormPaper } from './LabRequestFormPaper';
+import { buildPaperValues } from '../lib/labRequestForm';
 import {
-  LAB_REQUEST_FIELDS, HAEMATOLOGY_FIELDS, WIDAL_FIELDS, WIDAL_SIGNIFICANT_TITRE,
+  HAEMATOLOGY_FIELDS, WIDAL_FIELDS, WIDAL_SIGNIFICANT_TITRE,
   URINALYSIS_FIELDS, PARASITOLOGY_FIELDS, SEMEN_ANALYSIS_FIELDS, BIOCHEMISTRY_FIELDS,
   CULTURE_SPECIMEN_TYPES, MICROSCOPY_FINDINGS, BLOOD_TRANSFUSION_FIELDS, SENSITIVITY_ANTIBIOTICS,
 } from '../data/labReportTemplates';
 
+type TestX = LabTest & { patient?: Patient };
+
+// Pass one test, or several (a patient's whole request) to view/print them together.
 interface Props {
-  test: LabTest & { patient?: Patient };
+  test?: TestX;
+  tests?: TestX[];
   onClose: () => void;
 }
 
@@ -28,27 +34,20 @@ const SectionTitle: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   </h4>
 );
 
-export const LabReportPrint: React.FC<Props> = ({ test, onClose }) => {
-  const rd = test.requestDetails || {};
+const LabReportSheet: React.FC<{ test: TestX }> = ({ test }) => {
   const pr = test.panelResults || {};
 
+  // Basic: the paper Laboratory Request Form, filled in, exactly as the lab sees it.
+  if (test.reportType === 'basic') {
+    return (
+      <div className="p-8 print:p-6 text-slate-900">
+        <LabRequestFormPaper readOnly values={buildPaperValues(test)} />
+      </div>
+    );
+  }
+
   return (
-    <FullScreenSheet
-      title="Lab Report"
-      subtitle={`${test.familyMemberName || test.patient?.name || test.patientId} · ${test.testType}`}
-      onClose={onClose}
-      headerActions={
-        <button
-          onClick={() => window.print()}
-          className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700"
-        >
-          <Printer className="w-4 h-4" /> Print / Save as PDF
-        </button>
-      }
-    >
-      <div className="max-w-[210mm] mx-auto">
-        {/* Printable sheet */}
-        <div className="p-8 print:p-6 text-slate-900" id="lab-report-print-area">
+        <div className="p-8 print:p-6 text-slate-900">
           {/* Letterhead */}
           <div className="flex items-center justify-between border-b-2 border-slate-800 pb-3 mb-4">
             <div>
@@ -62,7 +61,7 @@ export const LabReportPrint: React.FC<Props> = ({ test, onClose }) => {
             </div>
             <div className="text-right">
               <p className="text-[10px] font-bold uppercase text-slate-500">
-                {test.reportType === 'basic' ? 'Laboratory Request Form' : 'Laboratory Report'}
+                Laboratory Report
               </p>
               <p className="text-[10px] text-slate-500">{format(new Date(test.createdAt), 'MMM d, yyyy HH:mm')}</p>
             </div>
@@ -85,19 +84,6 @@ export const LabReportPrint: React.FC<Props> = ({ test, onClose }) => {
               <div className="col-span-2"><FieldRow label="Clinical Diagnosis" value={pr.clinicalDiagnosis} /></div>
             )}
           </div>
-
-          {/* BASIC REQUEST FORM */}
-          {test.reportType === 'basic' && (
-            <div className="border border-slate-300 rounded-lg p-3 space-y-1">
-              {LAB_REQUEST_FIELDS.map(f => (
-                <FieldRow key={f.key} label={f.label} value={(rd as any)[f.key]} />
-              ))}
-              <div className="mt-3 pt-2 border-t border-slate-300 text-[10px] font-bold uppercase text-slate-500">
-                For Lab Use Only
-              </div>
-              <FieldRow label="Lab Result" value={test.result} />
-            </div>
-          )}
 
           {/* COMPREHENSIVE REPORT */}
           {test.reportType === 'comprehensive' && (
@@ -234,6 +220,34 @@ export const LabReportPrint: React.FC<Props> = ({ test, onClose }) => {
             <span>Med. Lab. Scientist: ___________________________</span>
           </div>
         </div>
+  );
+};
+
+export const LabReportPrint: React.FC<Props> = ({ test, tests, onClose }) => {
+  const list = tests ?? (test ? [test] : []);
+  const first = list[0];
+  const who = first ? (first.familyMemberName || first.patient?.name || first.patientId) : '';
+
+  return (
+    <FullScreenSheet
+      title="Lab Report"
+      subtitle={list.length === 1 ? `${who} · ${first.testType}` : `${who} · ${list.length} tests`}
+      onClose={onClose}
+      headerActions={
+        <button
+          onClick={() => window.print()}
+          className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700"
+        >
+          <Printer className="w-4 h-4" /> Print / Save as PDF
+        </button>
+      }
+    >
+      <div className="max-w-[210mm] mx-auto" id="lab-report-print-area">
+        {list.map((t, i) => (
+          <div key={t.id} style={i < list.length - 1 ? { pageBreakAfter: 'always', breakAfter: 'page' } : undefined}>
+            <LabReportSheet test={t} />
+          </div>
+        ))}
       </div>
     </FullScreenSheet>
   );

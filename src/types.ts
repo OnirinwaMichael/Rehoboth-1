@@ -67,6 +67,9 @@ range: string;
 unit: string;
 }
 export interface LabRequestDetails {
+patientName?: string;
+sex?: string;
+age?: string;
 hospitalClinic?: string;
 ward?: string;
 no?: string;
@@ -74,6 +77,12 @@ clinicalHistory?: string;
 consultant?: string;
 provisionalDiagnosis?: string;
 natureOfSpecimen?: string;
+testRequired?: string;
+dateOfReception?: string;
+labNo?: string;
+resultDate?: string;
+labSecretary?: string;
+notes?: string;
 }
 export interface LabRequestForm {
 id: string;

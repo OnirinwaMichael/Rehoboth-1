@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, memo } from 'react';
 import { supabase, handleSupabaseError } from '../lib/supabase';
-import { LabTest, Patient, LabTestCatalogItem, LabResource, WardCatalogItem, FamilyMember } from '../types';
+import { LabTest, Patient, LabTestCatalogItem, LabResource, WardCatalogItem, FamilyMember, LabRequestDetails } from '../types';
 import { toast } from 'sonner';
 import { FlaskConical, Search, CheckCircle, Clock, FileText, User, CreditCard, Save, X, LayoutDashboard, History, Beaker, CheckCircle2, Plus, Camera, Trash2, Package, Users as UsersIcon } from 'lucide-react';
 import { format } from 'date-fns';
@@ -13,11 +13,10 @@ import { PatientHistory } from './PatientHistory';
 import { useFormDraft } from '../hooks/useFormDraft';
 import { ConfirmModal } from './ConfirmModal';
 import { LabReportPrint } from './LabReportPrint';
-import { LabReportEditor } from './LabReportEditor';
+import { LabGroupEntryPanel, LabTestX, isLabTestLocked } from './LabGroupEntryPanel';
+import { LabRequestFormPaper } from './LabRequestFormPaper';
+import { buildPaperValues, toRequestDetails, PaperValues } from '../lib/labRequestForm';
 import { LabResultFormSheet } from './LabResultFormSheet';
-import {
-  LAB_REQUEST_FIELDS, emptyPanelResults, ComprehensivePanelResults, CULTURE_SPECIMEN_TYPES,
-} from '../data/labReportTemplates';
 const patientFromRow = (r: any): Patient => ({
 cardId: r.card_id, name: r.name, gender: r.gender,
 stateOfOrigin: r.state_of_origin, age: r.age, occupation: r.occupation,
@@ -35,78 +34,128 @@ panelResults: r.panel_results || undefined,
 interface Props {
 userId: string;
 }
-const LabTestRow = memo(({ test, onSelect, onDelete, onPrint }: { 
-test: LabTest & { patient?: Patient }, 
-onSelect: (test: LabTest & { patient?: Patient }) => void,
+interface LabGroup { key: string; tests: LabTestX[] }
+const paymentChip = (label: string, tone: 'green' | 'orange' | 'slate') => (
+<span className={cn(
+"text-[10px] font-bold px-2 py-1 rounded-full uppercase whitespace-nowrap",
+tone === 'green' ? "bg-green-100 text-green-600" : tone === 'orange' ? "bg-orange-100 text-orange-600" : "bg-slate-100 text-slate-500"
+)}>{label}</span>
+);
+const LabGroupRow = memo(({ group, onOpen, onDelete, onPrint }: {
+group: LabGroup,
+onOpen: () => void,
 onDelete: (id: string) => void,
-onPrint: (test: LabTest & { patient?: Patient }) => void
-}) => (
+onPrint: (tests: LabTestX[]) => void,
+}) => {
+const [expanded, setExpanded] = useState(false);
+const { tests } = group;
+const first = tests[0];
+const multi = tests.length > 1;
+const done = tests.filter(t => !!t.result).length;
+const billable = tests.filter(t => (Number(t.price) || 0) > 0);
+const unpaid = billable.filter(t => t.paymentStatus !== 'paid').length;
+const payment = billable.length === 0
+? paymentChip('no charge', 'slate')
+: unpaid === 0
+? paymentChip('paid', 'green')
+: !multi
+? paymentChip(first.paymentStatus, 'orange')
+: paymentChip(unpaid === billable.length ? 'pending' : `${unpaid} of ${billable.length} unpaid`, 'orange');
+const statusDone = (
+<span className="flex items-center gap-1 text-green-600 text-xs font-bold"><CheckCircle className="w-3 h-3" /> Completed</span>
+);
+const statusPending = (label: string) => (
+<span className="flex items-center gap-1 text-orange-500 text-xs font-bold"><Clock className="w-3 h-3" /> {label}</span>
+);
+return (
+<>
 <tr className="hover:bg-slate-50 transition-colors group">
 <td className="px-6 py-4">
 <div className="flex items-center gap-3">
 <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-xs">
-{test.patient?.name.charAt(0)}
+{first.patient?.name.charAt(0)}
 </div>
 <div>
-<p className="text-sm font-bold text-slate-900">{test.patient?.name}</p>
-<p className="text-[10px] text-slate-400">{test.patientId}</p>
-{test.familyMemberName && <p className="text-[10px] font-bold text-amber-700">For: {test.familyMemberName}</p>}
+<p className="text-sm font-bold text-slate-900">{first.patient?.name}</p>
+<p className="text-[10px] text-slate-400">{first.patientId}</p>
+{first.familyMemberName && <p className="text-[10px] font-bold text-amber-700">For: {first.familyMemberName}</p>}
 </div>
 </div>
 </td>
 <td className="px-6 py-4">
-<span className="text-sm font-semibold text-slate-700">{test.testType}</span>
-</td>
-<td className="px-6 py-4">
-<span className={cn(
-"text-[10px] font-bold px-2 py-1 rounded-full uppercase",
-test.paymentStatus === 'paid' ? "bg-green-100 text-green-600" : "bg-orange-100 text-orange-600"
-)}>
-{test.paymentStatus}
-</span>
-</td>
-<td className="px-6 py-4">
-{test.result ? (
-<span className="flex items-center gap-1 text-green-600 text-xs font-bold">
-<CheckCircle className="w-3 h-3" /> Completed
-</span>
+{multi ? (
+<div className="flex flex-wrap gap-1 max-w-xs">
+{tests.map(t => (
+<span key={t.id} className={cn(
+"text-xs font-semibold px-2 py-0.5 rounded-full",
+t.result ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-700"
+)}>{t.testType}</span>
+))}
+</div>
 ) : (
-<span className="flex items-center gap-1 text-orange-500 text-xs font-bold">
-<Clock className="w-3 h-3" /> Pending
-</span>
+<span className="text-sm font-semibold text-slate-700">{first.testType}</span>
 )}
+</td>
+<td className="px-6 py-4">{payment}</td>
+<td className="px-6 py-4">
+{done === tests.length ? statusDone : multi && done > 0 ? statusPending(`${done} of ${tests.length} done`) : statusPending('Pending')}
 </td>
 <td className="px-6 py-4">
 <div className="flex items-center gap-2">
-<button
-onClick={() => onSelect(test)}
-className="text-blue-600 hover:text-blue-700 font-bold text-xs"
->
-{test.result ? 'Edit Result' : 'Enter Result'}
+<button onClick={onOpen} className="text-blue-600 hover:text-blue-700 font-bold text-xs whitespace-nowrap">
+{done === tests.length ? 'Edit Results' : multi ? 'Enter Results' : 'Enter Result'}
 </button>
-<button
-onClick={() => onPrint(test)}
-className="text-slate-500 hover:text-slate-700 font-bold text-xs"
->
+<button onClick={() => onPrint(tests)} className="text-slate-500 hover:text-slate-700 font-bold text-xs">
 Print
 </button>
+{multi ? (
 <button
-onClick={() => onDelete(test.id)}
+onClick={() => setExpanded(e => !e)}
+className="text-slate-500 hover:text-slate-700 font-bold text-xs whitespace-nowrap"
+>
+{expanded ? 'Hide' : `${tests.length} tests`}
+</button>
+) : (
+<button
+onClick={() => onDelete(first.id)}
 className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
 title="Delete Lab Result"
 >
 <Trash2 className="w-4 h-4" />
 </button>
+)}
 </div>
 </td>
 </tr>
-));
+{multi && expanded && tests.map(t => (
+<tr key={t.id} className="bg-slate-50/60">
+<td className="px-6 py-2" />
+<td className="px-6 py-2 text-xs font-semibold text-slate-700">{t.testType}</td>
+<td className="px-6 py-2">
+{(Number(t.price) || 0) > 0
+? paymentChip(t.paymentStatus, t.paymentStatus === 'paid' ? 'green' : 'orange')
+: paymentChip('no charge', 'slate')}
+</td>
+<td className="px-6 py-2">{t.result ? statusDone : isLabTestLocked(t) ? statusPending('Awaiting payment') : statusPending('Pending')}</td>
+<td className="px-6 py-2">
+<button
+onClick={() => onDelete(t.id)}
+className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+title="Delete Lab Result"
+>
+<Trash2 className="w-4 h-4" />
+</button>
+</td>
+</tr>
+))}
+</>
+);
+});
 export const LabPortal: React.FC<Props> = ({ userId }) => {
 const { user } = useAuth();
 const [tests, setTests] = useState<(LabTest & { patient?: Patient })[]>([]);
 const [loading, setLoading] = useState(true);
-const [selectedTest, setSelectedTest] = useState<(LabTest & { patient?: Patient }) | null>(null);
-const [imageUrl, setImageUrl] = useState('');
+const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
 const [showImageUpload, setShowImageUpload] = useState(false);
 const [view, setView] = useState<'dashboard' | 'queue' | 'catalog' | 'manual' | 'resources'>('dashboard');
 const [showResultForm, setShowResultForm] = useState(false);
@@ -117,16 +166,10 @@ testType: '',
 price: '',
 result: '',
 imageUrl: '',
-reportType: 'legacy' as 'legacy' | 'basic' | 'comprehensive',
+reportType: 'basic' as 'basic' | 'comprehensive',
 requestDetails: {} as Record<string, string>,
 });
-const { data: labFormRows, setData: setLabFormRows, clearDraft: clearLabRowsDraft } = useFormDraft('lab_form_rows', [
-{ parameter: '', result: '', range: '', unit: '' }
-]);
-const { data: result, setData: setResult, clearDraft: clearResultDraft } = useFormDraft('lab_result_notes', '');
-const [panelResults, setPanelResults] = useState<ComprehensivePanelResults>(emptyPanelResults());
-const [activeReportType, setActiveReportType] = useState<'legacy' | 'basic' | 'comprehensive'>('legacy');
-const [printTest, setPrintTest] = useState<(LabTest & { patient?: Patient }) | null>(null);
+const [printTests, setPrintTests] = useState<LabTestX[] | null>(null);
 const [testCatalog, setTestCatalog] = useState<LabTestCatalogItem[]>([]);
 const [catalogSearch, setCatalogSearch] = useState('');
 const filteredTestCatalog = useMemo(() => {
@@ -321,24 +364,6 @@ toast.success('Resource deleted.');
 setDeletingResource(null);
 fetchResources();
 };
-const updatePanelField = (section: keyof ComprehensivePanelResults, key: string, value: string) => {
-setPanelResults(prev => ({ ...prev, [section]: { ...(prev[section] as any || {}), [key]: value } }));
-};
-const updateSensitivity = (antibiotic: string, field: 'rate' | 'result', value: string) => {
-setPanelResults(prev => ({
-...prev,
-sensitivity: { ...(prev.sensitivity || {}), [antibiotic]: { ...(prev.sensitivity?.[antibiotic] || { rate: '', result: '' }), [field]: value } }
-}));
-};
-const updateCultureCell = (specimen: string, finding: string, value: string) => {
-setPanelResults(prev => ({
-...prev,
-cultureMicroscopy: {
-...(prev.cultureMicroscopy || {}),
-[specimen]: { ...(prev.cultureMicroscopy?.[specimen] || {}), [finding]: value }
-}
-}));
-};
 const [stats, setStats] = useState({
 pending: 0,
 completed: 0,
@@ -347,13 +372,28 @@ today: 0
 const [showHistory, setShowHistory] = useState(false);
 const [historyPatientId, setHistoryPatientId] = useState<string | null>(null);
 const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-const pendingTests = useMemo(() => tests.filter(t => !t.result), [tests]);
-const completedTests = useMemo(() => tests.filter(t => t.result), [tests]);
-const queueTests = useMemo(() => {
-  if (queueStatusFilter === 'pending') return pendingTests;
-  if (queueStatusFilter === 'completed') return completedTests;
-  return tests;
-}, [queueStatusFilter, tests, pendingTests, completedTests]);
+// One queue row per patient request: every test the doctor recommended in the
+// same consultation sits together. Walk-in entries have no consultation, so
+// each stays on its own row.
+const groups = useMemo(() => {
+const map = new Map<string, LabTestX[]>();
+const order: string[] = [];
+tests.forEach(t => {
+const key = t.recordId ? `${t.recordId}|${t.familyMemberId || ''}` : `solo|${t.id}`;
+if (!map.has(key)) { map.set(key, []); order.push(key); }
+map.get(key)!.push(t);
+});
+return order.map(key => ({
+key,
+tests: map.get(key)!.slice().sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+}));
+}, [tests]);
+const queueGroups = useMemo(() => {
+if (queueStatusFilter === 'pending') return groups.filter(g => g.tests.some(t => !t.result));
+if (queueStatusFilter === 'completed') return groups.filter(g => g.tests.every(t => !!t.result));
+return groups;
+}, [queueStatusFilter, groups]);
+const selectedGroup = useMemo(() => groups.find(g => g.key === selectedGroupKey) || null, [groups, selectedGroupKey]);
 // Real trend data for the Total Today sparkline — derived from `tests`,
 // which is already the full, uncapped lab_tests list (fetchTests has no
 // .limit()), so no extra query is needed.
@@ -429,6 +469,22 @@ if (error) return handleSupabaseError(error, 'delete', 'lab_tests');
 await logAction(userId, 'DELETE_LAB_RESULT', `Deleted lab result ${testId}`);
 toast.success('Lab result deleted successfully');
 };
+const manualType: 'basic' | 'comprehensive' = manualEntry.reportType === 'comprehensive' ? 'comprehensive' : 'basic';
+const manualPaper: PaperValues = buildPaperValues({
+testType: manualEntry.testType,
+result: manualEntry.result,
+requestDetails: manualEntry.requestDetails as LabRequestDetails,
+familyMemberName: manualFamilyMembers.find(m => m.id === manualFamilyMemberId)?.name,
+patient: manualPatientSuggestions.find(p => p.cardId.toLowerCase() === manualEntry.patientId.trim().toLowerCase()),
+});
+const handleManualPaperChange = (p: Partial<PaperValues>) => {
+const { labResult, ...rest } = p;
+setManualEntry({
+...manualEntry,
+...(labResult !== undefined ? { result: labResult } : {}),
+requestDetails: { ...manualEntry.requestDetails, ...rest },
+});
+};
 const handleManualEntry = async (e: React.FormEvent) => {
 e.preventDefault();
 if (!manualEntry.patientId || !manualEntry.testType || !manualEntry.result) {
@@ -452,6 +508,16 @@ if (!patientRow) {
 toast.error('Patient not found. Please check the Card ID.');
 return;
 }
+let manualLabNo = '';
+if (manualType === 'basic') {
+const { data: no, error: noErr } = await supabase.rpc('next_lab_no');
+if (noErr || !no || typeof no !== 'string') {
+console.error('[next_lab_no]', noErr?.message);
+toast.error('Could not generate a Lab No. Check your connection and try again.');
+return;
+}
+manualLabNo = no;
+}
 const { error } = await supabase.from('lab_tests').insert({
 patient_id: manualEntry.patientId,
 family_member_id: manualFamilyMemberId || null,
@@ -460,8 +526,8 @@ price: parseFloat(manualEntry.price) || 0,
 result: manualEntry.result,
 image_url: manualEntry.imageUrl || null,
 payment_status: 'pending', // Only accountant can clear payments
-report_type: manualEntry.reportType,
-request_details: manualEntry.reportType === 'basic' ? manualEntry.requestDetails : null,
+report_type: manualType,
+request_details: manualType === 'basic' ? toRequestDetails({ ...manualPaper, labNo: manualLabNo }) : null,
 });
 if (error) throw error;
 await logAction(userId, 'MANUAL_LAB_ENTRY', `Manually recorded ${manualEntry.testType} for patient ${manualEntry.patientId}`);
@@ -476,56 +542,23 @@ handleSupabaseError(error, 'insert', 'lab_tests');
 setLoading(false);
 }
 };
-const handleSaveResult = async () => {
-if (!selectedTest) return;
-const isComprehensive = activeReportType === 'comprehensive';
-const validRows = labFormRows.filter(row => row.parameter || row.result);
-let finalResult = result;
-if (!isComprehensive && validRows.length > 0) {
-const tableHeader = "| Parameter | Result | Range | Unit |\n|---|---|---|---|\n";
-const tableRows = validRows
-.map(row => `| ${row.parameter} | ${row.result} | ${row.range} | ${row.unit} |`)
-.join('\n');
-finalResult = tableHeader + tableRows + (result ? `\n\nNotes: ${result}` : '');
-}
-if (!isComprehensive && !finalResult && validRows.length === 0) {
-toast.error('Please enter results');
-return;
-}
-const { error } = await supabase.from('lab_tests').update({
-report_type: activeReportType,
-result: finalResult || (isComprehensive ? 'See structured report' : finalResult),
-structured_results: isComprehensive ? null : validRows,
-panel_results: isComprehensive ? panelResults : null,
-image_url: imageUrl || null,
-updated_at: new Date().toISOString(),
-}).eq('id', selectedTest.id);
-if (error) return handleSupabaseError(error, 'update', 'lab_tests');
-await logAction(userId, 'SAVE_LAB_RESULT', `Saved lab results for patient ${selectedTest.patientId}, test: ${selectedTest.testType}`);
-toast.success('Lab result saved successfully!');
-setSelectedTest(null);
-clearResultDraft();
-setImageUrl('');
-setShowImageUpload(false);
-clearLabRowsDraft();
-setView('dashboard');
-};
-const addLabRow = () => {
-setLabFormRows([...labFormRows, { parameter: '', result: '', range: '', unit: '' }]);
-};
-const updateLabRow = (index: number, field: keyof typeof labFormRows[0], value: string) => {
-const newRows = [...labFormRows];
-newRows[index][field] = value;
-setLabFormRows(newRows);
-};
-const removeLabRow = (index: number) => {
-if (labFormRows.length > 1) {
-setLabFormRows(labFormRows.filter((_, i) => i !== index));
-}
-};
 return (
 <div className="space-y-8 max-w-7xl mx-auto">
 {showResultForm && <LabResultFormSheet userId={userId} onClose={() => setShowResultForm(false)} />}
+{selectedGroup && (
+<LabGroupEntryPanel
+key={selectedGroup.key}
+tests={selectedGroup.tests}
+userId={userId}
+wards={wardCatalog.map(w => w.name)}
+consultants={consultants.map(c => c.name)}
+onAddWard={handleAddWard}
+onClose={() => setSelectedGroupKey(null)}
+onSaved={() => { fetchTests(); }}
+onShowHistory={(pid) => { setHistoryPatientId(pid); setShowHistory(true); }}
+onPrint={(list) => setPrintTests(list)}
+/>
+)}
 <div className="flex items-center justify-between">
 <div>
 <h2 className="text-3xl font-bold text-slate-900">Laboratory Portal</h2>
@@ -1062,85 +1095,25 @@ className="w-full flex items-center justify-between text-left px-4 py-2 text-sm 
 <div className="space-y-2">
 <label className="text-sm font-bold text-slate-700">Report Template</label>
 <select
-value={manualEntry.reportType}
-onChange={e => setManualEntry({ ...manualEntry, reportType: e.target.value as 'legacy' | 'basic' | 'comprehensive' })}
+value={manualType}
+onChange={e => setManualEntry({ ...manualEntry, reportType: e.target.value as 'basic' | 'comprehensive' })}
 className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
 >
-<option value="legacy">Free-form (legacy)</option>
 <option value="basic">Basic Lab Request Form</option>
 <option value="comprehensive">Comprehensive Lab Report</option>
 </select>
-{manualEntry.reportType === 'comprehensive' && (
+{manualType === 'comprehensive' && (
 <p className="text-xs text-slate-500">Structured panels are filled after creation, from the Test Queue → Enter Result.</p>
 )}
 </div>
-{manualEntry.reportType === 'basic' && (
-<div className="space-y-3 border border-slate-200 rounded-xl p-4 bg-slate-50/50">
-<p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Lab Request Details</p>
-{LAB_REQUEST_FIELDS.map(f => {
-  const value = manualEntry.requestDetails[f.key] || '';
-  const setValue = (v: string) => setManualEntry({ ...manualEntry, requestDetails: { ...manualEntry.requestDetails, [f.key]: v } });
-
-  if (f.key === 'natureOfSpecimen') {
-    return (
-      <div key={f.key}>
-        <label className="text-[10px] font-bold text-slate-500">{f.label}</label>
-        <SearchSelect size="sm" value={value} onChange={setValue} placeholder="Type to search specimen..."
-          options={CULTURE_SPECIMEN_TYPES.map(t => ({ value: t, label: t }))} />
-      </div>
-    );
-  }
-
-  if (f.key === 'consultant') {
-    return (
-      <div key={f.key}>
-        <label className="text-[10px] font-bold text-slate-500">{f.label}</label>
-        <SearchSelect size="sm" value={value} onChange={setValue} placeholder="Type to search consultant..."
-          options={consultants.map(c => ({ value: c.name, label: c.name }))} />
-        {consultants.length === 0 && <p className="text-[10px] text-slate-400 mt-1">No active Doctors/CMD found in staff records yet.</p>}
-      </div>
-    );
-  }
-
-  if (f.key === 'ward') {
-    return (
-      <div key={f.key}>
-        <label className="text-[10px] font-bold text-slate-500">{f.label}</label>
-        <SearchSelect size="sm" value={value} onChange={setValue} placeholder="Type to search ward..."
-          emptyText="No matching ward — add it below."
-          options={wardCatalog.map(w => ({ value: w.name, label: w.name }))} />
-        <div className="flex items-center gap-1 mt-1">
-          <input
-            value={newWardName}
-            onChange={e => setNewWardName(e.target.value)}
-            placeholder="Add a new ward..."
-            className="flex-1 p-1.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500"
-          />
-          <button
-            type="button"
-            disabled={addingWard || !newWardName.trim()}
-            onClick={async () => { await handleAddWard(newWardName); setValue(newWardName.trim()); }}
-            className="px-2 py-1.5 bg-slate-700 text-white rounded-lg text-[10px] font-bold disabled:opacity-40 shrink-0"
-          >
-            + Add
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div key={f.key}>
-      <label className="text-[10px] font-bold text-slate-500">{f.label}</label>
-      <input
-        value={value}
-        onChange={e => setValue(e.target.value)}
-        className="w-full p-2 text-sm border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500"
-      />
-    </div>
-  );
-})}
-</div>
+{manualType === 'basic' && (
+<LabRequestFormPaper
+values={manualPaper}
+onChange={handleManualPaperChange}
+wards={wardCatalog.map(w => w.name)}
+consultants={consultants.map(c => c.name)}
+onAddWard={handleAddWard}
+/>
 )}
 <div className="space-y-2">
 <label className="text-sm font-bold text-slate-700">Price (₦)</label>
@@ -1152,6 +1125,7 @@ className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring
 placeholder="Enter price"
 />
 </div>
+{manualType === 'comprehensive' && (
 <div className="space-y-2">
 <label className="text-sm font-bold text-slate-700">Result / Observations</label>
 <textarea
@@ -1161,6 +1135,7 @@ className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring
 placeholder="Enter test results and patient information..."
 />
 </div>
+)}
 <div className="space-y-4 border-t border-slate-100 pt-4">
 <div className="flex items-center justify-between">
 <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
@@ -1230,7 +1205,7 @@ className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover
 ) : (
 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 {/* Test Queue */}
-<div className="lg:col-span-8 space-y-6">
+<div className="lg:col-span-12 space-y-6">
 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
 <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
 <h3 className="font-bold text-slate-900 flex items-center gap-2">
@@ -1247,33 +1222,23 @@ className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover
 <thead>
 <tr className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100">
 <th className="px-6 py-4">Patient</th>
-<th className="px-6 py-4">Test Type</th>
+<th className="px-6 py-4">Tests</th>
 <th className="px-6 py-4">Payment</th>
 <th className="px-6 py-4">Status</th>
 <th className="px-6 py-4">Action</th>
 </tr>
 </thead>
 <tbody className="divide-y divide-slate-50">
-{queueTests.map((test, idx) => (
-<LabTestRow 
-key={test.id || idx} 
-test={test} 
+{queueGroups.map(group => (
+<LabGroupRow
+key={group.key}
+group={group}
+onOpen={() => setSelectedGroupKey(group.key)}
 onDelete={(id) => setDeleteConfirmId(id)}
-onPrint={(t) => setPrintTest(t)}
-onSelect={(t) => {
-setSelectedTest(t);
-setActiveReportType(t.reportType || 'legacy');
-setResult(t.reportType === 'comprehensive' ? '' : (t.result || ''));
-if (t.structuredResults && t.structuredResults.length > 0) {
-setLabFormRows(t.structuredResults);
-} else {
-setLabFormRows([{ parameter: '', result: '', range: '', unit: '' }]);
-}
-setPanelResults(t.panelResults && Object.keys(t.panelResults).length > 0 ? t.panelResults : emptyPanelResults());
-}}
+onPrint={(list) => setPrintTests(list)}
 />
 ))}
-{queueTests.length === 0 && !loading && (
+{queueGroups.length === 0 && !loading && (
 <tr>
 <td colSpan={5} className="px-6 py-20 text-center text-slate-400">
 {tests.length === 0 ? 'No test requests found.' : `No ${queueStatusFilter} tests.`}
@@ -1285,249 +1250,12 @@ setPanelResults(t.panelResults && Object.keys(t.panelResults).length > 0 ? t.pan
 </div>
 </div>
 </div>
-{/* Result Entry Panel */}
-<div className="lg:col-span-4">
-<AnimatePresence mode="wait">
-{selectedTest ? (
-<motion.div
-initial={{ opacity: 0 }}
-animate={{ opacity: 1 }}
-exit={{ opacity: 0 }}
-className="fixed inset-0 z-[70] bg-white flex flex-col"
->
-<div className="shrink-0 p-4 border-b border-slate-100 bg-slate-900 text-white flex items-center justify-between shadow-sm">
-<div className="min-w-0">
-<h3 className="font-bold flex items-center gap-2 truncate">
-<FileText className="w-5 h-5 text-blue-400 shrink-0" /> Record Result
-</h3>
-<p className="text-[11px] text-slate-400 truncate">{selectedTest.patient?.name || selectedTest.patientId} · {selectedTest.testType}</p>
-</div>
-<div className="flex items-center gap-1 shrink-0">
-<button
-onClick={() => setPrintTest(selectedTest)}
-className="px-3 py-1.5 text-xs font-bold bg-white/10 hover:bg-white/20 rounded-lg"
-title="Preview / Print Report"
->
-Print
-</button>
-<button onClick={() => setSelectedTest(null)} className="p-1 hover:bg-white/10 rounded-lg">
-<X className="w-5 h-5" />
-</button>
-</div>
-</div>
-<div className="flex-1 overflow-y-auto p-6 space-y-6 max-w-3xl w-full mx-auto">
-<div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-<p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Patient Details</p>
-<div className="flex justify-between items-center">
-<div>
-<p className="font-bold text-slate-900">{selectedTest.patient?.name}</p>
-<p className="text-xs text-slate-500">Test: <span className="text-blue-600 font-bold">{selectedTest.testType}</span></p>
-</div>
-<button 
-onClick={() => {
-setHistoryPatientId(selectedTest.patientId);
-setShowHistory(true);
-}}
-className="p-2 bg-white border border-slate-200 rounded-lg text-slate-600 hover:text-blue-600 transition-colors"
-title="View Patient History"
->
-<History className="w-4 h-4" />
-</button>
-</div>
-</div>
-<div className="space-y-2">
-<label className="text-sm font-bold text-slate-700">Report Form Type</label>
-<select
-value={activeReportType}
-onChange={e => setActiveReportType(e.target.value as 'legacy' | 'basic' | 'comprehensive')}
-className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none"
->
-<option value="legacy">Free-form (legacy grid)</option>
-<option value="basic">Basic Lab Request Form</option>
-<option value="comprehensive">Comprehensive Lab Report</option>
-</select>
-<p className="text-[10px] text-slate-400">Pick whichever template matches this test — this can be changed regardless of how the test was requested.</p>
-</div>
-<div className="space-y-4">
-{activeReportType === 'comprehensive' ? (
-<div className="space-y-3">
-<LabReportEditor
-test={selectedTest}
-panelResults={panelResults}
-onUpdatePanelField={updatePanelField}
-onUpdateSensitivity={updateSensitivity}
-onUpdateCultureCell={updateCultureCell}
-notes={result}
-onNotesChange={setResult}
-/>
-</div>
-) : (
-<>
-<div className="flex items-center justify-between">
-<label className="text-sm font-bold text-slate-700">Standard Lab Form (Grid)</label>
-<button 
-onClick={addLabRow}
-className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1"
->
-<Plus className="w-3 h-3" /> Add Parameter
-</button>
-</div>
-<div className="border border-slate-200 rounded-xl overflow-hidden">
-<table className="w-full text-left border-collapse">
-<thead>
-<tr className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
-<th className="px-3 py-2">Parameter</th>
-<th className="px-3 py-2">Result</th>
-<th className="px-3 py-2">Range</th>
-<th className="px-3 py-2">Unit</th>
-<th className="px-3 py-2 w-8"></th>
-</tr>
-</thead>
-<tbody className="divide-y divide-slate-100">
-{labFormRows.map((row, idx) => (
-<tr key={idx}>
-<td className="px-2 py-1">
-<input 
-value={row.parameter}
-onChange={e => updateLabRow(idx, 'parameter', e.target.value)}
-className="w-full p-1 text-xs border-none focus:ring-1 focus:ring-blue-500 rounded outline-none"
-placeholder="e.g. WBC"
-/>
-</td>
-<td className="px-2 py-1">
-<input 
-value={row.result}
-onChange={e => updateLabRow(idx, 'result', e.target.value)}
-className="w-full p-1 text-xs border-none focus:ring-1 focus:ring-blue-500 rounded outline-none"
-placeholder="Value"
-/>
-</td>
-<td className="px-2 py-1">
-<input 
-value={row.range}
-onChange={e => updateLabRow(idx, 'range', e.target.value)}
-className="w-full p-1 text-xs border-none focus:ring-1 focus:ring-blue-500 rounded outline-none"
-placeholder="Range"
-/>
-</td>
-<td className="px-2 py-1">
-<input 
-value={row.unit}
-onChange={e => updateLabRow(idx, 'unit', e.target.value)}
-className="w-full p-1 text-xs border-none focus:ring-1 focus:ring-blue-500 rounded outline-none"
-placeholder="Unit"
-/>
-</td>
-<td className="px-2 py-1">
-<button 
-onClick={() => removeLabRow(idx)}
-className="text-slate-300 hover:text-red-500 transition-colors"
->
-<X className="w-3 h-3" />
-</button>
-</td>
-</tr>
-))}
-</tbody>
-</table>
-</div>
-<div className="space-y-2">
-<label className="text-sm font-bold text-slate-700">Additional Observations</label>
-<textarea
-value={result}
-onChange={e => setResult(e.target.value)}
-className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none min-h-[100px]"
-placeholder="Enter any additional notes..."
-/>
-</div>
-</>
-)}
-<div className="space-y-4 border-t border-slate-100 pt-4">
-<div className="flex items-center justify-between">
-<label className="text-sm font-bold text-slate-700 flex items-center gap-2">
-<Plus className="w-4 h-4" /> Attach Image (Optional)
-</label>
-<button
-type="button"
-onClick={() => setShowImageUpload(!showImageUpload)}
-className="text-xs font-bold text-blue-600 hover:text-blue-800"
->
-{showImageUpload ? 'Cancel Upload' : 'Add Image (Lab Result)'}
-</button>
-</div>
-{showImageUpload && (
-<div className="flex items-center justify-center w-full">
-<label className="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-300 border-dashed rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
-<div className="flex flex-col items-center justify-center pt-5 pb-6">
-<Plus className="w-8 h-8 text-slate-400 mb-2" />
-<p className="text-sm text-slate-500 font-bold">Click to upload image</p>
-</div>
-<input 
-type="file" 
-className="hidden" 
-accept="image/*"
-onChange={(e) => {
-const file = e.target.files?.[0];
-if (file) {
-if (file.size > 1000000) {
-toast.error('Image too large (max 1MB)');
-return;
-}
-const reader = new FileReader();
-reader.onloadend = () => {
-setImageUrl(reader.result as string);
-};
-reader.readAsDataURL(file);
-}
-}}
-/>
-</label>
-</div>
-)}
-{imageUrl && (
-<div className="relative w-full h-48 rounded-xl overflow-hidden border border-slate-200">
-<img src={imageUrl} alt="Attachment" className="w-full h-full object-cover" />
-<button
-type="button"
-onClick={() => setImageUrl('')}
-className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded-lg hover:bg-red-700"
->
-<X className="w-4 h-4" />
-</button>
-</div>
-)}
-</div>
-</div>
-<div className="flex items-center gap-3 p-3 bg-orange-50 border border-orange-100 rounded-xl">
-<CreditCard className="w-5 h-5 text-orange-500" />
-<div className="text-xs">
-<p className="font-bold text-orange-700 uppercase">Payment Status</p>
-<p className="text-orange-600">This test is <span className="font-bold">{selectedTest.paymentStatus}</span></p>
-</div>
-</div>
-<button
-onClick={handleSaveResult}
-className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2"
->
-<Save className="w-5 h-5" />
-Save Result
-</button>
-</div>
-</motion.div>
-) : (
-<div className="bg-slate-100 rounded-2xl border-2 border-dashed border-slate-200 p-12 text-center flex flex-col items-center justify-center h-[400px]">
-<FlaskConical className="w-12 h-12 text-slate-300 mb-4" />
-<p className="text-slate-400 font-medium">Select a test from the queue to record results.</p>
-</div>
-)}
-</AnimatePresence>
-</div>
 </div>
 )}
 {/* Patient History Modal */}
 <AnimatePresence>
 {showHistory && historyPatientId && (
-<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+<div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
 <div className="w-full max-w-5xl my-8">
 <PatientHistory 
 patientId={historyPatientId} 
@@ -1561,8 +1289,8 @@ confirmText="Remove"
 onConfirm={handleDeleteCatalogTest}
 onCancel={() => setDeletingCatalogTest(null)}
 />
-{printTest && (
-<LabReportPrint test={printTest} onClose={() => setPrintTest(null)} />
+{printTests && (
+<LabReportPrint tests={printTests} onClose={() => setPrintTests(null)} />
 )}
 </div>
 );
