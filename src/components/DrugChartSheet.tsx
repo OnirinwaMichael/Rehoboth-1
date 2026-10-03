@@ -1,6 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { Patient, Admission, DrugChartGrid, DrugChartGridRow } from '../types';
-import { Plus, Save } from 'lucide-react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { format } from 'date-fns';
+import { Patient, Admission, DrugChartGrid, DrugChartGridRow, DrugChartGivenMark } from '../types';
+import { Check, Plus, Save } from 'lucide-react';
+import { useAuth } from '../lib/auth';
+import { logAction } from '../lib/audit';
+import { ConfirmModal } from './ConfirmModal';
 import { FullScreenSheet } from './FullScreenSheet';
 import { supabase, handleSupabaseError } from '../lib/supabase';
 import { toast } from 'sonner';
@@ -35,9 +39,40 @@ const gridFromRow = (r: any): DrugChartGrid => ({
 const blankRow = (columnCount: number): DrugChartGridRow => ({
   date: '',
   cells: Array(columnCount).fill(''),
+  given: Array(columnCount).fill(null),
 });
 
+const givenAt = (row: DrugChartGridRow, col: number): DrugChartGivenMark | null => row.given?.[col] ?? null;
+
+// A text box that grows with what is typed, so a long drug name or dose is
+// always fully visible and wraps inside its cell instead of being cut off.
+const GrowText: React.FC<{
+  value: string; onChange: (v: string) => void; className?: string; readOnly?: boolean; ariaLabel?: string;
+}> = ({ value, onChange, className, readOnly, ariaLabel }) => {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      value={value}
+      readOnly={readOnly}
+      aria-label={ariaLabel}
+      onChange={e => onChange(e.target.value)}
+      className={`${className || ''} resize-none overflow-hidden block break-words whitespace-pre-wrap`}
+    />
+  );
+};
+
 export const DrugChartSheet: React.FC<Props> = ({ patient, admission, userId, onClose }) => {
+  const { user } = useAuth();
+  const [untickTarget, setUntickTarget] = useState<{ row: number; col: number } | null>(null);
+  const [ticking, setTicking] = useState(false);
   const [grid, setGrid] = useState<DrugChartGrid | null>(null);
   const [headerRow, setHeaderRow] = useState<string[]>(Array(DEFAULT_COLUMN_COUNT).fill(''));
   const [rows, setRows] = useState<DrugChartGridRow[]>(
@@ -98,13 +133,70 @@ export const DrugChartSheet: React.FC<Props> = ({ patient, admission, userId, on
 
   const addColumn = () => {
     setHeaderRow(prev => [...prev, '']);
-    setRows(prev => prev.map(r => ({ ...r, cells: [...r.cells, ''] })));
+    setRows(prev => prev.map(r => ({ ...r, cells: [...r.cells, ''], given: [...(r.given ?? Array(r.cells.length).fill(null)), null] })));
     setDirty(true);
   };
 
   const addRow = () => {
     setRows(prev => [...prev, blankRow(headerRow.length)]);
     setDirty(true);
+  };
+
+  const persist = async (nextHeader: string[], nextRows: DrugChartGridRow[]) => {
+    const { data, error } = await supabase
+      .from('drug_chart_grids')
+      .upsert({
+        admission_id: admission.id,
+        patient_id: patient.cardId,
+        header_row: nextHeader,
+        rows: nextRows,
+        created_by: grid?.createdBy || userId,
+      }, { onConflict: 'admission_id' })
+      .select()
+      .single();
+    if (error) { handleSupabaseError(error, 'upsert', 'drug_chart_grids'); return null; }
+    return gridFromRow(data);
+  };
+
+  // Ticking saves straight away: the chart is filled in once for the whole admission
+  // and each shift's nurse ticks off what was given, so a tick must not wait for Save.
+  const toggleGiven = async (rowIndex: number, colIndex: number) => {
+    if (ticking) return;
+    setTicking(true);
+    try {
+      let baseHeader = headerRow;
+      let baseRows = rows;
+      if (!dirty) {
+        // Start from the latest saved chart so another nurse's ticks are not overwritten.
+        const { data, error } = await supabase.from('drug_chart_grids').select('*').eq('admission_id', admission.id).maybeSingle();
+        if (error) { handleSupabaseError(error, 'select', 'drug_chart_grids'); return; }
+        if (data) { const g = gridFromRow(data); baseHeader = g.headerRow; baseRows = g.rows; }
+      }
+      const target = baseRows[rowIndex];
+      if (!target || !(target.cells[colIndex] || '').trim()) { toast.error('Nothing written in that cell yet.'); return; }
+      const wasGiven = !!givenAt(target, colIndex);
+      const mark: DrugChartGivenMark | null = wasGiven
+        ? null
+        : { by: userId, byName: user?.name || 'Staff', at: new Date().toISOString() };
+      const nextRows = baseRows.map((r, i) => {
+        if (i !== rowIndex) return r;
+        const given = [...(r.given ?? Array(r.cells.length).fill(null))];
+        given[colIndex] = mark;
+        return { ...r, given };
+      });
+      const saved = await persist(baseHeader, nextRows);
+      if (!saved) return;
+      setGrid(saved);
+      setHeaderRow(saved.headerRow);
+      setRows(saved.rows);
+      setDirty(false);
+      const label = (target.cells[colIndex] || '').trim().slice(0, 60);
+      await logAction(userId, mark ? 'DRUG_CHART_GIVEN' : 'DRUG_CHART_UNGIVEN',
+        `${mark ? 'Marked given' : 'Cleared given mark on'} "${label}" for patient ${patient.cardId}`);
+      toast.success(mark ? 'Marked as given.' : 'Given mark cleared.');
+    } finally {
+      setTicking(false);
+    }
   };
 
   const handleSave = async () => {
@@ -128,7 +220,7 @@ export const DrugChartSheet: React.FC<Props> = ({ patient, admission, userId, on
     toast.success('Drug chart saved.');
   };
 
-  const cellClass = "w-full h-full px-2 py-2 text-xs text-center outline-none focus:bg-blue-50 border-l border-slate-300 first:border-l-0 bg-transparent";
+  const cellClass = "w-full px-2 py-2 text-xs text-center outline-none focus:bg-blue-50 bg-transparent";
 
   return (
     <FullScreenSheet
@@ -186,11 +278,12 @@ export const DrugChartSheet: React.FC<Props> = ({ patient, admission, userId, on
                     Date:
                   </th>
                   {headerRow.map((val, colIndex) => (
-                    <th key={colIndex} className="p-0 min-w-[70px] border-l border-slate-300 first:border-l-0">
-                      <input
+                    <th key={colIndex} className="p-0 min-w-[96px] align-top border-l border-slate-300 first:border-l-0">
+                      <GrowText
                         value={val}
-                        onChange={e => updateHeaderCell(colIndex, e.target.value)}
-                        className={cellClass + " font-bold border-l-0"}
+                        onChange={v => updateHeaderCell(colIndex, v)}
+                        ariaLabel={`Column ${colIndex + 1} heading`}
+                        className={cellClass + " font-bold"}
                       />
                     </th>
                   ))}
@@ -199,22 +292,52 @@ export const DrugChartSheet: React.FC<Props> = ({ patient, admission, userId, on
               <tbody>
                 {rows.map((row, rowIndex) => (
                   <tr key={rowIndex} className="border-b border-slate-300">
-                    <td className="p-0 border-r border-slate-300 min-w-[90px]">
-                      <input
+                    <td className="p-0 align-top border-r border-slate-300 min-w-[90px]">
+                      <GrowText
                         value={row.date}
-                        onChange={e => updateDateCell(rowIndex, e.target.value)}
-                        className="w-full h-full px-2 py-2 text-xs outline-none focus:bg-blue-50 bg-transparent"
+                        onChange={v => updateDateCell(rowIndex, v)}
+                        ariaLabel={`Row ${rowIndex + 1} date`}
+                        className="w-full px-2 py-2 text-xs outline-none focus:bg-blue-50 bg-transparent"
                       />
                     </td>
-                    {row.cells.map((val, colIndex) => (
-                      <td key={colIndex} className="p-0 min-w-[70px] border-l border-slate-300 first:border-l-0">
-                        <input
-                          value={val}
-                          onChange={e => updateDataCell(rowIndex, colIndex, e.target.value)}
-                          className={cellClass}
-                        />
-                      </td>
-                    ))}
+                    {row.cells.map((val, colIndex) => {
+                      const mark = givenAt(row, colIndex);
+                      return (
+                        <td
+                          key={colIndex}
+                          className={`p-0 align-top min-w-[96px] border-l border-slate-300 first:border-l-0 ${mark ? 'bg-emerald-50' : ''}`}
+                        >
+                          <GrowText
+                            value={val}
+                            readOnly={!!mark}
+                            onChange={v => updateDataCell(rowIndex, colIndex, v)}
+                            ariaLabel={`Row ${rowIndex + 1}, column ${colIndex + 1}`}
+                            className={cellClass}
+                          />
+                          {val.trim() && (
+                            <div className="px-1 pb-1.5 flex flex-col items-center gap-0.5">
+                              <button
+                                type="button"
+                                disabled={ticking}
+                                onClick={() => (mark ? setUntickTarget({ row: rowIndex, col: colIndex }) : toggleGiven(rowIndex, colIndex))}
+                                className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold border transition-colors disabled:opacity-50 ${
+                                  mark
+                                    ? 'bg-emerald-600 text-white border-emerald-600'
+                                    : 'bg-white text-slate-500 border-slate-300 hover:border-emerald-500 hover:text-emerald-700'
+                                }`}
+                              >
+                                <Check className="w-3 h-3" /> {mark ? 'Given' : 'Mark given'}
+                              </button>
+                              {mark && (
+                                <span className="text-[9px] leading-tight text-emerald-800 text-center">
+                                  {mark.byName} · {format(new Date(mark.at), 'd MMM, HH:mm')}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
@@ -242,8 +365,23 @@ export const DrugChartSheet: React.FC<Props> = ({ patient, admission, userId, on
               Unsaved changes — tap Save above.
             </p>
           )}
+          <p className="text-center text-[11px] text-slate-400 mt-2">
+            Tap "Mark given" when a dose has been given. It saves at once with your name and the time. A given entry is locked; clear its mark to edit it.
+          </p>
         </div>
       )}
+      <ConfirmModal
+        isOpen={!!untickTarget}
+        title="Clear given mark?"
+        message="This removes the record of who gave this and when, and unlocks the entry for editing."
+        confirmText="Clear mark"
+        onConfirm={() => {
+          const t = untickTarget;
+          setUntickTarget(null);
+          if (t) toggleGiven(t.row, t.col);
+        }}
+        onCancel={() => setUntickTarget(null)}
+      />
     </FullScreenSheet>
   );
 };

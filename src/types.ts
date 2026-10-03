@@ -176,9 +176,18 @@ timeOfDay: 'Night' | 'Morning' | 'Afternoon';
 administeredBy: string;
 administeredAt: string;
 }
+// Who marked a drug entry as given, and when. Stored beside the cell text
+// inside the row's JSON, so no schema change is needed.
+export interface DrugChartGivenMark {
+by: string;
+byName: string;
+at: string;
+}
 export interface DrugChartGridRow {
 date: string;
 cells: string[];
+// Parallel to `cells`; null/missing = not yet given. Older saved rows have no `given`.
+given?: (DrugChartGivenMark | null)[];
 }
 export interface DrugChartGrid {
 id: string;
