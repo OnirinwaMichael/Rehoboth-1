@@ -37,6 +37,5 @@ begin
   return NEW;
 end $fn$;
 
-drop trigger if exists trg_lab_result_payment_gate on public.lab_tests;
 create trigger trg_lab_result_payment_gate before insert or update on public.lab_tests
   for each row execute function public.guard_lab_result_payment();
