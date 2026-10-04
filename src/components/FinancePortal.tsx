@@ -11,6 +11,7 @@ import { PatientHistory } from './PatientHistory';
 import { motion, AnimatePresence } from 'motion/react';
 import { useFormDraft } from '../hooks/useFormDraft';
 import { ConfirmModal } from './ConfirmModal';
+import { useAuth } from '../lib/auth';
 // One row of the pending_bills_summary() database function: every unpaid item for a
 // patient (consultation, lab tests, prescriptions, visits), whether or not any payment
 // has been recorded against it yet.
@@ -51,10 +52,11 @@ interface Props {
 userId: string;
 section: 'patients' | 'finance' | 'reconciliation' | 'expenses' | 'reports';
 }
-const TransactionRow = memo(({ record, onPrint, onDelete }: { 
+const TransactionRow = memo(({ record, onPrint, onDelete, canDelete }: { 
 record: FinancialRecord & { patient?: Patient }, 
 onPrint: (record: FinancialRecord & { patient?: Patient }) => void,
-onDelete: (id: string) => void 
+onDelete: (id: string) => void,
+canDelete: boolean
 }) => (
 <tr className="hover:bg-slate-50 transition-colors group">
 <td className="px-6 py-4">
@@ -100,6 +102,7 @@ title="Print Receipt"
 >
 <Receipt className="w-4 h-4" />
 </button>
+{canDelete && (
 <button
 onClick={() => onDelete(record.id)}
 className="p-2 hover:bg-red-100 text-red-600 rounded-lg transition-colors"
@@ -107,15 +110,17 @@ title="Delete Transaction"
 >
 <Trash2 className="w-4 h-4" />
 </button>
+)}
 </div>
 </td>
 </tr>
 ));
 // Phone layout of a transaction (same data and actions as TransactionRow, stacked as a card).
-const TransactionCard = memo(({ record, onPrint, onDelete }: {
+const TransactionCard = memo(({ record, onPrint, onDelete, canDelete }: {
 record: FinancialRecord & { patient?: Patient },
 onPrint: (record: FinancialRecord & { patient?: Patient }) => void,
-onDelete: (id: string) => void
+onDelete: (id: string) => void,
+canDelete: boolean
 }) => (
 <div className="p-4 space-y-3">
 <div className="flex items-start justify-between gap-3">
@@ -167,18 +172,21 @@ className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-
 >
 <Receipt className="w-4 h-4" /> Receipt
 </button>
+{canDelete && (
 <button
 onClick={() => onDelete(record.id)}
 className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-red-50 text-red-700 font-bold text-sm active:bg-red-100"
 >
 <Trash2 className="w-4 h-4" /> Delete
 </button>
+)}
 </div>
 </div>
 ));
-const ExpenseRow = memo(({ expense, onDelete }: { 
+const ExpenseRow = memo(({ expense, onDelete, canDelete }: { 
 expense: Expense, 
-onDelete: (id: string) => void 
+onDelete: (id: string) => void,
+canDelete: boolean
 }) => (
 <tr className="hover:bg-slate-50 transition-colors">
 <td className="px-6 py-4 text-sm text-slate-600">
@@ -192,16 +200,21 @@ onDelete: (id: string) => void
 </td>
 <td className="px-6 py-4 font-bold text-red-600">₦{expense.amount.toLocaleString()}</td>
 <td className="px-6 py-4 text-right">
+{canDelete && (
 <button
 onClick={() => onDelete(expense.id)}
 className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
 >
 <Trash2 className="w-4 h-4" />
 </button>
+)}
 </td>
 </tr>
 ));
 export const FinancePortal: React.FC<Props> = ({ userId, section }) => {
+// Only the CMD may delete payments and expenses (the database enforces this too).
+const { user: authUser } = useAuth();
+const canDelete = authUser?.role === 'CMD';
 const [records, setRecords] = useState<(FinancialRecord & { patient?: Patient })[]>([]);
 const [expenses, setExpenses] = useState<Expense[]>([]);
 const [loading, setLoading] = useState(true);
@@ -518,13 +531,17 @@ toast.success('Expense recorded successfully');
 clearExpenseDraft();
 };
 const handleDeleteExpense = async (id: string) => {
-const { error } = await supabase.from('expenses').delete().eq('id', id);
+if (!canDelete) { toast.error('Only the CMD can delete expenses.'); return; }
+const { data, error } = await supabase.from('expenses').delete().eq('id', id).select('id');
 if (error) return handleSupabaseError(error, 'delete', 'expenses');
+if (!data || data.length === 0) { toast.error('Nothing was deleted. Only the CMD can delete expenses.'); return; }
 toast.success('Expense deleted');
 };
 const handleDeleteTransaction = async (id: string) => {
-const { error } = await supabase.from('financials').delete().eq('id', id);
+if (!canDelete) { toast.error('Only the CMD can delete transactions.'); return; }
+const { data, error } = await supabase.from('financials').delete().eq('id', id).select('id');
 if (error) return handleSupabaseError(error, 'delete', 'financials');
+if (!data || data.length === 0) { toast.error('Nothing was deleted. Only the CMD can delete transactions.'); return; }
 await logAction(userId, 'DELETE_TRANSACTION', `Deleted transaction ${id}`);
 toast.success('Transaction deleted successfully');
 };
@@ -861,6 +878,7 @@ Pay
 <TransactionCard
 key={record.id || idx}
 record={record}
+canDelete={canDelete}
 onPrint={handlePrint}
 onDelete={(id) => setDeleteConfirm({ type: 'transaction', id })}
 />
@@ -886,6 +904,7 @@ onDelete={(id) => setDeleteConfirm({ type: 'transaction', id })}
 <TransactionRow 
 key={record.id || idx} 
 record={record} 
+canDelete={canDelete}
 onPrint={handlePrint}
 onDelete={(id) => setDeleteConfirm({ type: 'transaction', id })}
 />
@@ -1088,6 +1107,7 @@ Save Expense
 </div>
 <p className="text-lg font-black text-red-600">₦{expense.amount.toLocaleString()}</p>
 </div>
+{canDelete && (
 <button
 onClick={() => setDeleteConfirm({ type: 'expense', id: expense.id })}
 aria-label="Delete expense"
@@ -1095,6 +1115,7 @@ className="p-3 rounded-xl bg-red-50 text-red-700 active:bg-red-100 shrink-0"
 >
 <Trash2 className="w-5 h-5" />
 </button>
+)}
 </div>
 ))}
 {expenses.length === 0 && (
@@ -1117,6 +1138,7 @@ className="p-3 rounded-xl bg-red-50 text-red-700 active:bg-red-100 shrink-0"
 {expenses.map((expense, idx) => (
 <ExpenseRow 
 key={expense.id || idx} 
+canDelete={canDelete}
 expense={expense} 
 onDelete={(id) => setDeleteConfirm({ type: 'expense', id })}
 />
