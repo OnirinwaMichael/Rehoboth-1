@@ -14,6 +14,7 @@ import { useFormDraft } from '../hooks/useFormDraft';
 import { ConfirmModal } from './ConfirmModal';
 import { LabReportPrint } from './LabReportPrint';
 import { LabGroupEntryPanel, LabTestX, isLabTestLocked } from './LabGroupEntryPanel';
+import { paymentRecorded } from '../lib/paymentGate';
 import { LabRequestFormPaper } from './LabRequestFormPaper';
 import { buildPaperValues, toRequestDetails, PaperValues } from '../lib/labRequestForm';
 import { LabResultFormSheet } from './LabResultFormSheet';
@@ -35,10 +36,10 @@ interface Props {
 userId: string;
 }
 interface LabGroup { key: string; tests: LabTestX[] }
-const paymentChip = (label: string, tone: 'green' | 'orange' | 'slate') => (
+const paymentChip = (label: string, tone: 'green' | 'orange' | 'slate' | 'blue') => (
 <span className={cn(
 "text-[10px] font-bold px-2 py-1 rounded-full uppercase whitespace-nowrap",
-tone === 'green' ? "bg-green-100 text-green-600" : tone === 'orange' ? "bg-orange-100 text-orange-600" : "bg-slate-100 text-slate-500"
+tone === 'green' ? "bg-green-100 text-green-600" : tone === 'orange' ? "bg-orange-100 text-orange-600" : tone === 'blue' ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-500"
 )}>{label}</span>
 );
 const LabGroupRow = memo(({ group, onOpen, onDelete, onPrint }: {
@@ -54,13 +55,16 @@ const multi = tests.length > 1;
 const done = tests.filter(t => !!t.result).length;
 const billable = tests.filter(t => (Number(t.price) || 0) > 0);
 const unpaid = billable.filter(t => t.paymentStatus !== 'paid').length;
+const awaiting = billable.filter(t => !paymentRecorded(t.paymentStatus)).length;
 const payment = billable.length === 0
 ? paymentChip('no charge', 'slate')
 : unpaid === 0
 ? paymentChip('paid', 'green')
+: awaiting === 0
+? paymentChip('part paid · balance owing', 'blue')
 : !multi
 ? paymentChip(first.paymentStatus, 'orange')
-: paymentChip(unpaid === billable.length ? 'pending' : `${unpaid} of ${billable.length} unpaid`, 'orange');
+: paymentChip(awaiting === billable.length ? 'pending' : `${awaiting} of ${billable.length} unpaid`, 'orange');
 const statusDone = (
 <span className="flex items-center gap-1 text-green-600 text-xs font-bold"><CheckCircle className="w-3 h-3" /> Completed</span>
 );
@@ -133,7 +137,7 @@ title="Delete Lab Result"
 <td className="px-6 py-2 text-xs font-semibold text-slate-700">{t.testType}</td>
 <td className="px-6 py-2">
 {(Number(t.price) || 0) > 0
-? paymentChip(t.paymentStatus, t.paymentStatus === 'paid' ? 'green' : 'orange')
+? paymentChip(t.paymentStatus === 'partial' ? 'part paid' : t.paymentStatus, t.paymentStatus === 'paid' ? 'green' : t.paymentStatus === 'partial' ? 'blue' : 'orange')
 : paymentChip('no charge', 'slate')}
 </td>
 <td className="px-6 py-2">{t.result ? statusDone : isLabTestLocked(t) ? statusPending('Awaiting payment') : statusPending('Pending')}</td>

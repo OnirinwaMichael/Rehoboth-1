@@ -9,6 +9,7 @@ import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { logAction } from '../lib/audit';
 import { groupPrescriptions } from '../lib/groupPrescriptions';
+import { paymentRecorded } from '../lib/paymentGate';
 import { PharmacyRxGroupCard } from './PharmacyRxGroupCard';
 const patientFromRow = (r: any): Patient => ({
 cardId: r.card_id, name: r.name, gender: r.gender,
@@ -297,11 +298,11 @@ if (done === items.length) toast.success(`Quantities confirmed for ${done} drug$
 else toast.warning(`Confirmed ${done} of ${items.length}. Check the ones that failed.`);
 } finally { setRxBusy(false); }
 };
-// One drug's dispensing, with the same gates as before: quantity confirmed, paid (or free), not expired.
+// One drug's dispensing: quantity confirmed, a payment recorded by the receptionist (full or part, or free), not expired.
 const dispenseOne = async (rx: Prescription, quiet = false): Promise<{ ok: boolean; shortWarning?: string }> => {
 const isFree = (rx.drugPrice || 0) * (rx.quantity || 1) === 0;
 if (!rx.quantityConfirmed) { toast.error(`${rx.drugName}: confirm the quantity before dispensing.`); return { ok: false }; }
-if (rx.paymentStatus !== 'paid' && !isFree) { toast.error(`${rx.drugName}: payment must be completed before dispensing.`); return { ok: false }; }
+if (!paymentRecorded(rx.paymentStatus) && !isFree) { toast.error(`${rx.drugName}: the receptionist must record a payment before dispensing.`); return { ok: false }; }
 if (isRxExpired(rx)) { toast.error(`${rx.drugName} is expired — update stock first.`); return { ok: false }; }
 const drug = inventory.find(d => d.name.toLowerCase() === rx.drugName.toLowerCase());
 const shortBy = !!drug && !!drug.stockVerified && (drug.stock || 0) < rx.quantity;

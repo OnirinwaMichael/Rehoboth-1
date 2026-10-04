@@ -4,6 +4,7 @@ import { Check, ChevronDown, ChevronRight, Pill } from 'lucide-react';
 import { Patient, Prescription } from '../types';
 import { RxGroup, summariseGroup } from '../lib/groupPrescriptions';
 import { cn } from '../lib/utils';
+import { paymentRecorded } from '../lib/paymentGate';
 
 export type RxWithPatient = Prescription & { patient?: Patient };
 
@@ -20,14 +21,16 @@ interface Props {
 }
 
 const isFree = (rx: Prescription) => (rx.drugPrice || 0) * (rx.quantity || 1) === 0;
-const needsPayment = (rx: Prescription) => rx.paymentStatus !== 'paid' && !isFree(rx);
+// Dispensing opens once the receptionist has recorded a payment, full or part.
+// A part-paid drug can go out; the balance stays in Finance > Pending Bills.
+const needsPayment = (rx: Prescription) => !paymentRecorded(rx.paymentStatus) && !isFree(rx);
 
 // The one reason a drug can't be dispensed yet (same order the single-drug button used).
 export const dispenseBlocker = (rx: Prescription, expired: boolean): string | null => {
   if (rx.dispensed) return null;
   if (expired) return 'Drug expired — update stock';
   if (!rx.quantityConfirmed) return 'Confirm quantity first';
-  if (needsPayment(rx)) return 'Awaiting full payment';
+  if (needsPayment(rx)) return 'Awaiting payment';
   return null;
 };
 
@@ -131,8 +134,11 @@ export const PharmacyRxGroupCard: React.FC<Props> = ({
                 <span className="font-bold text-slate-900 flex-1 min-w-0 break-words">{rx.drugName}</span>
                 {rx.quantityConfirmed && <span className="text-[10px] font-bold uppercase text-green-700 shrink-0">✓ qty</span>}
                 {!blocker && <span className="text-[10px] font-bold uppercase text-emerald-700 shrink-0">ready</span>}
-                {blocker === 'Awaiting full payment' && (
+                {blocker === 'Awaiting payment' && (
                   <span className="text-[10px] font-bold uppercase text-yellow-700 shrink-0">unpaid</span>
+                )}
+                {rx.paymentStatus === 'partial' && (
+                  <span className="text-[10px] font-bold uppercase text-blue-600 shrink-0">balance owing</span>
                 )}
                 {expired && <span className="text-[10px] font-bold uppercase text-red-600 shrink-0">expired</span>}
               </button>

@@ -191,6 +191,10 @@ const [globalLabTests, setGlobalLabTests] = useState<(LabTest & { patient?: Pati
 // "Recent Clinical Activity" panel and the Records-Today drill-through —
 // distinct from `records`, which stays scoped to the one selected patient.
 const [globalRecords, setGlobalRecords] = useState<(MedicalRecord & { patient?: Patient })[]>([]);
+// Drugs per consultation for the Records list, so each consultation shows as one request
+// (its lab tests and its drugs together), the same way Pharmacy and the patient file do.
+const [globalRx, setGlobalRx] = useState<{ id: string; recordId: string; drugName: string; quantity: number; paymentStatus: string; dispensed: boolean }[]>([]);
+const [expandedGlobalRecord, setExpandedGlobalRecord] = useState<string | null>(null);
 const [globalAdmissions, setGlobalAdmissions] = useState<(Admission & { patient?: Patient })[]>([]);
 const [labResultsFilter, setLabResultsFilter] = useState<'all' | 'pending'>('all');
 const [labResultsSearch, setLabResultsSearch] = useState('');
@@ -383,12 +387,16 @@ fetchGlobalLabTests();
 fetchWeeklyRecordActivity();
 fetchActiveAdmissionsCount();
 fetchGlobalRecords();
+fetchGlobalRx();
 fetchGlobalAdmissions();
 fetchAllPatients();
 const channel = supabase
 .channel('lab-tests-changes')
 .on('postgres_changes', { event: '*', schema: 'public', table: 'lab_tests' }, () => {
 fetchGlobalLabTests();
+})
+.on('postgres_changes', { event: '*', schema: 'public', table: 'prescriptions' }, () => {
+fetchGlobalRx();
 })
 .on('postgres_changes', { event: '*', schema: 'public', table: 'medical_records' }, () => {
 fetchStats();
@@ -417,6 +425,19 @@ const testsWithPatients = (data || []).map((row: any) => ({
 patient: row.patients ? patientFromRow(row.patients) : undefined,
 }));
 setGlobalLabTests(testsWithPatients);
+};
+const fetchGlobalRx = async () => {
+const { data, error } = await supabase
+.from('prescriptions')
+.select('id, record_id, drug_name, quantity, payment_status, dispensed')
+.not('record_id', 'is', null)
+.order('created_at', { ascending: true })
+.limit(2000);
+if (error) return handleSupabaseError(error, 'select', 'prescriptions');
+setGlobalRx((data || []).map((r: any) => ({
+id: r.id, recordId: r.record_id, drugName: r.drug_name, quantity: r.quantity,
+paymentStatus: r.payment_status, dispensed: !!r.dispensed,
+})));
 };
 const fetchGlobalRecords = async () => {
 fetchFamilyNames();
@@ -922,12 +943,18 @@ placeholder="Search patient or Card ID"
 <th className="pb-4 font-bold">Date</th>
 <th className="pb-4 font-bold">Patient</th>
 <th className="pb-4 font-bold">Diagnosis</th>
+<th className="pb-4 font-bold">Request</th>
 <th className="pb-4 font-bold">Payment</th>
 </tr>
 </thead>
 <tbody className="divide-y divide-slate-50">
-{filteredGlobalRecords.map((record) => (
-<tr key={record.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => record.patient && selectPatientDirectly(record.patient)}>
+{filteredGlobalRecords.map((record) => {
+const recTests = globalLabTests.filter(t => t.recordId === record.id);
+const recDrugs = globalRx.filter(d => d.recordId === record.id);
+const recOpen = expandedGlobalRecord === record.id;
+return (
+<React.Fragment key={record.id}>
+<tr className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => record.patient && selectPatientDirectly(record.patient)}>
 <td className="py-4 text-sm text-slate-600">{format(new Date(record.createdAt), 'MMM d, yyyy HH:mm')}</td>
 <td className="py-4">
 <div className="flex items-center gap-3">
@@ -945,15 +972,65 @@ placeholder="Search patient or Card ID"
 </td>
 <td className="py-4 text-sm text-slate-600 max-w-xs truncate">{record.diagnosis || 'General Checkup'}</td>
 <td className="py-4">
+{recTests.length + recDrugs.length > 0 ? (
+<button
+type="button"
+onClick={(e) => { e.stopPropagation(); setExpandedGlobalRecord(recOpen ? null : record.id); }}
+className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:underline whitespace-nowrap"
+>
+{[recTests.length > 0 && `${recTests.length} test${recTests.length === 1 ? '' : 's'}`, recDrugs.length > 0 && `${recDrugs.length} drug${recDrugs.length === 1 ? '' : 's'}`].filter(Boolean).join(' · ')}
+{recOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+</button>
+) : (
+<span className="text-xs text-slate-300">None</span>
+)}
+</td>
+<td className="py-4">
 <span className={cn("px-3 py-1 rounded-full text-xs font-bold uppercase", record.paymentStatus === 'paid' ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700")}>
 {record.paymentStatus || 'pending'}
 </span>
 </td>
 </tr>
+{recOpen && (
+<tr className="bg-slate-50/60">
+<td colSpan={5} className="px-4 py-3">
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+{recTests.length > 0 && (
+<div>
+<p className="font-bold text-slate-400 uppercase mb-1">Lab tests</p>
+<div className="space-y-1">
+{recTests.map(t => (
+<div key={t.id} className="flex justify-between gap-2">
+<span className="font-semibold text-slate-700 break-words">{t.testType}</span>
+<span className={cn("font-bold uppercase shrink-0", t.result ? "text-green-600" : "text-orange-500")}>{t.result ? 'Result ready' : 'Pending'}</span>
+</div>
 ))}
+</div>
+</div>
+)}
+{recDrugs.length > 0 && (
+<div>
+<p className="font-bold text-slate-400 uppercase mb-1">Drugs</p>
+<div className="space-y-1">
+{recDrugs.map(d => (
+<div key={d.id} className="flex justify-between gap-2">
+<span className="font-semibold text-slate-700 break-words">{d.drugName} <span className="font-normal text-slate-400">x{d.quantity}</span></span>
+<span className={cn("font-bold uppercase shrink-0", d.dispensed ? "text-purple-600" : "text-slate-500")}>{d.dispensed ? 'Dispensed' : 'Not dispensed'}</span>
+</div>
+))}
+</div>
+</div>
+)}
+</div>
+</td>
+</tr>
+)}
+</React.Fragment>
+);
+})}
 {filteredGlobalRecords.length === 0 && (
 <tr>
-<td colSpan={4} className="py-8 text-center text-slate-400">No records found.</td>
+<td colSpan={5} className="py-8 text-center text-slate-400">No records found.</td>
 </tr>
 )}
 </tbody>

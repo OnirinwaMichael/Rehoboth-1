@@ -9,15 +9,16 @@ import { FullScreenSheet } from './FullScreenSheet';
 import { LabReportEditor } from './LabReportEditor';
 import { LabRequestFormPaper } from './LabRequestFormPaper';
 import { buildPaperValues, PaperValues, toRequestDetails } from '../lib/labRequestForm';
+import { paymentRecorded } from '../lib/paymentGate';
 import { ComprehensivePanelResults, emptyPanelResults } from '../data/labReportTemplates';
 
 export type LabTestX = LabTest & { patient?: Patient };
 
-// An unpaid test can't be filled in. Free tests (no price) never go through
-// billing, so they are not held back; neither is a test that already has a
-// result (e.g. a walk-in the lab recorded on the spot).
+// A test can't be filled in until the receptionist has recorded a payment (full or part).
+// Free tests (no price) never go through billing, so they are not held back; neither is a
+// test that already has a result (e.g. a walk-in the lab recorded on the spot).
 export const isLabTestLocked = (t: LabTest) =>
-  !t.result && t.paymentStatus !== 'paid' && (Number(t.price) || 0) > 0;
+  !t.result && !paymentRecorded(t.paymentStatus) && (Number(t.price) || 0) > 0;
 
 interface Draft {
   reportType: 'basic' | 'comprehensive';
@@ -339,7 +340,7 @@ export const LabGroupEntryPanel: React.FC<Props> = ({
                 <div className="flex items-start gap-3 p-4 bg-orange-50 border-t border-orange-100 text-xs">
                   <CreditCard className="w-5 h-5 text-orange-500 shrink-0" />
                   <p className="text-orange-700">
-                    <span className="font-bold uppercase">Unpaid.</span> This test can't be filled in until Accounts records the payment.
+                    <span className="font-bold uppercase">Unpaid.</span> This test can't be filled in until the receptionist records a payment (full or part).
                   </p>
                 </div>
               )}
