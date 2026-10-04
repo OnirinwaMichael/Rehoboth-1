@@ -1,1 +1,98 @@
 @import "tailwindcss";
+
+/* Base layer: phone-first readability and touch comfort. Visual only. */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+    color: #0f172a;
+  }
+
+  /* One consistent, visible keyboard/focus ring across every portal. */
+  :where(button, a, input, select, textarea, [role="button"]):focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+  }
+
+  button:not(:disabled),
+  [role="button"] {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  /* Touch screens: 16px form text stops mobile browsers zooming into fields,
+     and a little more room makes controls easier to hit. */
+  @media (pointer: coarse) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    select,
+    textarea {
+      font-size: 16px;
+    }
+
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+    select {
+      min-height: 44px;
+    }
+
+    /* Dense clinical grids (vitals, drug chart, lab result tables) keep their own sizing. */
+    table input,
+    table select,
+    table textarea {
+      font-size: inherit;
+      min-height: 0;
+    }
+  }
+
+  img {
+    max-width: 100%;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* Keeps fixed bars clear of phone notches and home indicators. */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Scrollable wide content (tables) with a thin, unobtrusive scrollbar. */
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Print output (receipts, lab reports, letterheads) must stay untouched by the
+   screen-only form sizing above. */
+@media print {
+  input,
+  select,
+  textarea {
+    min-height: 0 !important;
+  }
+}

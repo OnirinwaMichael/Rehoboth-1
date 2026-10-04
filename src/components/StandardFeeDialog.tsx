@@ -31,7 +31,7 @@ export const StandardFeeDialog: React.FC<Props> = ({ state, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/40 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
-      <div className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl p-6 space-y-4" onClick={e => e.stopPropagation()}>
+      <div className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl p-6 space-y-4 max-h-[92dvh] overflow-y-auto pb-safe" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h3 className="font-bold text-slate-900">Standard consultation fee</h3>
           <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>

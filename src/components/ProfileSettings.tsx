@@ -111,7 +111,7 @@ return (
 <motion.div
 initial={{ opacity: 0, scale: 0.95 }}
 animate={{ opacity: 1, scale: 1 }}
-className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full border border-slate-100 max-h-[90vh] overflow-y-auto"
+className="bg-white rounded-2xl shadow-2xl p-5 sm:p-8 max-w-md w-full border border-slate-100 max-h-[90dvh] overflow-y-auto"
 onClick={(e) => e.stopPropagation()}
 >
 <div className="flex justify-between items-center mb-6">

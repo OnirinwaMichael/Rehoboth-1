@@ -43,10 +43,10 @@ export const WalkInPatientDialog: React.FC<Props> = ({ userId, onClose, onCreate
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm"
       onClick={e => { if (e.target === e.currentTarget && !saving) onClose(); }}
     >
-      <form onSubmit={submit} className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+      <form onSubmit={submit} className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-md max-h-[92dvh] overflow-y-auto pb-safe">
         <div className="p-5 border-b border-slate-100 flex items-center justify-between">
           <h3 className="font-bold text-slate-900 flex items-center gap-2"><UserPlus className="w-5 h-5 text-blue-600" /> Add Walk-in Patient</h3>
           <button type="button" onClick={onClose} disabled={saving} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-4 h-4" /></button>
