@@ -491,8 +491,16 @@ requestDetails: { ...manualEntry.requestDetails, ...rest },
 };
 const handleManualEntry = async (e: React.FormEvent) => {
 e.preventDefault();
-if (!manualEntry.patientId || !manualEntry.testType || !manualEntry.result) {
+const manualPrice = parseFloat(manualEntry.price) || 0;
+const manualHasResult = !!(manualEntry.result || '').trim();
+// A priced test is saved as a request first; its result is entered from the Test Queue
+// once the receptionist has recorded a payment (full or part). Free tests keep the old flow.
+if (!manualEntry.patientId || !manualEntry.testType || (manualPrice === 0 && !manualHasResult)) {
 toast.error('Please fill all fields');
+return;
+}
+if (manualPrice > 0 && manualHasResult) {
+toast.error('This test has a price, so its result can only be entered after the receptionist records payment. Clear the result, save the request, then enter it from the Test Queue.');
 return;
 }
 if (!testCatalog.some(t => t.name === manualEntry.testType)) {
@@ -527,7 +535,7 @@ patient_id: manualEntry.patientId,
 family_member_id: manualFamilyMemberId || null,
 test_type: manualEntry.testType,
 price: parseFloat(manualEntry.price) || 0,
-result: manualEntry.result,
+result: manualPrice > 0 ? null : manualEntry.result,
 image_url: manualEntry.imageUrl || null,
 payment_status: 'pending', // Only accountant can clear payments
 report_type: manualType,
@@ -535,7 +543,7 @@ request_details: manualType === 'basic' ? toRequestDetails({ ...manualPaper, lab
 });
 if (error) throw error;
 await logAction(userId, 'MANUAL_LAB_ENTRY', `Manually recorded ${manualEntry.testType} for patient ${manualEntry.patientId}`);
-toast.success('Lab record added successfully!');
+toast.success(manualPrice > 0 ? 'Request saved. Enter the result from the Test Queue once payment is recorded.' : 'Lab record added successfully!');
 clearManualDraft();
 setManualFamilyMemberId('');
 setManualFamilyMembers([]);
