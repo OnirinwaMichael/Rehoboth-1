@@ -314,7 +314,7 @@ toast.success(`Staff status changed to ${newStatus}`);
 const staffTable = useMemo(() => (
 <div className="overflow-x-auto">
 {selectedStaff.size > 0 && (
-<div className="p-4 bg-blue-50 border-b border-blue-100 flex items-center justify-between animate-in slide-in-from-top duration-300">
+<div className="p-4 bg-blue-50 border-b border-blue-100 flex flex-wrap items-center justify-between gap-3 animate-in slide-in-from-top duration-300">
 <div className="flex items-center gap-4">
 <span className="text-sm font-bold text-blue-700">{selectedStaff.size} staff selected</span>
 <div className="h-4 w-px bg-blue-200" />
@@ -339,7 +339,61 @@ className="flex items-center gap-2 bg-red-600 text-white px-4 py-1.5 rounded-lg 
 </button>
 </div>
 )}
-<table className="w-full text-left border-collapse">
+{/* Phone: stacked cards */}
+<div className="md:hidden divide-y divide-slate-100">
+{staff.map((member) => (
+<div key={member.uid} className={cn("p-4 space-y-3", selectedStaff.has(member.uid) && "bg-blue-50/40")}>
+<div className="flex items-center gap-3">
+<input
+type="checkbox"
+checked={selectedStaff.has(member.uid)}
+onChange={() => toggleSelectStaff(member.uid)}
+aria-label={`Select ${member.name}`}
+className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0"
+/>
+<div className="w-11 h-11 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 font-bold overflow-hidden shrink-0">
+{member.photoURL ? (
+<img src={member.photoURL} alt="" className="w-full h-full object-cover" />
+) : (
+member.name.charAt(0)
+)}
+</div>
+<div className="min-w-0 flex-1">
+<p className="text-base font-bold text-slate-900 truncate">{member.name}</p>
+<p className="text-xs text-slate-500 truncate">{member.email}</p>
+</div>
+<span className={cn(
+"text-[11px] font-bold px-2.5 py-1 rounded-full uppercase shrink-0",
+member.role === 'CMD' ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"
+)}>
+{member.role}
+</span>
+</div>
+<div className="flex gap-2">
+<button
+onClick={() => toggleStaffStatus(member.uid, member.status)}
+className={cn(
+"flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl text-sm font-bold",
+member.status === 'active' ? "bg-green-50 text-green-700 active:bg-green-100" : "bg-red-50 text-red-700 active:bg-red-100"
+)}
+>
+{member.status === 'active' ? <CheckCircle className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+{member.status}
+</button>
+{member.uid !== userId && (
+<button
+onClick={() => setDeleteConfirm(member.uid)}
+className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-red-50 text-red-700 text-sm font-bold active:bg-red-100"
+>
+<Trash2 className="w-4 h-4" /> Remove
+</button>
+)}
+</div>
+</div>
+))}
+</div>
+{/* Tablet and desktop: table */}
+<table className="hidden md:table w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100">
 <th className="px-6 py-4 w-10">
@@ -444,11 +498,11 @@ logs.map((log) => (
 </div>
 ), [logs, showLogs, staffNameById]);
 return (
-<div className="space-y-8 max-w-7xl mx-auto">
+<div className="space-y-4 sm:space-y-8 max-w-7xl mx-auto">
 {!showLogsOnly && (
-<div className="flex items-center justify-between">
+<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
 <div>
-<h2 className="text-3xl font-bold text-slate-900">CMD Command Center</h2>
+<h2 className="text-2xl sm:text-3xl font-bold text-slate-900">CMD Command Center</h2>
 <p className="text-slate-500">Full administrative control and hospital oversight.</p>
 </div>
 <div className="flex gap-4">
@@ -481,7 +535,7 @@ Add Staff
 {/* Overview stat cards */}
 {!showLogsOnly && !loading && (
 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
+<div className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 sm:gap-6">
 <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center text-purple-600">
 <ShieldCheck className="w-8 h-8" />
 </div>
@@ -490,7 +544,7 @@ Add Staff
 <h4 className="text-3xl font-black text-slate-900">{staff.length}</h4>
 </div>
 </div>
-<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
+<div className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 sm:gap-6">
 <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center text-green-600">
 <CheckCircle className="w-8 h-8" />
 </div>
@@ -584,7 +638,7 @@ log in and set their own password.
 </div>
 </div>
 )}
-<div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+<div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-8">
 {/* Staff Management */}
 {!showLogsOnly && (
 <div className={cn(
@@ -626,12 +680,12 @@ showLogsOnly ? "h-[calc(100vh-200px)]" : "h-[calc(100vh-250px)]"
 {/* Delete Confirmation Modal */}
 <AnimatePresence>
 {deleteConfirm && (
-<div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+<div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
 <motion.div
 initial={{ opacity: 0, scale: 0.95 }}
 animate={{ opacity: 1, scale: 1 }}
 exit={{ opacity: 0, scale: 0.95 }}
-className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-sm max-h-[92dvh] overflow-y-auto pb-safe"
 >
 <div className="p-6 text-center space-y-4">
 <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto">
@@ -665,12 +719,12 @@ Remove
 {/* Add Staff Modal */}
 <AnimatePresence>
 {isAddingStaff && (
-<div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+<div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
 <motion.div
 initial={{ opacity: 0, scale: 0.95 }}
 animate={{ opacity: 1, scale: 1 }}
 exit={{ opacity: 0, scale: 0.95 }}
-className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md max-h-[92dvh] overflow-y-auto pb-safe"
 >
 <div className="p-6 border-b border-slate-100 bg-slate-900 text-white flex items-center justify-between">
 <h3 className="font-bold flex items-center gap-2">
@@ -680,7 +734,7 @@ className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
 <X className="w-5 h-5" />
 </button>
 </div>
-<form onSubmit={handleAddStaff} className="p-8 space-y-6">
+<form onSubmit={handleAddStaff} className="p-4 sm:p-8 space-y-6">
 {authError && (
 <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm font-bold">
 {authError}
@@ -802,11 +856,11 @@ Save Staff Member
 </AnimatePresence>
 <AnimatePresence>
 {createdCredentials && (
-<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+<div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
 <motion.div
 initial={{ opacity: 0, scale: 0.95 }}
 animate={{ opacity: 1, scale: 1 }}
-className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 space-y-6"
+className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md p-5 sm:p-8 max-h-[92dvh] overflow-y-auto pb-safe space-y-6"
 >
 <div className="text-center space-y-2">
 <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto">

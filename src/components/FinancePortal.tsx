@@ -1206,7 +1206,7 @@ placeholder="Search by name or ID..."
 />
 </div>
 </div>
-<div className="overflow-x-auto">
+<div className="overflow-x-auto scroll-thin max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100">

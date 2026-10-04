@@ -158,7 +158,7 @@ return (
 return (
 <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden max-w-5xl mx-auto">
 {/* Header */}
-<div className="bg-slate-900 p-8 text-white relative overflow-hidden">
+<div className="bg-slate-900 p-4 sm:p-8 text-white relative overflow-hidden">
 <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
 <div className="relative flex justify-between items-start">
 <div className="flex items-center gap-6">
@@ -212,7 +212,7 @@ activeTab === tab.id
 ))}
 </div>
 {/* Content */}
-<div className="p-8 max-h-[600px] overflow-y-auto bg-slate-50/30">
+<div className="p-4 sm:p-8 max-h-[600px] overflow-y-auto bg-slate-50/30">
 <AnimatePresence mode="wait">
 {activeTab === 'visits' && (
 <motion.div
@@ -328,7 +328,7 @@ medicalRecords.map((record) => (
 <p className="font-bold text-slate-900">Attended by: {staffNameById[record.staffId] || 'Unknown Staff'}</p>
 </div>
 </div>
-<div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
 <div className="space-y-4">
 <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">

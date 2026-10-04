@@ -112,7 +112,7 @@ l.testName.toLowerCase().includes(searchTerm.toLowerCase())
 return (
 <div className="flex flex-col h-full bg-slate-50/50">
 {/* Header */}
-<div className="p-8 bg-white border-b border-slate-100">
+<div className="p-4 sm:p-8 bg-white border-b border-slate-100">
 <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-6">
 <div className="space-y-1">
 <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Clinical Board</h1>
@@ -136,7 +136,7 @@ className="pl-11 pr-4 py-3 bg-slate-100 border-transparent focus:bg-white focus:
 </div>
 </div>
 {/* Tabs */}
-<div className="max-w-7xl mx-auto w-full px-8 mt-8">
+<div className="max-w-7xl mx-auto w-full px-4 sm:px-8 mt-4 sm:mt-8">
 <div className="flex p-1.5 bg-slate-100 rounded-2xl w-fit">
 <button
 onClick={() => setActiveTab('vitals')}
@@ -161,7 +161,7 @@ Lab Results
 </div>
 </div>
 {/* Content */}
-<div className="flex-1 overflow-y-auto p-8">
+<div className="flex-1 overflow-y-auto p-4 sm:p-8">
 <div className="max-w-7xl mx-auto">
 <AnimatePresence mode="wait">
 {activeTab === 'vitals' ? (

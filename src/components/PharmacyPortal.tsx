@@ -245,6 +245,19 @@ setEditingDrug(null);
 handleSupabaseError(error, editingDrug ? 'update' : 'insert', 'inventory');
 }
 };
+const startEditDrug = (item: InventoryItem) => {
+setEditingDrug(item);
+setDrugForm({
+name: item.name,
+price: item.price.toString(),
+stock: (item.stock || 0).toString(),
+billingBasis: item.billingBasis || 'per_unit',
+expiryDate: item.expiryDate ? item.expiryDate.slice(0, 10) : '',
+priceVerified: !!item.priceVerified,
+stockVerified: !!item.stockVerified,
+});
+setIsAddingDrug(true);
+};
 const handleDeleteDrug = async (id: string) => {
 const drug = inventory.find(d => d.id === id);
 if (!confirm(`Are you sure you want to delete ${drug?.name}?`)) return;
@@ -383,7 +396,7 @@ view === 'inventory' ? "bg-blue-600 text-white" : "bg-white text-slate-600 borde
 </div>
 {view === 'dashboard' ? (
 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
+<div className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 sm:gap-6">
 <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600">
 <Package className="w-8 h-8" />
 </div>
@@ -395,7 +408,7 @@ view === 'inventory' ? "bg-blue-600 text-white" : "bg-white text-slate-600 borde
 <button
 type="button"
 onClick={() => { setShowLowStockOnly(true); setView('inventory'); }}
-className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6 text-left hover:border-red-200 hover:shadow-md transition-all"
+className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 sm:gap-6 text-left hover:border-red-200 hover:shadow-md transition-all"
 >
 <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center text-red-600">
 <AlertCircle className="w-8 h-8" />
@@ -408,7 +421,7 @@ className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items
 <button
 type="button"
 onClick={() => setView('prescriptions')}
-className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6 text-left hover:border-green-200 hover:shadow-md transition-all"
+className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 sm:gap-6 text-left hover:border-green-200 hover:shadow-md transition-all"
 >
 <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center text-green-600">
 <TrendingUp className="w-8 h-8" />
@@ -448,7 +461,7 @@ style={{ height: `${Math.max((d.count / max) * 100, 8)}%` }} title={`${d.label}:
 </span>
 </div>
 </div>
-<div className="md:col-span-2 lg:col-span-4 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+<div className="md:col-span-2 lg:col-span-4 bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100">
 <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
 <History className="w-5 h-5 text-slate-400" /> Recent Prescriptions
 </h3>
@@ -538,7 +551,65 @@ className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-7
 </div>
 </div>
 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-<div className="overflow-x-auto">
+{/* Phone: stacked cards */}
+<div className="md:hidden divide-y divide-slate-100">
+{filteredInventory.map((item) => {
+const ex = expiryStatus(item.expiryDate);
+return (
+<div key={item.id} className="p-4 space-y-3">
+<div className="flex items-start justify-between gap-3">
+<div className="min-w-0">
+<p className="text-base font-bold text-slate-900">{item.name}</p>
+<span className="inline-block mt-1 px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md text-[11px] font-bold uppercase">{item.category || 'General'}</span>
+</div>
+<p className="text-lg font-black text-blue-600 shrink-0">₦{item.price.toLocaleString()}</p>
+</div>
+{!item.priceVerified && <p className="text-xs font-bold uppercase text-amber-700">Price not confirmed</p>}
+<div className="grid grid-cols-3 gap-2 bg-slate-50 rounded-xl px-3 py-2.5">
+<div>
+<p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Stock</p>
+<p className={cn("text-sm font-bold", (item.stock || 0) < 10 ? "text-red-600" : "text-slate-700")}>{item.stock || 0}</p>
+</div>
+<div>
+<p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Billed</p>
+<p className="text-sm font-semibold text-slate-700">{item.billingBasis === 'per_pack' ? 'Per pack' : 'Per unit'}</p>
+</div>
+<div>
+<p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Expiry</p>
+<p className={cn("text-sm font-bold", ex.state === 'expired' ? "text-red-600" : ex.state === 'soon' ? "text-amber-700" : "text-slate-700")}>
+{ex.state === 'none' ? 'Not set' : formatExpiry(item.expiryDate as string)}
+</p>
+</div>
+</div>
+{!item.stockVerified && <p className="text-xs font-bold uppercase text-amber-700">Count not confirmed</p>}
+{(item.oversoldUnits || 0) > 0 && <p className="text-xs font-bold uppercase text-red-600">{item.oversoldUnits} dispensed beyond stock</p>}
+{ex.state === 'expired' && <p className="text-xs font-bold uppercase text-red-600">Expired {Math.abs(ex.daysLeft as number)} day{Math.abs(ex.daysLeft as number) === 1 ? '' : 's'} ago</p>}
+{ex.state === 'soon' && <p className="text-xs font-bold uppercase text-amber-700">{ex.daysLeft === 0 ? 'Expires today' : `Expires in ${ex.daysLeft} day${ex.daysLeft === 1 ? '' : 's'}`}</p>}
+<div className="flex gap-2">
+<button
+onClick={() => startEditDrug(item)}
+className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-blue-50 text-blue-700 font-bold text-sm active:bg-blue-100"
+>
+<Edit className="w-4 h-4" /> Edit
+</button>
+<button
+onClick={() => handleDeleteDrug(item.id)}
+className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-red-50 text-red-700 font-bold text-sm active:bg-red-100"
+>
+<Trash2 className="w-4 h-4" /> Delete
+</button>
+</div>
+</div>
+);
+})}
+{filteredInventory.length === 0 && (
+<p className="p-12 text-center text-slate-500 italic">
+{inventory.length === 0 ? 'No drugs in inventory.' : expiryFilter === 'expired' ? 'No expired drugs recorded.' : expiryFilter === 'soon' ? `Nothing expires within ${EXPIRY_WARNING_DAYS} days.` : showLowStockOnly ? 'No low-stock drugs right now.' : 'No drugs match your search.'}
+</p>
+)}
+</div>
+{/* Tablet and desktop: table */}
+<div className="hidden md:block overflow-x-auto scroll-thin">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100">
@@ -593,19 +664,7 @@ return (
 <td className="px-6 py-4">
 <div className="flex gap-2">
 <button
-onClick={() => {
-setEditingDrug(item);
-setDrugForm({
-name: item.name,
-price: item.price.toString(),
-stock: (item.stock || 0).toString(),
-billingBasis: item.billingBasis || 'per_unit',
-expiryDate: item.expiryDate ? item.expiryDate.slice(0, 10) : '',
-priceVerified: !!item.priceVerified,
-stockVerified: !!item.stockVerified,
-});
-setIsAddingDrug(true);
-}}
+onClick={() => startEditDrug(item)}
 className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
 >
 <Edit className="w-4 h-4" />
@@ -724,12 +783,12 @@ Mark as Dispensed
 {/* Add/Edit Drug Modal */}
 <AnimatePresence>
 {isAddingDrug && (
-<div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+<div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
 <motion.div
 initial={{ opacity: 0, scale: 0.95 }}
 animate={{ opacity: 1, scale: 1 }}
 exit={{ opacity: 0, scale: 0.95 }}
-className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md max-h-[92dvh] overflow-y-auto pb-safe"
 >
 <div className="p-6 border-b border-slate-100 bg-slate-900 text-white flex items-center justify-between">
 <h3 className="font-bold flex items-center gap-2">
@@ -739,7 +798,7 @@ className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
 <X className="w-5 h-5" />
 </button>
 </div>
-<form onSubmit={handleSaveDrug} className="p-8 space-y-6">
+<form onSubmit={handleSaveDrug} className="p-4 sm:p-8 space-y-6">
 <div className="space-y-2">
 <label className="text-sm font-bold text-slate-700">Drug Name</label>
 <input

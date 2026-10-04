@@ -903,7 +903,7 @@ Search
 </div>
 </div>
 {view === 'records' ? (
-<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+<div className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100">
 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
 <h3 className="font-bold text-slate-900 flex items-center gap-2">
 <ClipboardList className="w-5 h-5 text-green-500" /> Hospital-Wide Records
@@ -936,7 +936,7 @@ placeholder="Search patient or Card ID"
 </div>
 </div>
 </div>
-<div className="overflow-x-auto">
+<div className="overflow-x-auto scroll-thin max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
 <table className="w-full">
 <thead>
 <tr className="text-left text-xs font-bold text-slate-400 uppercase border-b border-slate-100">
@@ -1038,7 +1038,7 @@ className="flex items-center gap-1 text-xs font-bold text-blue-600 hover:underli
 </div>
 </div>
 ) : view === 'patients' ? (
-<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+<div className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100">
 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
 <h3 className="font-bold text-slate-900 flex items-center gap-2">
 <UsersIcon className="w-5 h-5 text-blue-500" /> All Patients
@@ -1053,7 +1053,7 @@ placeholder="Search by name or Card ID"
 />
 </div>
 </div>
-<div className="overflow-x-auto">
+<div className="overflow-x-auto scroll-thin max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
 <table className="w-full">
 <thead>
 <tr className="text-left text-xs font-bold text-slate-400 uppercase border-b border-slate-100">
@@ -1091,7 +1091,7 @@ placeholder="Search by name or Card ID"
 </div>
 </div>
 ) : view === 'labResults' ? (
-<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+<div className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100">
 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
 <h3 className="font-bold text-slate-900 flex items-center gap-2">
 <FlaskConical className="w-5 h-5 text-purple-500" /> Global Lab Results
@@ -1124,7 +1124,7 @@ placeholder="Search patient or test"
 </div>
 </div>
 </div>
-<div className="overflow-x-auto">
+<div className="overflow-x-auto scroll-thin max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
 <table className="w-full">
 <thead>
 <tr className="text-left text-xs font-bold text-slate-400 uppercase border-b border-slate-100">
@@ -1199,11 +1199,11 @@ No lab tests found.
 </div>
 </div>
 ) : view === 'admissions' ? (
-<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+<div className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100">
 <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
 <Activity className="w-5 h-5 text-purple-500" /> Active Admissions
 </h3>
-<div className="overflow-x-auto">
+<div className="overflow-x-auto scroll-thin max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
 <table className="w-full">
 <thead>
 <tr className="text-left text-xs font-bold text-slate-400 uppercase border-b border-slate-100">
@@ -1338,7 +1338,7 @@ className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items
 </button>
 )}
 </div>
-<div className="md:col-span-2 lg:col-span-4 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+<div className="md:col-span-2 lg:col-span-4 bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100">
 <div className="flex items-center justify-between mb-6">
 <h3 className="font-bold text-slate-900 flex items-center gap-2">
 <History className="w-5 h-5 text-slate-400" /> Recent Clinical Activity
@@ -1383,7 +1383,7 @@ className="w-full p-4 rounded-xl border border-slate-50 bg-slate-50/50 flex just
 </div>
 </div>
 ) : patient ? (
-<div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+<div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-8">
 {/* Patient Info Sidebar */}
 <div className="lg:col-span-4 space-y-6">
 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
@@ -1683,7 +1683,7 @@ record.paymentStatus === 'paid' ? "bg-green-100 text-green-700" : "bg-yellow-100
 Recording as: <span className="text-blue-600 font-bold">{role}</span>
 </span>
 </div>
-<div className="p-8 space-y-8">
+<div className="p-4 sm:p-8 space-y-8">
 {patient.category === 'family card' && (
 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
 <label className="text-sm font-bold text-amber-900 flex items-center gap-2">
@@ -1841,7 +1841,7 @@ placeholder="e.g. 70"
 </div>
 </div>
 {/* Diagnosis & Treatment */}
-<div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
 <div className="space-y-4">
 <h4 className="font-bold text-slate-900 flex items-center justify-between gap-2">
 <span className="flex items-center gap-2">
@@ -1993,7 +1993,7 @@ className="flex-1 p-2 text-xs border border-slate-200 rounded-lg outline-none fo
 </div>
 </div>
 {/* Recommendations */}
-<div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
 <div className="space-y-4">
 <h4 className="font-bold text-slate-900 flex items-center gap-2">
 <FlaskConical className="w-4 h-4 text-purple-500" /> Lab/Scan Recommendations
@@ -2178,7 +2178,7 @@ Search for a patient using their Card ID to view their profile and start a clini
 <AnimatePresence>
 {showHistory && patient && (
 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-<div className="w-full max-w-5xl my-8">
+<div className="w-full max-w-5xl my-2 sm:my-8">
 <PatientHistory 
 patientId={patient.cardId} 
 onClose={() => setShowHistory(false)} 
@@ -2264,8 +2264,8 @@ className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold hover:bg-e
 <LabReportPrint test={{ ...printTest, patient, familyMemberName: familyLabel(printTest.familyMemberId) }} onClose={() => setPrintTest(null)} />
 )}
 {showAdmitModal && patient && (
-<div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-<div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+<div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/50 backdrop-blur-sm">
+<div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full max-w-md max-h-[92dvh] overflow-y-auto pb-safe">
 <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-amber-50">
 <h3 className="font-bold text-amber-700 flex items-center gap-2">
 <Activity className="w-5 h-5" /> Admit {patient.name}

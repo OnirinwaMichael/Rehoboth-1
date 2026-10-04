@@ -77,7 +77,7 @@ return (
 <p className="text-slate-500 font-medium">Find patients and view their medical history.</p>
 </div>
 </div>
-<div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+<div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-8">
 {/* Search Panel */}
 <div className="lg:col-span-4 space-y-6">
 <form onSubmit={handleSearch} className="relative group">
@@ -134,7 +134,7 @@ Show 50 more
 </button>
 )}
 {patients.length === 0 && searchTerm && !loading && (
-<div className="p-8 text-center">
+<div className="p-5 sm:p-8 text-center">
 <p className="text-xs text-slate-400 font-bold">No patients found matching "{searchTerm}"</p>
 </div>
 )}

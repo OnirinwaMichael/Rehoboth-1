@@ -644,7 +644,7 @@ className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all
 <button
 type="button"
 onClick={() => { setQueueStatusFilter('pending'); setView('queue'); }}
-className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6 text-left hover:border-orange-200 hover:shadow-md transition-all"
+className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 sm:gap-6 text-left hover:border-orange-200 hover:shadow-md transition-all"
 >
 <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-600">
 <Clock className="w-8 h-8" />
@@ -657,7 +657,7 @@ className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items
 <button
 type="button"
 onClick={() => { setQueueStatusFilter('completed'); setView('queue'); }}
-className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6 text-left hover:border-green-200 hover:shadow-md transition-all"
+className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 sm:gap-6 text-left hover:border-green-200 hover:shadow-md transition-all"
 >
 <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center text-green-600">
 <CheckCircle2 className="w-8 h-8" />
@@ -695,7 +695,7 @@ style={{ height: `${Math.max((d.count / max) * 100, 8)}%` }} title={`${d.label}:
 </span>
 </div>
 </div>
-<div className="md:col-span-3 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+<div className="md:col-span-3 bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100">
 <h3 className="font-bold text-slate-900 mb-6">Tests by Type</h3>
 {testsByType.length === 0 ? (
 <p className="text-sm text-slate-400 text-center py-8">No lab tests yet.</p>
@@ -713,7 +713,7 @@ style={{ height: `${Math.max((d.count / max) * 100, 8)}%` }} title={`${d.label}:
 </div>
 )}
 </div>
-<div className="md:col-span-3 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+<div className="md:col-span-3 bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100">
 <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
 <History className="w-5 h-5 text-slate-400" /> Recent Lab Activity
 </h3>
@@ -750,7 +750,7 @@ test.result ? "bg-green-100 text-green-600" : "bg-orange-100 text-orange-600"
 </div>
 </div>
 ) : view === 'catalog' ? (
-<div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
+<div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-8">
 <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
 <div>
 <h3 className="text-xl font-bold text-slate-900">Lab Test Catalog</h3>
@@ -859,7 +859,7 @@ title="Units consumed per test"
 )}
 </div>
 ) : view === 'resources' ? (
-<div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
+<div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-8">
 <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
 <div>
 <h3 className="text-xl font-bold text-slate-900">Lab Resources</h3>
@@ -888,7 +888,7 @@ className="bg-blue-600 text-white px-5 py-2 rounded-xl font-bold hover:bg-blue-7
 </button>
 </div>
 </div>
-<div className="overflow-x-auto">
+<div className="overflow-x-auto scroll-thin max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
 <table className="w-full text-left text-sm">
 <thead>
 <tr className="border-b border-slate-100 text-slate-400 uppercase text-xs tracking-wider">
@@ -949,8 +949,8 @@ className="p-2 text-slate-400 hover:text-red-600 transition-colors"
 </table>
 </div>
 {isAddingResource && (
-<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-<div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+<div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+<div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md max-h-[92dvh] overflow-y-auto pb-safe">
 <div className="p-6 border-b border-slate-100 bg-slate-900 text-white flex items-center justify-between">
 <h3 className="text-lg font-bold flex items-center gap-2">
 <Package className="w-5 h-5 text-blue-400" /> {editingResource ? 'Edit Resource' : 'Add Resource'}
@@ -1027,7 +1027,7 @@ onCancel={() => setDeletingResource(null)}
 <Plus className="w-5 h-5 text-blue-400" />
 <h3 className="font-bold">Manual Lab Entry</h3>
 </div>
-<div className="p-8 space-y-6">
+<div className="p-4 sm:p-8 space-y-6">
 <div className="space-y-2">
 <div className="flex items-center justify-between">
 <label className="text-sm font-bold text-slate-700">Patient</label>
@@ -1229,7 +1229,7 @@ className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover
 </form>
 </div>
 ) : (
-<div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+<div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-8">
 {/* Test Queue */}
 <div className="lg:col-span-12 space-y-6">
 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -1243,7 +1243,7 @@ className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover
 <button type="button" onClick={() => setQueueStatusFilter('completed')} className={cn("flex items-center gap-1 px-3 py-1 rounded-full transition-colors", queueStatusFilter === 'completed' ? "bg-green-500 text-white" : "bg-green-50 text-green-500 hover:bg-green-100")}><CheckCircle className="w-3 h-3" /> Completed</button>
 </div>
 </div>
-<div className="overflow-x-auto">
+<div className="overflow-x-auto scroll-thin max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100">
@@ -1282,7 +1282,7 @@ onPrint={(list) => setPrintTests(list)}
 <AnimatePresence>
 {showHistory && historyPatientId && (
 <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-<div className="w-full max-w-5xl my-8">
+<div className="w-full max-w-5xl my-2 sm:my-8">
 <PatientHistory 
 patientId={historyPatientId} 
 onClose={() => {

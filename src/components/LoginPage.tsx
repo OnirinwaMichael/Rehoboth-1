@@ -7,7 +7,7 @@ import { useAuth } from '../lib/auth';
 // Unchanged from the original — kept exactly as designed.
 export const ECGLogo = () => {
 return (
-<div className="flex flex-col items-center justify-center mb-12">
+<div className="flex flex-col items-center justify-center mb-8 sm:mb-12">
 <div className="relative w-64 h-24 bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border-4 border-slate-800 flex items-center justify-center">
 <div
 className="absolute inset-0"
@@ -55,7 +55,7 @@ const [submitting, setSubmitting] = useState(false);
 useEffect(() => {
 if (user) navigate('/dashboard');
 }, [user, navigate]);
-if (loading) return <div className="flex items-center justify-center h-screen">Loading...</div>;
+if (loading) return <div className="flex items-center justify-center h-dvh">Loading...</div>;
 const handleLogin = async (e: React.FormEvent) => {
 e.preventDefault();
 if (!email || !password) {
@@ -72,14 +72,14 @@ setSubmitting(false);
 }
 };
 return (
-<div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-4">
+<div className="min-h-dvh flex flex-col items-center justify-center bg-slate-50 p-4 pt-safe pb-safe">
 <ECGLogo />
 <motion.div
 initial={{ opacity: 0, y: 20 }}
 animate={{ opacity: 1, y: 0 }}
 className="max-w-md w-full"
 >
-<div className="bg-white rounded-2xl shadow-xl p-8 space-y-8 border border-slate-100">
+<div className="bg-white rounded-2xl shadow-xl p-5 sm:p-8 space-y-6 sm:space-y-8 border border-slate-100">
 <div className="text-center space-y-4">
 <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto">
 <Users className="w-10 h-10 text-slate-600" />
@@ -110,7 +110,7 @@ placeholder="staff@rehoboth.com"
 <button
 type="button"
 onClick={() => setShowPassword(!showPassword)}
-className="text-blue-600 hover:text-blue-700 text-[10px] font-bold flex items-center gap-1"
+className="text-blue-600 hover:text-blue-700 text-xs font-bold flex items-center gap-1 py-1 px-1 -mr-1"
 >
 {showPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
 {showPassword ? 'Hide' : 'Show'}
