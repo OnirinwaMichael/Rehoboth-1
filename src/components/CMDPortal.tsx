@@ -41,7 +41,7 @@ member.name.charAt(0)
 </td>
 <td className="px-6 py-4">
 <span className={cn(
-"text-[10px] font-bold px-2 py-1 rounded-full uppercase",
+"text-[11px] font-bold px-2 py-1 rounded-full uppercase",
 member.role === 'CMD' ? "bg-purple-100 text-purple-600" : "bg-blue-100 text-blue-600"
 )}>
 {member.role}
@@ -77,13 +77,13 @@ title="Remove Staff"
 const LogItem = memo(({ log, staffName }: { log: AuditLog, staffName: string }) => (
 <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-2">
 <div className="flex justify-between items-start">
-<span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{log.action}</span>
-<span className="text-[10px] text-slate-400">
+<span className="text-[11px] font-bold text-blue-600 uppercase tracking-widest">{log.action}</span>
+<span className="text-[11px] text-slate-400">
 {log.timestamp ? format(new Date(log.timestamp), 'HH:mm:ss') : '...'}
 </span>
 </div>
 <p className="text-xs text-slate-700 font-medium">{log.details}</p>
-<p className="text-[10px] text-slate-400">Staff: {staffName}</p>
+<p className="text-[11px] text-slate-400">Staff: {staffName}</p>
 </div>
 ));
 export const CMDPortal = ({ showLogsOnly = false }: { showLogsOnly?: boolean }) => {
@@ -395,7 +395,7 @@ className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-
 {/* Tablet and desktop: table */}
 <table className="hidden md:table w-full text-left border-collapse">
 <thead>
-<tr className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100">
+<tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100">
 <th className="px-6 py-4 w-10">
 <input 
 type="checkbox" 
@@ -438,7 +438,7 @@ member.name.charAt(0)
 </td>
 <td className="px-6 py-4">
 <span className={cn(
-"text-[10px] font-bold px-2 py-1 rounded-full uppercase",
+"text-[11px] font-bold px-2 py-1 rounded-full uppercase",
 member.role === 'CMD' ? "bg-purple-100 text-purple-600" : "bg-blue-100 text-blue-600"
 )}>
 {member.role}
@@ -779,7 +779,7 @@ setStaffForm({ ...staffForm, photoURL: publicUrlData.publicUrl });
 />
 </label>
 </div>
-<p className="text-[10px] font-bold text-slate-400 uppercase">Profile Picture (Optional)</p>
+<p className="text-[11px] font-bold text-slate-400 uppercase">Profile Picture (Optional)</p>
 </div>
 <div className="space-y-4 flex-1">
 <div className="space-y-2">

@@ -888,7 +888,7 @@ className="w-full flex items-center justify-between text-left px-4 py-2 text-sm 
 >
 <div className="min-w-0">
 <p className="font-bold text-slate-900 truncate">{p.name}</p>
-<p className="text-[10px] text-slate-400">{p.age} · {p.gender}</p>
+<p className="text-[11px] text-slate-400">{p.age} · {p.gender}</p>
 </div>
 <span className="text-xs font-bold text-blue-600 shrink-0 ml-2">{p.cardId}</span>
 </button>
@@ -936,7 +936,7 @@ placeholder="Search patient or Card ID"
 </div>
 </div>
 </div>
-<div className="overflow-x-auto scroll-thin max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
+<div className="overflow-x-auto scroll-thin table-scroll max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
 <table className="w-full">
 <thead>
 <tr className="text-left text-xs font-bold text-slate-400 uppercase border-b border-slate-100">
@@ -965,7 +965,7 @@ return (
 <p className="text-sm font-bold text-slate-900">{record.patient?.name || 'Unknown Patient'}</p>
 <p className="text-xs text-slate-500">{record.patientId}</p>
 {familyLabel(record.familyMemberId) && (
-<p className="text-[10px] font-bold text-amber-700">For: {familyLabel(record.familyMemberId)}</p>
+<p className="text-[11px] font-bold text-amber-700">For: {familyLabel(record.familyMemberId)}</p>
 )}
 </div>
 </div>
@@ -1053,7 +1053,7 @@ placeholder="Search by name or Card ID"
 />
 </div>
 </div>
-<div className="overflow-x-auto scroll-thin max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
+<div className="overflow-x-auto scroll-thin table-scroll max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
 <table className="w-full">
 <thead>
 <tr className="text-left text-xs font-bold text-slate-400 uppercase border-b border-slate-100">
@@ -1124,7 +1124,7 @@ placeholder="Search patient or test"
 </div>
 </div>
 </div>
-<div className="overflow-x-auto scroll-thin max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
+<div className="overflow-x-auto scroll-thin table-scroll max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
 <table className="w-full">
 <thead>
 <tr className="text-left text-xs font-bold text-slate-400 uppercase border-b border-slate-100">
@@ -1155,7 +1155,7 @@ className={cn("hover:bg-slate-50 transition-colors", test.patient && "cursor-poi
 <p className="text-sm font-bold text-slate-900">{test.patient?.name || 'Unknown Patient'}</p>
 <p className="text-xs text-slate-500">{test.patientId}</p>
 {familyLabel(test.familyMemberId) && (
-<p className="text-[10px] font-bold text-amber-700">For: {familyLabel(test.familyMemberId)}</p>
+<p className="text-[11px] font-bold text-amber-700">For: {familyLabel(test.familyMemberId)}</p>
 )}
 </div>
 </div>
@@ -1203,7 +1203,7 @@ No lab tests found.
 <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
 <Activity className="w-5 h-5 text-purple-500" /> Active Admissions
 </h3>
-<div className="overflow-x-auto scroll-thin max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
+<div className="overflow-x-auto scroll-thin table-scroll max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
 <table className="w-full">
 <thead>
 <tr className="text-left text-xs font-bold text-slate-400 uppercase border-b border-slate-100">
@@ -1367,7 +1367,7 @@ className="w-full p-4 rounded-xl border border-slate-50 bg-slate-50/50 flex just
 <p className="font-bold text-slate-900">{record.patient?.name || `Patient ID: ${record.patientId}`}</p>
 <p className="text-xs text-slate-500">{record.diagnosis || 'General Checkup'}</p>
 {familyLabel(record.familyMemberId) && (
-<p className="text-[10px] font-bold text-amber-700">For: {familyLabel(record.familyMemberId)}</p>
+<p className="text-[11px] font-bold text-amber-700">For: {familyLabel(record.familyMemberId)}</p>
 )}
 </div>
 </div>
@@ -1398,19 +1398,19 @@ className="w-full p-4 rounded-xl border border-slate-50 bg-slate-50/50 flex just
 </div>
 <div className="grid grid-cols-2 gap-4 text-sm">
 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-<p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Gender</p>
+<p className="text-[11px] font-bold text-slate-400 uppercase mb-1">Gender</p>
 <p className="font-bold text-slate-700 capitalize">{patient.gender}</p>
 </div>
 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-<p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Age</p>
+<p className="text-[11px] font-bold text-slate-400 uppercase mb-1">Age</p>
 <p className="font-bold text-slate-700">{patient.age}</p>
 </div>
 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-<p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Category</p>
+<p className="text-[11px] font-bold text-slate-400 uppercase mb-1">Category</p>
 <p className="font-bold text-slate-700 capitalize">{patient.category}</p>
 </div>
 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-<p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Phone</p>
+<p className="text-[11px] font-bold text-slate-400 uppercase mb-1">Phone</p>
 <p className="font-bold text-slate-700">{patient.phone}</p>
 </div>
 </div>
@@ -1445,8 +1445,8 @@ className="w-full flex items-center justify-center gap-2 py-3 bg-sky-50 text-sky
 {activeAdmission ? (
 <>
 <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-center">
-<p className="text-[10px] font-black uppercase tracking-widest text-amber-700">Currently Admitted</p>
-<p className="text-[10px] text-amber-600">since {format(new Date(activeAdmission.admittedAt), 'MMM d, yyyy HH:mm')}</p>
+<p className="text-[11px] font-black uppercase tracking-widest text-amber-700">Currently Admitted</p>
+<p className="text-[11px] text-amber-600">since {format(new Date(activeAdmission.admittedAt), 'MMM d, yyyy HH:mm')}</p>
 </div>
 <button
 onClick={() => setShowDrugChart(true)}
@@ -1506,7 +1506,7 @@ Antenatal Follow-up
 <div key={rec.id} className="flex items-center justify-between gap-3 bg-white p-3 rounded-xl border border-amber-100">
 <div className="min-w-0">
 <p className="text-xs font-bold text-slate-900 truncate">{rec.diagnosis || 'No diagnosis yet'}</p>
-<p className="text-[10px] text-slate-400">{format(new Date(rec.createdAt), 'MMM d, yyyy HH:mm')}</p>
+<p className="text-[11px] text-slate-400">{format(new Date(rec.createdAt), 'MMM d, yyyy HH:mm')}</p>
 </div>
 <button
 onClick={() => { setContinueRecord(rec); setContinueRxItems([]); setContinueNote(''); }}
@@ -1516,7 +1516,7 @@ Continue
 </button>
 </div>
 ))}
-<p className="text-[10px] text-amber-600">Continue lets you review results and prescribe once they're in, without starting a new consultation.</p>
+<p className="text-[11px] text-amber-600">Continue lets you review results and prescribe once they're in, without starting a new consultation.</p>
 </div>
 )}
 {patientLabTests.length > 0 && (
@@ -1530,17 +1530,17 @@ Continue
 <div className="min-w-0 flex-1">
 <p className="text-xs font-bold text-slate-900 truncate">{test.testType}</p>
 {familyLabel(test.familyMemberId) && (
-<p className="text-[10px] font-bold text-amber-700">For: {familyLabel(test.familyMemberId)}</p>
+<p className="text-[11px] font-bold text-amber-700">For: {familyLabel(test.familyMemberId)}</p>
 )}
 <div className="flex items-center gap-2 mt-1">
 <span className={cn(
-"text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border",
+"text-[11px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border",
 test.result ? "bg-green-50 text-green-600 border-green-100" : "bg-orange-50 text-orange-600 border-orange-100"
 )}>
 {test.result ? 'Completed' : 'Pending'}
 </span>
 <span className={cn(
-"text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border",
+"text-[11px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border",
 test.paymentStatus === 'paid' && "bg-green-50 text-green-600 border-green-100",
 test.paymentStatus === 'partial' && "bg-blue-50 text-blue-600 border-blue-100",
 test.paymentStatus === 'pending' && "bg-slate-100 text-slate-500 border-slate-200",
@@ -1557,7 +1557,7 @@ className="shrink-0 text-xs font-bold text-blue-600 hover:text-blue-700 underlin
 View Result
 </button>
 ) : (
-<span className="shrink-0 text-[10px] text-slate-400 italic">Awaiting lab</span>
+<span className="shrink-0 text-[11px] text-slate-400 italic">Awaiting lab</span>
 )}
 </div>
 ))}
@@ -1574,7 +1574,7 @@ View Result
 <div key={letter.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
 <div>
 <p className="text-xs font-bold text-slate-900 capitalize">{letter.letterType} Letter</p>
-<p className="text-[10px] text-slate-400">{format(new Date(letter.createdAt), 'MMM d, yyyy')} · {letter.ourRef}</p>
+<p className="text-[11px] text-slate-400">{format(new Date(letter.createdAt), 'MMM d, yyyy')} · {letter.ourRef}</p>
 </div>
 <button
 onClick={() => setPrintLetter(letter)}
@@ -1602,9 +1602,9 @@ className="w-full p-4 bg-slate-50 hover:bg-slate-100 transition-colors flex item
 <p className="text-xs font-bold text-slate-900">
 {format(new Date(record.createdAt), 'MMM d, yyyy')}
 </p>
-<p className="text-[10px] text-slate-500">{record.diagnosis || 'No diagnosis'}</p>
+<p className="text-[11px] text-slate-500">{record.diagnosis || 'No diagnosis'}</p>
 {familyLabel(record.familyMemberId) && (
-<p className="text-[10px] font-bold text-amber-700">For: {familyLabel(record.familyMemberId)}</p>
+<p className="text-[11px] font-bold text-amber-700">For: {familyLabel(record.familyMemberId)}</p>
 )}
 </div>
 {expandedRecord === record.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -1620,15 +1620,15 @@ className="overflow-hidden bg-white"
 <div className="p-4 space-y-4 text-xs">
 <div className="grid grid-cols-3 gap-2">
 <div className="p-2 bg-blue-50 rounded-lg">
-<p className="text-[8px] font-bold text-blue-400 uppercase">BP</p>
+<p className="text-[11px] font-bold text-blue-400 uppercase">BP</p>
 <p className="font-bold text-blue-700">{record.vitals?.bloodPressure || '-'}</p>
 </div>
 <div className="p-2 bg-red-50 rounded-lg">
-<p className="text-[8px] font-bold text-red-400 uppercase">Temp</p>
+<p className="text-[11px] font-bold text-red-400 uppercase">Temp</p>
 <p className="font-bold text-red-700">{record.vitals?.temperature || '-'}</p>
 </div>
 <div className="p-2 bg-green-50 rounded-lg">
-<p className="text-[8px] font-bold text-green-400 uppercase">Sugar</p>
+<p className="text-[11px] font-bold text-green-400 uppercase">Sugar</p>
 <p className="font-bold text-green-700">{record.vitals?.sugarLevel || '-'}</p>
 </div>
 </div>
@@ -1648,7 +1648,7 @@ className="overflow-hidden bg-white"
 <div className="flex items-center gap-2">
 {record.paymentStatus && (
 <span className={cn(
-"px-2 py-0.5 text-[10px] font-bold rounded-full uppercase",
+"px-2 py-0.5 text-[11px] font-bold rounded-full uppercase",
 record.paymentStatus === 'paid' ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
 )}>
 {record.paymentStatus}
@@ -1731,7 +1731,7 @@ className="px-4 rounded-xl bg-amber-600 text-white font-bold text-sm hover:bg-am
 <div className="overflow-hidden border border-slate-200 rounded-xl">
 <table className="w-full text-left border-collapse">
 <thead>
-<tr className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+<tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
 <th className="px-4 py-3">Vital Sign</th>
 <th className="px-4 py-3">Value / Observation</th>
 <th className="px-4 py-3">Unit</th>
@@ -1914,7 +1914,7 @@ className="p-1 text-red-500 hover:bg-red-50 rounded"
 </div>
 </div>
 <div className="flex items-center gap-2">
-<label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider shrink-0">Route</label>
+<label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0">Route</label>
 <select
 value={item.route}
 onChange={e => updatePrescriptionItem(index, { route: e.target.value as typeof item.route })}
@@ -1929,7 +1929,7 @@ className="flex-1 p-2 text-xs border border-slate-200 rounded-lg outline-none fo
 </div>
 <div className="grid grid-cols-4 gap-2">
 <div>
-<label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Morning</label>
+<label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Morning</label>
 <input
 type="number" min={0}
 value={item.morning}
@@ -1938,7 +1938,7 @@ className="w-full p-2 text-sm text-center border border-slate-200 rounded-lg out
 />
 </div>
 <div>
-<label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Afternoon</label>
+<label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Afternoon</label>
 <input
 type="number" min={0}
 value={item.afternoon}
@@ -1947,7 +1947,7 @@ className="w-full p-2 text-sm text-center border border-slate-200 rounded-lg out
 />
 </div>
 <div>
-<label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Night</label>
+<label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Night</label>
 <input
 type="number" min={0}
 value={item.night}
@@ -1956,7 +1956,7 @@ className="w-full p-2 text-sm text-center border border-slate-200 rounded-lg out
 />
 </div>
 <div>
-<label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Days</label>
+<label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Days</label>
 <input
 type="number" min={1}
 value={item.durationDays}
@@ -2111,7 +2111,7 @@ formData.admissionRecommended ? "bg-blue-100 text-blue-600" : "bg-slate-200 text
 </div>
 <div>
 <p className="text-sm font-bold text-slate-900">Recommend Admission</p>
-<p className="text-[10px] text-slate-500 uppercase font-bold">Clinical Alert</p>
+<p className="text-[11px] text-slate-500 uppercase font-bold">Clinical Alert</p>
 </div>
 </div>
 <div className="relative">
@@ -2135,7 +2135,7 @@ formData.cSectionRecommended ? "bg-red-100 text-red-600" : "bg-slate-200 text-sl
 </div>
 <div>
 <p className="text-sm font-bold text-slate-900">Recommend C-SECTION</p>
-<p className="text-[10px] text-slate-500 uppercase font-bold">Surgical Alert</p>
+<p className="text-[11px] text-slate-500 uppercase font-bold">Surgical Alert</p>
 </div>
 </div>
 <div className="relative">
@@ -2348,20 +2348,20 @@ className="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-l
 </div>
 <div className="p-6 space-y-5 overflow-y-auto">
 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-<p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Original Diagnosis</p>
+<p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Original Diagnosis</p>
 <p className="text-sm text-slate-700 whitespace-pre-wrap">{continueRecord.diagnosis || 'None recorded'}</p>
 </div>
 {patientLabTests.filter(t => t.recordId === continueRecord.id).length > 0 && (
 <div>
-<p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Test Results</p>
+<p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Test Results</p>
 <div className="space-y-2">
 {patientLabTests.filter(t => t.recordId === continueRecord.id).map(t => (
 <div key={t.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border border-slate-100">
-<span className="text-xs font-medium text-slate-700">{t.testType}{familyLabel(t.familyMemberId) && <span className="ml-2 text-[10px] font-bold text-amber-700">For: {familyLabel(t.familyMemberId)}</span>}</span>
+<span className="text-xs font-medium text-slate-700">{t.testType}{familyLabel(t.familyMemberId) && <span className="ml-2 text-[11px] font-bold text-amber-700">For: {familyLabel(t.familyMemberId)}</span>}</span>
 {t.result ? (
 <button onClick={() => setPrintTest(t)} className="text-xs font-bold text-blue-600 underline">View Result</button>
 ) : (
-<span className="text-[10px] text-orange-500 italic">Still pending</span>
+<span className="text-[11px] text-orange-500 italic">Still pending</span>
 )}
 </div>
 ))}

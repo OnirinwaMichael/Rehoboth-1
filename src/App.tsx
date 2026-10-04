@@ -23,7 +23,12 @@ import { usePendingBillsAlert } from './lib/usePendingBillsAlert';
 import { AnimatePresence } from 'motion/react';
 const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const { user, logout } = useAuth();
-const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+try { return localStorage.getItem('hms.sidebarOpen') !== '0'; } catch { return true; }
+});
+useEffect(() => {
+try { localStorage.setItem('hms.sidebarOpen', isSidebarOpen ? '1' : '0'); } catch { /* storage unavailable: fine */ }
+}, [isSidebarOpen]);
 const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 const [isDesktop, setIsDesktop] = useState(() => typeof window === 'undefined' ? true : window.matchMedia('(min-width: 1024px)').matches);
 const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -115,7 +120,7 @@ lastGroup = item.group;
 return (
 <React.Fragment key={idx}>
 {showGroupLabel && (
-<p className="px-3 pt-4 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider">{item.group}</p>
+<p className="px-3 pt-4 pb-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">{item.group}</p>
 )}
 <button
 onClick={() => {
@@ -126,10 +131,11 @@ setCurrentView(item.label);
 setIsMobileNavOpen(false);
 }}
 aria-current={currentView === item.label ? 'page' : undefined}
+title={!showLabels ? item.label : undefined}
 className={cn(
-"w-full flex items-center gap-3 p-2.5 min-h-12 rounded-xl transition-all group",
+"relative w-full flex items-center gap-3 p-2.5 min-h-12 rounded-xl transition-all group",
 currentView === item.label
-? "bg-slate-800 text-white ring-1 ring-slate-700"
+? "bg-slate-800 text-white ring-1 ring-slate-700 before:absolute before:left-0 before:top-2.5 before:bottom-2.5 before:w-1 before:rounded-full before:bg-blue-400"
 : "text-slate-300 hover:bg-slate-800/60 hover:text-white"
 )}
 >
@@ -180,8 +186,8 @@ aria-label="Open menu"
 <span className="lg:hidden absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-orange-500 border-2 border-white" />
 )}
 </button>
-{/* Current section name: keeps phone users oriented now the sidebar is hidden */}
-<span className="lg:hidden font-bold text-slate-900 truncate">{currentView === 'Overview' ? 'Home' : currentView}</span>
+{/* Current section name: orientation on every screen size */}
+<span className="font-bold text-slate-900 truncate">{currentView === 'Overview' ? 'Home' : currentView}</span>
 </div>
 <div className="hidden sm:block">
 <SystemClock />
@@ -204,8 +210,10 @@ user.name.charAt(0)
 </button>
 </div>
 </header>
-<div className="flex-1 min-w-0 overflow-y-auto p-3 sm:p-6 lg:p-8 pb-safe">
+<div className="flex-1 min-w-0 overflow-y-auto scroll-thin p-3 sm:p-6 lg:p-8 pb-safe">
+<div className="mx-auto w-full max-w-[1800px]">
 {React.cloneElement(children as React.ReactElement, { currentView, onNavigate: setCurrentView })}
+</div>
 </div>
 </main>
 {/* Profile Modal */}

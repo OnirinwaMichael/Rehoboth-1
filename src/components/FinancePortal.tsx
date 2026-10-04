@@ -66,11 +66,11 @@ onDelete: (id: string) => void
 <p className="text-sm font-bold text-slate-900 flex items-center gap-2">
 {record.patient?.name}
 {record.referenceType === 'registration' && (
-<span className="text-[9px] font-bold bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full uppercase">Registration</span>
+<span className="text-[11px] font-bold bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full uppercase">Registration</span>
 )}
 </p>
-<p className="text-[10px] text-slate-400">{record.patientId}</p>
-{record.familyMemberName && <p className="text-[10px] font-bold text-amber-700">For: {record.familyMemberName}</p>}
+<p className="text-[11px] text-slate-400">{record.patientId}</p>
+{record.familyMemberName && <p className="text-[11px] font-bold text-amber-700">For: {record.familyMemberName}</p>}
 </div>
 </div>
 </td>
@@ -85,7 +85,7 @@ onDelete: (id: string) => void
 </td>
 <td className="px-6 py-4">
 <span className={cn(
-"text-[10px] font-bold px-2 py-1 rounded-full uppercase",
+"text-[11px] font-bold px-2 py-1 rounded-full uppercase",
 record.paymentStatus === 'fully paid' ? "bg-green-100 text-green-600" : "bg-orange-100 text-orange-600"
 )}>
 {record.paymentStatus}
@@ -186,7 +186,7 @@ onDelete: (id: string) => void
 </td>
 <td className="px-6 py-4 font-bold text-slate-900">{expense.description}</td>
 <td className="px-6 py-4">
-<span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded-full uppercase">
+<span className="text-[11px] font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded-full uppercase">
 {expense.category}
 </span>
 </td>
@@ -676,7 +676,7 @@ className="w-full flex items-center justify-between text-left px-4 py-2 text-sm 
 >
 <div className="min-w-0">
 <p className="font-bold text-slate-900 truncate">{p.name}</p>
-<p className="text-[10px] text-slate-400">{p.age} · {p.gender}</p>
+<p className="text-[11px] text-slate-400">{p.age} · {p.gender}</p>
 </div>
 <span className="text-xs font-bold text-blue-600 shrink-0 ml-2">{p.cardId}</span>
 </button>
@@ -755,14 +755,14 @@ className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100 fle
 <div>
 <p className="font-bold text-slate-900">₦{record.paidAmount.toLocaleString()}</p>
 <p className="text-xs text-slate-500">Patient: {record.patient?.name || record.patientId}</p>
-{record.familyMemberName && <p className="text-[10px] font-bold text-amber-700">For: {record.familyMemberName}</p>}
+{record.familyMemberName && <p className="text-[11px] font-bold text-amber-700">For: {record.familyMemberName}</p>}
 </div>
 </div>
 <div className="text-right">
-<span className="text-[10px] font-bold bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full uppercase">
+<span className="text-[11px] font-bold bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full uppercase">
 {record.paymentMethod}
 </span>
-<p className="text-[10px] text-slate-400 mt-1">{format(new Date(record.createdAt), 'MMM d, HH:mm')}</p>
+<p className="text-[11px] text-slate-400 mt-1">{format(new Date(record.createdAt), 'MMM d, HH:mm')}</p>
 </div>
 </div>
 ))}
@@ -806,23 +806,23 @@ billingItems.map((item) => (
 <div key={`${item.itemType}-${item.id}`} className="p-4 flex items-center justify-between gap-4">
 <div className="min-w-0 flex-1">
 <p className="text-sm font-bold text-slate-900 truncate">{item.description}</p>
-{item.familyMemberName && <p className="text-[10px] font-bold text-amber-700">For: {item.familyMemberName}</p>}
+{item.familyMemberName && <p className="text-[11px] font-bold text-amber-700">For: {item.familyMemberName}</p>}
 <div className="flex items-center gap-2 mt-1">
 <span className={cn(
-"text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border",
+"text-[11px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border",
 item.paymentStatus === 'paid' && "bg-green-50 text-green-600 border-green-100",
 item.paymentStatus === 'partial' && "bg-blue-50 text-blue-600 border-blue-100",
 item.paymentStatus === 'pending' && "bg-orange-50 text-orange-600 border-orange-100",
 )}>
 {item.paymentStatus}
 </span>
-<span className="text-[10px] text-slate-400">{format(new Date(item.createdAt), 'MMM d, yyyy')}</span>
+<span className="text-[11px] text-slate-400">{format(new Date(item.createdAt), 'MMM d, yyyy')}</span>
 </div>
 </div>
 <div className="text-right">
 <p className="text-sm font-black text-slate-900">₦{item.amount.toLocaleString()}</p>
 {item.paidSoFar > 0 && item.balance > 0 && (
-<p className="text-[10px] text-slate-400">Paid ₦{item.paidSoFar.toLocaleString()} · Owes ₦{item.balance.toLocaleString()}</p>
+<p className="text-[11px] text-slate-400">Paid ₦{item.paidSoFar.toLocaleString()} · Owes ₦{item.balance.toLocaleString()}</p>
 )}
 </div>
 {item.balance > 0 ? (
@@ -870,10 +870,10 @@ onDelete={(id) => setDeleteConfirm({ type: 'transaction', id })}
 )}
 </div>
 {/* Tablet and desktop: table */}
-<div className="hidden md:block overflow-x-auto scroll-thin">
+<div className="hidden md:block overflow-x-auto scroll-thin table-scroll">
 <table className="w-full text-left border-collapse">
 <thead>
-<tr className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100">
+<tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100">
 <th className="px-6 py-4">Patient</th>
 <th className="px-6 py-4">Amount</th>
 <th className="px-6 py-4">Paid/Pending</th>
@@ -946,10 +946,10 @@ Mark Reconciled
 )}
 </div>
 {/* Tablet and desktop: table */}
-<div className="hidden md:block overflow-x-auto scroll-thin">
+<div className="hidden md:block overflow-x-auto scroll-thin table-scroll">
 <table className="w-full text-left border-collapse">
 <thead>
-<tr className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100">
+<tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100">
 <th className="px-6 py-4">Date</th>
 <th className="px-6 py-4">Patient</th>
 <th className="px-6 py-4">Amount</th>
@@ -966,23 +966,23 @@ Mark Reconciled
 </td>
 <td className="px-6 py-4">
 <p className="text-sm font-bold text-slate-900">{record.patient?.name}</p>
-<p className="text-[10px] text-slate-400">{record.patientId}</p>
+<p className="text-[11px] text-slate-400">{record.patientId}</p>
 </td>
 <td className="px-6 py-4">
 <p className="text-sm font-bold text-slate-900">₦{record.paidAmount.toLocaleString()}</p>
 </td>
 <td className="px-6 py-4">
-<span className="text-[10px] font-bold bg-blue-100 text-blue-600 px-2 py-1 rounded-full uppercase">
+<span className="text-[11px] font-bold bg-blue-100 text-blue-600 px-2 py-1 rounded-full uppercase">
 {record.paymentMethod}
 </span>
 </td>
 <td className="px-6 py-4">
 {record.reconciled ? (
-<span className="text-[10px] font-bold bg-green-100 text-green-600 px-2 py-1 rounded-full uppercase flex items-center gap-1 w-fit">
+<span className="text-[11px] font-bold bg-green-100 text-green-600 px-2 py-1 rounded-full uppercase flex items-center gap-1 w-fit">
 <CheckCircle className="w-3 h-3" /> Reconciled
 </span>
 ) : (
-<span className="text-[10px] font-bold bg-orange-100 text-orange-600 px-2 py-1 rounded-full uppercase flex items-center gap-1 w-fit">
+<span className="text-[11px] font-bold bg-orange-100 text-orange-600 px-2 py-1 rounded-full uppercase flex items-center gap-1 w-fit">
 <Clock className="w-3 h-3" /> Pending
 </span>
 )}
@@ -1102,10 +1102,10 @@ className="p-3 rounded-xl bg-red-50 text-red-700 active:bg-red-100 shrink-0"
 )}
 </div>
 {/* Tablet and desktop: table */}
-<div className="hidden md:block overflow-x-auto scroll-thin">
+<div className="hidden md:block overflow-x-auto scroll-thin table-scroll">
 <table className="w-full text-left border-collapse">
 <thead>
-<tr className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100">
+<tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100">
 <th className="px-6 py-4">Date</th>
 <th className="px-6 py-4">Description</th>
 <th className="px-6 py-4">Category</th>
@@ -1206,10 +1206,10 @@ placeholder="Search by name or ID..."
 />
 </div>
 </div>
-<div className="overflow-x-auto scroll-thin max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
+<div className="overflow-x-auto scroll-thin table-scroll max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
 <table className="w-full text-left border-collapse">
 <thead>
-<tr className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100">
+<tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100">
 <th className="px-6 py-4">Card ID</th>
 <th className="px-6 py-4">Name</th>
 <th className="px-6 py-4">Category</th>
@@ -1368,10 +1368,10 @@ className="w-full text-left p-4 flex flex-col gap-3 active:bg-orange-50 hover:bg
 )}
 </div>
 {/* Tablet and desktop: table */}
-<div className="hidden md:block overflow-x-auto scroll-thin">
+<div className="hidden md:block overflow-x-auto scroll-thin table-scroll">
 <table className="w-full text-left border-collapse">
 <thead>
-<tr className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100">
+<tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100">
 <th className="px-6 py-4">Patient</th>
 <th className="px-6 py-4">Unpaid</th>
 <th className="px-6 py-4">Total</th>
@@ -1393,19 +1393,19 @@ className="hover:bg-orange-50/60 cursor-pointer transition-colors"
 </div>
 <div>
 <p className="text-sm font-bold text-slate-900">{row.patientName || row.patientId}</p>
-<p className="text-[10px] text-slate-400">{row.patientId}</p>
-{row.familyMemberNames && <p className="text-[10px] font-bold text-amber-700">For: {row.familyMemberNames}</p>}
+<p className="text-[11px] text-slate-400">{row.patientId}</p>
+{row.familyMemberNames && <p className="text-[11px] font-bold text-amber-700">For: {row.familyMemberNames}</p>}
 </div>
 </div>
 </td>
 <td className="px-6 py-4">
 <p className="text-sm font-semibold text-slate-700">{row.kinds}</p>
-<p className="text-[10px] text-slate-400">{row.itemCount} unpaid item{row.itemCount === 1 ? '' : 's'}</p>
+<p className="text-[11px] text-slate-400">{row.itemCount} unpaid item{row.itemCount === 1 ? '' : 's'}</p>
 </td>
 <td className="px-6 py-4 text-sm font-semibold text-slate-700">₦{row.totalAmount.toLocaleString()}</td>
 <td className="px-6 py-4 text-sm font-bold text-red-500">₦{row.outstanding.toLocaleString()}</td>
 <td className="px-6 py-4">
-<span className="text-[10px] font-bold px-2 py-1 rounded-full uppercase bg-orange-100 text-orange-600">
+<span className="text-[11px] font-bold px-2 py-1 rounded-full uppercase bg-orange-100 text-orange-600">
 {row.paidAmount > 0 ? 'partial' : 'pending'}
 </span>
 </td>
@@ -1443,7 +1443,7 @@ className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-sm max-
 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
 <p className="text-xs font-bold text-slate-500">{payModal.item.description}</p>
 {payModal.item.familyMemberName && <p className="text-xs font-bold text-amber-700">For: {payModal.item.familyMemberName}</p>}
-<p className="text-[10px] text-slate-400 mt-1">
+<p className="text-[11px] text-slate-400 mt-1">
 Balance due: ₦{payModal.item.balance.toLocaleString()}
 {payModal.item.paidSoFar > 0 && ` (already paid ₦${payModal.item.paidSoFar.toLocaleString()} of ₦${payModal.item.amount.toLocaleString()})`}
 </p>
@@ -1458,7 +1458,7 @@ onChange={e => setPayModal({ ...payModal, amount: e.target.value })}
 className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold text-lg"
 placeholder="0.00"
 />
-<p className="text-[10px] text-slate-400">
+<p className="text-[11px] text-slate-400">
 Defaults to the full balance. Enter a smaller amount to record a partial payment — the remaining balance stays visible until it's fully settled.
 </p>
 </div>

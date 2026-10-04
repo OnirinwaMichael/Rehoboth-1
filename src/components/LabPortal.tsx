@@ -39,7 +39,7 @@ userId: string;
 interface LabGroup { key: string; tests: LabTestX[] }
 const paymentChip = (label: string, tone: 'green' | 'orange' | 'slate' | 'blue') => (
 <span className={cn(
-"text-[10px] font-bold px-2 py-1 rounded-full uppercase whitespace-nowrap",
+"text-[11px] font-bold px-2 py-1 rounded-full uppercase whitespace-nowrap",
 tone === 'green' ? "bg-green-100 text-green-600" : tone === 'orange' ? "bg-orange-100 text-orange-600" : tone === 'blue' ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-500"
 )}>{label}</span>
 );
@@ -82,8 +82,8 @@ return (
 </div>
 <div>
 <p className="text-sm font-bold text-slate-900">{first.patient?.name}</p>
-<p className="text-[10px] text-slate-400">{first.patientId}</p>
-{first.familyMemberName && <p className="text-[10px] font-bold text-amber-700">For: {first.familyMemberName}</p>}
+<p className="text-[11px] text-slate-400">{first.patientId}</p>
+{first.familyMemberName && <p className="text-[11px] font-bold text-amber-700">For: {first.familyMemberName}</p>}
 </div>
 </div>
 </td>
@@ -734,12 +734,12 @@ test.result ? "bg-green-100 text-green-600" : "bg-orange-100 text-orange-600"
 </div>
 <div className="text-right">
 <span className={cn(
-"text-[10px] font-bold px-2 py-0.5 rounded-full uppercase",
+"text-[11px] font-bold px-2 py-0.5 rounded-full uppercase",
 test.result ? "bg-green-100 text-green-600" : "bg-orange-100 text-orange-600"
 )}>
 {test.result ? 'Completed' : 'Pending'}
 </span>
-<p className="text-[10px] text-slate-400 mt-1">{format(new Date(test.createdAt), 'MMM d, HH:mm')}</p>
+<p className="text-[11px] text-slate-400 mt-1">{format(new Date(test.createdAt), 'MMM d, HH:mm')}</p>
 </div>
 </div>
 ))}
@@ -888,7 +888,7 @@ className="bg-blue-600 text-white px-5 py-2 rounded-xl font-bold hover:bg-blue-7
 </button>
 </div>
 </div>
-<div className="overflow-x-auto scroll-thin max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
+<div className="overflow-x-auto scroll-thin table-scroll max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
 <table className="w-full text-left text-sm">
 <thead>
 <tr className="border-b border-slate-100 text-slate-400 uppercase text-xs tracking-wider">
@@ -1054,7 +1054,7 @@ className="w-full flex items-center justify-between text-left px-4 py-2 text-sm 
 >
 <div className="min-w-0">
 <p className="font-bold text-slate-900 truncate">{p.name}</p>
-<p className="text-[10px] text-slate-400">{p.age} · {p.gender}</p>
+<p className="text-[11px] text-slate-400">{p.age} · {p.gender}</p>
 </div>
 <span className="text-xs font-bold text-blue-600 shrink-0 ml-2">{p.cardId}</span>
 </button>
@@ -1116,7 +1116,7 @@ className="w-full flex items-center justify-between text-left px-4 py-2 text-sm 
 </div>
 )}
 </div>
-<p className="text-[10px] text-slate-400">Price auto-fills from the catalog — you can still adjust it below for this specific entry.</p>
+<p className="text-[11px] text-slate-400">Price auto-fills from the catalog — you can still adjust it below for this specific entry.</p>
 </div>
 <div className="space-y-2">
 <label className="text-sm font-bold text-slate-700">Report Template</label>
@@ -1243,10 +1243,10 @@ className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover
 <button type="button" onClick={() => setQueueStatusFilter('completed')} className={cn("flex items-center gap-1 px-3 py-1 rounded-full transition-colors", queueStatusFilter === 'completed' ? "bg-green-500 text-white" : "bg-green-50 text-green-500 hover:bg-green-100")}><CheckCircle className="w-3 h-3" /> Completed</button>
 </div>
 </div>
-<div className="overflow-x-auto scroll-thin max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
+<div className="overflow-x-auto scroll-thin table-scroll max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
 <table className="w-full text-left border-collapse">
 <thead>
-<tr className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100">
+<tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100">
 <th className="px-6 py-4">Patient</th>
 <th className="px-6 py-4">Tests</th>
 <th className="px-6 py-4">Payment</th>

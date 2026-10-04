@@ -475,13 +475,13 @@ Rx
 <div>
 <p className="font-bold text-slate-900">{rx.patient?.name || rx.patientId}</p>
 {rx.familyMemberId && familyNameById[rx.familyMemberId] && (
-<p className="text-[10px] font-bold text-amber-700">For: {familyNameById[rx.familyMemberId]}</p>
+<p className="text-[11px] font-bold text-amber-700">For: {familyNameById[rx.familyMemberId]}</p>
 )}
 <p className="text-xs text-slate-500">{rx.prescriptions.join(', ')}</p>
 </div>
 </div>
 <div className="text-right">
-<p className="text-[10px] text-slate-400">{format(new Date(rx.createdAt), 'MMM d, HH:mm')}</p>
+<p className="text-[11px] text-slate-400">{format(new Date(rx.createdAt), 'MMM d, HH:mm')}</p>
 </div>
 </div>
 ))}
@@ -609,10 +609,10 @@ className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-
 )}
 </div>
 {/* Tablet and desktop: table */}
-<div className="hidden md:block overflow-x-auto scroll-thin">
+<div className="hidden md:block overflow-x-auto scroll-thin table-scroll">
 <table className="w-full text-left border-collapse">
 <thead>
-<tr className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100">
+<tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100">
 <th className="px-6 py-4">Drug Name</th>
 <th className="px-6 py-4">Category</th>
 <th className="px-6 py-4">Price (₦)</th>
@@ -627,13 +627,13 @@ className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-
 <tr key={item.id} className="hover:bg-slate-50 transition-colors">
 <td className="px-6 py-4 font-bold text-slate-900">{item.name}</td>
 <td className="px-6 py-4">
-<span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-md text-[10px] font-bold uppercase">
+<span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-md text-[11px] font-bold uppercase">
 {item.category || 'General'}
 </span>
 </td>
 <td className="px-6 py-4 font-bold text-blue-600">
 ₦{item.price.toLocaleString()}
-{!item.priceVerified && <span className="block text-[9px] font-bold uppercase text-amber-600">price not confirmed</span>}
+{!item.priceVerified && <span className="block text-[11px] font-bold uppercase text-amber-600">price not confirmed</span>}
 </td>
 <td className="px-6 py-4 text-xs font-bold text-slate-600">{item.billingBasis === 'per_pack' ? 'Per pack' : 'Per unit'}</td>
 <td className="px-6 py-4">
@@ -643,20 +643,20 @@ className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-
 )}>
 {item.stock || 0}
 </span>
-{!item.stockVerified && <span className="block text-[9px] font-bold uppercase text-amber-600">count not confirmed</span>}
-{(item.oversoldUnits || 0) > 0 && <span className="block text-[9px] font-bold uppercase text-red-600">{item.oversoldUnits} dispensed beyond stock</span>}
+{!item.stockVerified && <span className="block text-[11px] font-bold uppercase text-amber-600">count not confirmed</span>}
+{(item.oversoldUnits || 0) > 0 && <span className="block text-[11px] font-bold uppercase text-red-600">{item.oversoldUnits} dispensed beyond stock</span>}
 </td>
 <td className="px-6 py-4">
 {(() => {
 const ex = expiryStatus(item.expiryDate);
-if (ex.state === 'none') return <span className="text-[10px] font-bold uppercase text-slate-300">not recorded</span>;
+if (ex.state === 'none') return <span className="text-[11px] font-bold uppercase text-slate-300">not recorded</span>;
 return (
 <span className="block">
 <span className={cn("text-xs font-bold", ex.state === 'expired' ? "text-red-600" : ex.state === 'soon' ? "text-amber-600" : "text-slate-700")}>
 {formatExpiry(item.expiryDate as string)}
 </span>
-{ex.state === 'expired' && <span className="block text-[9px] font-bold uppercase text-red-600">Expired {Math.abs(ex.daysLeft as number)} day{Math.abs(ex.daysLeft as number) === 1 ? '' : 's'} ago</span>}
-{ex.state === 'soon' && <span className="block text-[9px] font-bold uppercase text-amber-600">{ex.daysLeft === 0 ? 'Expires today' : `Expires in ${ex.daysLeft} day${ex.daysLeft === 1 ? '' : 's'}`}</span>}
+{ex.state === 'expired' && <span className="block text-[11px] font-bold uppercase text-red-600">Expired {Math.abs(ex.daysLeft as number)} day{Math.abs(ex.daysLeft as number) === 1 ? '' : 's'} ago</span>}
+{ex.state === 'soon' && <span className="block text-[11px] font-bold uppercase text-amber-600">{ex.daysLeft === 0 ? 'Expires today' : `Expires in ${ex.daysLeft} day${ex.daysLeft === 1 ? '' : 's'}`}</span>}
 </span>
 );
 })()}
@@ -734,17 +734,17 @@ busy={rxBusy}
 </div>
 <div>
 <p className="font-bold text-slate-900">{rx.patient?.name}</p>
-<p className="text-[10px] text-slate-400">{rx.patientId}</p>
+<p className="text-[11px] text-slate-400">{rx.patientId}</p>
 {rx.familyMemberId && familyNameById[rx.familyMemberId] && (
-<p className="text-[10px] font-bold text-amber-700">For: {familyNameById[rx.familyMemberId]}</p>
+<p className="text-[11px] font-bold text-amber-700">For: {familyNameById[rx.familyMemberId]}</p>
 )}
 </div>
 </div>
 <div className="text-right">
-<span className="text-[10px] text-slate-400 block">{format(new Date(rx.createdAt), 'HH:mm')}</span>
+<span className="text-[11px] text-slate-400 block">{format(new Date(rx.createdAt), 'HH:mm')}</span>
 {rx.paymentStatus && (
 <span className={cn(
-"text-[10px] font-bold uppercase",
+"text-[11px] font-bold uppercase",
 rx.paymentStatus === 'paid' ? "text-green-600" : "text-yellow-600"
 )}>
 {rx.paymentStatus}
@@ -753,7 +753,7 @@ rx.paymentStatus === 'paid' ? "text-green-600" : "text-yellow-600"
 </div>
 </div>
 <div className="space-y-2">
-<p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Prescriptions</p>
+<p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Prescriptions</p>
 <div className="flex flex-wrap gap-2">
 {rx.prescriptions.map((p, i) => (
 <span key={i} className="px-3 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium border border-blue-100">

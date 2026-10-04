@@ -58,6 +58,12 @@
     max-width: 100%;
   }
 
+  /* Money and counts line up in columns. */
+  td,
+  th {
+    font-variant-numeric: tabular-nums;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -84,6 +90,24 @@
     scrollbar-width: thin;
     scrollbar-color: #cbd5e1 transparent;
     -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Tablet and desktop (md and up): long lists scroll inside their card and keep the
+   column headings in view. Phones are untouched (they use the card layouts). */
+@media (min-width: 48rem) {
+  .table-scroll {
+    max-height: 72dvh;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  .table-scroll thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background-color: #f8fafc;
+    box-shadow: 0 1px 0 #e2e8f0;
   }
 }
 

@@ -55,12 +55,12 @@ const PatientCard = memo(({ patient }: { patient: Patient }) => (
 <div className="p-4 rounded-xl border border-slate-50 bg-slate-50/50 hover:bg-slate-50 transition-colors">
 <div className="flex justify-between items-start mb-1">
 <p className="font-bold text-slate-900">{patient.name}</p>
-<span className="text-[10px] font-bold bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full uppercase">
+<span className="text-[11px] font-bold bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full uppercase">
 {patient.cardId}
 </span>
 </div>
 <p className="text-xs text-slate-500">{patient.category}</p>
-<p className="text-[10px] text-slate-400 mt-2">{format(new Date(patient.createdAt), 'MMM d, yyyy HH:mm')}</p>
+<p className="text-[11px] text-slate-400 mt-2">{format(new Date(patient.createdAt), 'MMM d, yyyy HH:mm')}</p>
 </div>
 ));
 export const ReceptionistPortal: React.FC<Props> = ({ userId, section, onNavigate }) => {
@@ -723,12 +723,12 @@ className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 text-left hover
 >
 <div className="flex justify-between items-start mb-2">
 <p className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">{p.name}</p>
-<span className="text-[10px] font-bold bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full uppercase">
+<span className="text-[11px] font-bold bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full uppercase">
 {p.cardId}
 </span>
 </div>
 <p className="text-xs text-slate-500">{p.category}</p>
-<p className="text-[10px] text-slate-400 mt-2">{format(new Date(p.createdAt), 'MMM d, yyyy HH:mm')}</p>
+<p className="text-[11px] text-slate-400 mt-2">{format(new Date(p.createdAt), 'MMM d, yyyy HH:mm')}</p>
 </button>
 ))}
 </div>
@@ -755,7 +755,7 @@ strokeDashoffset={seg.dashoffset}
 </svg>
 <div className="absolute inset-0 flex flex-col items-center justify-center">
 <span className="text-2xl font-black text-slate-900">{registeredPatients.length}</span>
-<span className="text-[10px] text-slate-400 uppercase tracking-wider">Total</span>
+<span className="text-[11px] text-slate-400 uppercase tracking-wider">Total</span>
 </div>
 </div>
 <div className="space-y-2">
@@ -1184,7 +1184,7 @@ className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-
 )}
 </div>
 {/* Tablet and desktop: table */}
-<div className="hidden md:block overflow-x-auto scroll-thin">
+<div className="hidden md:block overflow-x-auto scroll-thin table-scroll">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50/50 border-b border-slate-100">
@@ -1201,7 +1201,7 @@ className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-
 <tr key={appt.id} className="hover:bg-slate-50/50 transition-colors">
 <td className="p-4">
 <p className="font-bold text-slate-900">{appt.patientName}</p>
-<p className="text-[10px] text-slate-400">ID: {appt.patientId}</p>
+<p className="text-[11px] text-slate-400">ID: {appt.patientId}</p>
 </td>
 <td className="p-4">
 <p className="font-medium text-slate-700">{appt.doctorName}</p>
@@ -1221,7 +1221,7 @@ className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-
 </td>
 <td className="p-4">
 <span className={cn(
-"px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
+"px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider",
 appt.status === 'scheduled' && "bg-blue-100 text-blue-600",
 appt.status === 'completed' && "bg-green-100 text-green-600",
 appt.status === 'cancelled' && "bg-red-100 text-red-600",
@@ -1407,7 +1407,7 @@ Couldn't load the patient list. Check your connection and{' '}
 )}
 </div>
 {/* Tablet and desktop: table */}
-<div className="hidden md:block overflow-x-auto scroll-thin">
+<div className="hidden md:block overflow-x-auto scroll-thin table-scroll">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50/50 border-b border-slate-100">
@@ -1434,7 +1434,7 @@ Couldn't load the patient list. Check your connection and{' '}
 <td className="p-4 text-sm text-slate-600 capitalize">{p.category}</td>
 <td className="p-4">
 <span className={cn(
-"text-[10px] font-bold px-2 py-1 rounded-full uppercase",
+"text-[11px] font-bold px-2 py-1 rounded-full uppercase",
 p.registrationType === 'old' ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"
 )}>
 {p.registrationType === 'old' ? 'Old' : 'Fresh'}
@@ -1819,7 +1819,7 @@ Save Prices
 <div className="p-6 space-y-4">
 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
 <p className="text-xs font-bold text-slate-500">{pendingRegPayment.name}</p>
-<p className="text-[10px] text-slate-400 mt-1">Card ID: {pendingRegPayment.cardId}</p>
+<p className="text-[11px] text-slate-400 mt-1">Card ID: {pendingRegPayment.cardId}</p>
 </div>
 <div className="space-y-2">
 <label className="text-sm font-bold text-slate-700">Amount Paid (₦)</label>

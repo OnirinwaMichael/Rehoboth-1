@@ -188,7 +188,7 @@ className="grid grid-cols-1 lg:grid-cols-2 gap-6"
 </div>
 </div>
 <div className="text-right">
-<span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Recorded By</span>
+<span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Recorded By</span>
 <p className="text-xs font-bold text-slate-600">{record.recordedBy}</p>
 </div>
 </div>
@@ -196,42 +196,42 @@ className="grid grid-cols-1 lg:grid-cols-2 gap-6"
 <div className="p-3 bg-red-50/50 rounded-xl border border-red-100/50">
 <div className="flex items-center gap-2 text-red-600 mb-1">
 <Thermometer className="w-3.5 h-3.5" />
-<span className="text-[10px] font-bold uppercase">Temp</span>
+<span className="text-[11px] font-bold uppercase">Temp</span>
 </div>
 <p className="text-lg font-bold text-slate-900">{record.vitals.temp}°C</p>
 </div>
 <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100/50">
 <div className="flex items-center gap-2 text-blue-600 mb-1">
 <Heart className="w-3.5 h-3.5" />
-<span className="text-[10px] font-bold uppercase">BP</span>
+<span className="text-[11px] font-bold uppercase">BP</span>
 </div>
 <p className="text-lg font-bold text-slate-900">{record.vitals.bp}</p>
 </div>
 <div className="p-3 bg-orange-50/50 rounded-xl border border-orange-100/50">
 <div className="flex items-center gap-2 text-orange-600 mb-1">
 <Activity className="w-3.5 h-3.5" />
-<span className="text-[10px] font-bold uppercase">Pulse</span>
+<span className="text-[11px] font-bold uppercase">Pulse</span>
 </div>
 <p className="text-lg font-bold text-slate-900">{record.vitals.pulse} bpm</p>
 </div>
 <div className="p-3 bg-teal-50/50 rounded-xl border border-teal-100/50">
 <div className="flex items-center gap-2 text-teal-600 mb-1">
 <Wind className="w-3.5 h-3.5" />
-<span className="text-[10px] font-bold uppercase">Resp</span>
+<span className="text-[11px] font-bold uppercase">Resp</span>
 </div>
 <p className="text-lg font-bold text-slate-900">{record.vitals.resp}</p>
 </div>
 <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100/50">
 <div className="flex items-center gap-2 text-indigo-600 mb-1">
 <Droplets className="w-3.5 h-3.5" />
-<span className="text-[10px] font-bold uppercase">SpO2</span>
+<span className="text-[11px] font-bold uppercase">SpO2</span>
 </div>
 <p className="text-lg font-bold text-slate-900">{record.vitals.spo2}%</p>
 </div>
 <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
 <div className="flex items-center gap-2 text-slate-600 mb-1">
 <FileText className="w-3.5 h-3.5" />
-<span className="text-[10px] font-bold uppercase">Weight</span>
+<span className="text-[11px] font-bold uppercase">Weight</span>
 </div>
 <p className="text-lg font-bold text-slate-900">{record.vitals.weight}kg</p>
 </div>
@@ -257,7 +257,7 @@ className="space-y-4"
 <div className="flex items-center gap-3 mb-1">
 <h3 className="font-bold text-slate-900">{result.patientName}</h3>
 <span className={cn(
-"text-[10px] font-bold px-2 py-0.5 rounded-full uppercase",
+"text-[11px] font-bold px-2 py-0.5 rounded-full uppercase",
 result.status === 'completed' ? "bg-green-100 text-green-600" : "bg-orange-100 text-orange-600"
 )}>
 {result.status}
@@ -278,7 +278,7 @@ result.status === 'completed' ? "bg-green-100 text-green-600" : "bg-orange-100 t
 </div>
 <div className="flex items-center gap-8">
 <div className="text-right">
-<span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Result</span>
+<span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Result</span>
 <p className="text-lg font-bold text-slate-900">{result.result || 'Pending...'}</p>
 </div>
 <button className="p-3 bg-slate-50 text-slate-400 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-all">

@@ -168,7 +168,7 @@ return (
 <div>
 <div className="flex items-center gap-3 mb-1">
 <h3 className="text-2xl font-black tracking-tight">{patient.name}</h3>
-<span className="px-3 py-1 bg-blue-500/20 text-blue-400 text-[10px] font-black rounded-full uppercase tracking-widest border border-blue-500/30">
+<span className="px-3 py-1 bg-blue-500/20 text-blue-400 text-[11px] font-black rounded-full uppercase tracking-widest border border-blue-500/30">
 {patient.cardId}
 </span>
 </div>
@@ -248,37 +248,37 @@ visits.map((visit) => (
 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 <div className="space-y-4">
 <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100">
-<h4 className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">Diagnosis</h4>
+<h4 className="text-[11px] font-black text-blue-400 uppercase tracking-widest mb-2">Diagnosis</h4>
 <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap">{visit.diagnosis || 'N/A'}</p>
 </div>
 <div className="p-4 bg-purple-50/50 rounded-xl border border-purple-100">
-<h4 className="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-2">Lab Results</h4>
+<h4 className="text-[11px] font-black text-purple-400 uppercase tracking-widest mb-2">Lab Results</h4>
 <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap">{visit.labResults || 'N/A'}</p>
 </div>
 {visit.structuredLabNote && (
 <div className="p-4 bg-purple-50/50 rounded-xl border border-purple-100">
-<h4 className="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-2">Structured Lab Note</h4>
+<h4 className="text-[11px] font-black text-purple-400 uppercase tracking-widest mb-2">Structured Lab Note</h4>
 <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap">{visit.structuredLabNote}</p>
 </div>
 )}
 </div>
 <div className="space-y-4">
 <div className="p-4 bg-green-50/50 rounded-xl border border-green-100">
-<h4 className="text-[10px] font-black text-green-400 uppercase tracking-widest mb-2">Prescription</h4>
+<h4 className="text-[11px] font-black text-green-400 uppercase tracking-widest mb-2">Prescription</h4>
 <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap">{visit.prescription || 'N/A'}</p>
 </div>
 {visit.prescriptionNote && (
 <div className="p-4 bg-green-50/50 rounded-xl border border-green-100">
-<h4 className="text-[10px] font-black text-green-400 uppercase tracking-widest mb-2">Prescription Note</h4>
+<h4 className="text-[11px] font-black text-green-400 uppercase tracking-widest mb-2">Prescription Note</h4>
 <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap">{visit.prescriptionNote}</p>
 </div>
 )}
 <div className="p-4 bg-orange-50 rounded-xl border border-orange-100 flex justify-between items-center">
 <div className="flex items-center gap-2">
-<span className="text-[10px] font-black text-orange-400 uppercase tracking-widest">Billing Amount</span>
+<span className="text-[11px] font-black text-orange-400 uppercase tracking-widest">Billing Amount</span>
 {visit.paymentStatus && (
 <span className={cn(
-"px-2 py-0.5 text-[10px] font-bold rounded-full uppercase",
+"px-2 py-0.5 text-[11px] font-bold rounded-full uppercase",
 visit.paymentStatus === 'paid' ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
 )}>
 {visit.paymentStatus}
@@ -331,27 +331,27 @@ medicalRecords.map((record) => (
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8">
 <div className="space-y-4">
 <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-<h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+<h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
 <Heart className="w-3 h-3 text-red-500" /> Vitals
 </h4>
 <div className="grid grid-cols-2 gap-4">
 <div>
-<p className="text-[10px] text-slate-500 font-bold">BP</p>
+<p className="text-[11px] text-slate-500 font-bold">BP</p>
 <p className="text-sm font-black text-slate-900">{record.vitals?.bloodPressure || '-'}</p>
 </div>
 <div>
-<p className="text-[10px] text-slate-500 font-bold">Temp</p>
+<p className="text-[11px] text-slate-500 font-bold">Temp</p>
 <p className="text-sm font-black text-slate-900">{record.vitals?.temperature || '-'}</p>
 </div>
 <div>
-<p className="text-[10px] text-slate-500 font-bold">Sugar</p>
+<p className="text-[11px] text-slate-500 font-bold">Sugar</p>
 <p className="text-sm font-black text-slate-900">{record.vitals?.sugarLevel || '-'}</p>
 </div>
 </div>
 </div>
 {record.diagnosis && (
 <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100">
-<h4 className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">Diagnosis</h4>
+<h4 className="text-[11px] font-black text-blue-400 uppercase tracking-widest mb-2">Diagnosis</h4>
 <p className="text-sm text-slate-700 font-medium leading-relaxed">{record.diagnosis}</p>
 </div>
 )}
@@ -360,11 +360,11 @@ medicalRecords.map((record) => (
 {record.prescriptions && record.prescriptions.length > 0 && (
 <div>
 <div className="flex items-center gap-2 mb-2">
-<h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Prescriptions</h4>
+<h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Prescriptions</h4>
 {record.dispensed ? (
-<span className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase">Dispensed</span>
+<span className="px-2 py-0.5 bg-green-100 text-green-700 text-[11px] font-bold rounded-full uppercase">Dispensed</span>
 ) : (
-<span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-[10px] font-bold rounded-full uppercase">Pending</span>
+<span className="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-[11px] font-bold rounded-full uppercase">Pending</span>
 )}
 </div>
 <div className="flex flex-wrap gap-2">
@@ -378,7 +378,7 @@ medicalRecords.map((record) => (
 )}
 {record.recommendedTests && record.recommendedTests.length > 0 && (
 <div>
-<h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Recommended Tests</h4>
+<h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">Recommended Tests</h4>
 <div className="flex flex-wrap gap-2">
 {record.recommendedTests.map((t, i) => (
 <span key={i} className="px-3 py-1 bg-purple-50 border border-purple-100 text-purple-600 text-xs font-bold rounded-lg">
@@ -390,12 +390,12 @@ medicalRecords.map((record) => (
 )}
 <div className="flex gap-4">
 {record.admissionRecommended && (
-<span className="px-3 py-1 bg-red-50 text-red-600 text-[10px] font-black rounded-full uppercase tracking-widest border border-red-100">
+<span className="px-3 py-1 bg-red-50 text-red-600 text-[11px] font-black rounded-full uppercase tracking-widest border border-red-100">
 Admission Recommended
 </span>
 )}
 {record.cSectionRecommended && (
-<span className="px-3 py-1 bg-orange-50 text-orange-600 text-[10px] font-black rounded-full uppercase tracking-widest border border-orange-100">
+<span className="px-3 py-1 bg-orange-50 text-orange-600 text-[11px] font-black rounded-full uppercase tracking-widest border border-orange-100">
 C-Section Recommended
 </span>
 )}
@@ -403,10 +403,10 @@ C-Section Recommended
 {record.paymentFee && record.paymentFee > 0 && (
 <div className="p-4 bg-orange-50 rounded-xl border border-orange-100 flex justify-between items-center mt-4">
 <div className="flex items-center gap-2">
-<span className="text-[10px] font-black text-orange-400 uppercase tracking-widest">Payment Fee</span>
+<span className="text-[11px] font-black text-orange-400 uppercase tracking-widest">Payment Fee</span>
 {record.paymentStatus && (
 <span className={cn(
-"px-2 py-0.5 text-[10px] font-bold rounded-full uppercase",
+"px-2 py-0.5 text-[11px] font-bold rounded-full uppercase",
 record.paymentStatus === 'paid' ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
 )}>
 {record.paymentStatus}
@@ -494,7 +494,7 @@ View / Print Report
 )}
 </div>
 ) : (
-<span className="px-3 py-1 bg-orange-50 text-orange-600 text-[10px] font-black rounded-full uppercase tracking-widest border border-orange-100">
+<span className="px-3 py-1 bg-orange-50 text-orange-600 text-[11px] font-black rounded-full uppercase tracking-widest border border-orange-100">
 Pending
 </span>
 )}
@@ -545,9 +545,9 @@ return (
 </div>
 </div>
 <div className="flex flex-col items-end gap-1 shrink-0">
-<span className={cn("text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border", payTone)}>{payLabel}</span>
+<span className={cn("text-[11px] font-black uppercase tracking-widest px-3 py-1 rounded-full border", payTone)}>{payLabel}</span>
 <span className={cn(
-"text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border",
+"text-[11px] font-black uppercase tracking-widest px-3 py-1 rounded-full border",
 sum.allDispensed ? "bg-purple-50 text-purple-600 border-purple-100" : "bg-slate-50 text-slate-500 border-slate-100"
 )}>
 {sum.allDispensed ? 'All dispensed' : `${sum.dispensed} of ${sum.count} dispensed`}
@@ -567,12 +567,12 @@ sum.allDispensed ? "bg-purple-50 text-purple-600 border-purple-100" : "bg-slate-
 </div>
 <div className="flex flex-col items-end gap-1 shrink-0">
 <span className={cn(
-"text-[10px] font-bold uppercase",
+"text-[11px] font-bold uppercase",
 rx.paymentStatus === 'paid' ? "text-green-600" : rx.paymentStatus === 'partial' ? "text-blue-600" : "text-orange-600"
 )}>
 {rx.paymentStatus}
 </span>
-{rx.dispensed && <span className="text-[10px] font-bold uppercase text-purple-600">Dispensed</span>}
+{rx.dispensed && <span className="text-[11px] font-bold uppercase text-purple-600">Dispensed</span>}
 </div>
 </div>
 ))}
@@ -653,7 +653,7 @@ className="space-y-4"
 </div>
 </div>
 <span className={cn(
-"px-3 py-1 text-[10px] font-black rounded-full uppercase tracking-widest border",
+"px-3 py-1 text-[11px] font-black rounded-full uppercase tracking-widest border",
 record.paymentStatus === 'fully paid' 
 ? "bg-green-50 text-green-600 border-green-100" 
 : "bg-orange-50 text-orange-600 border-orange-100"
@@ -663,19 +663,19 @@ record.paymentStatus === 'fully paid'
 </div>
 <div className="grid grid-cols-3 gap-6">
 <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-<p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Total Bill</p>
+<p className="text-[11px] text-slate-500 font-bold uppercase tracking-widest mb-1">Total Bill</p>
 <p className="text-xl font-black text-slate-900">₦{record.totalAmount.toLocaleString()}</p>
 </div>
 <div className="p-4 bg-green-50/50 rounded-xl border border-green-100">
-<p className="text-[10px] text-green-600 font-bold uppercase tracking-widest mb-1">Amount Paid</p>
+<p className="text-[11px] text-green-600 font-bold uppercase tracking-widest mb-1">Amount Paid</p>
 <p className="text-xl font-black text-green-700">₦{record.paidAmount.toLocaleString()}</p>
 </div>
 <div className="p-4 bg-red-50/50 rounded-xl border border-red-100">
-<p className="text-[10px] text-red-600 font-bold uppercase tracking-widest mb-1">Balance Due</p>
+<p className="text-[11px] text-red-600 font-bold uppercase tracking-widest mb-1">Balance Due</p>
 <p className="text-xl font-black text-red-700">₦{record.pendingAmount.toLocaleString()}</p>
 </div>
 </div>
-<div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+<div className="mt-4 flex items-center gap-2 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
 <ChevronRight className="w-3 h-3" /> Payment Method: {record.paymentMethod}
 </div>
 </div>

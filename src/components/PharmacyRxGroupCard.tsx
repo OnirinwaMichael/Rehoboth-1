@@ -67,22 +67,22 @@ export const PharmacyRxGroupCard: React.FC<Props> = ({
           </div>
           <div className="min-w-0">
             <p className="font-bold text-slate-900 truncate">{first.patient?.name}</p>
-            <p className="text-[10px] text-slate-400">{first.patientId}</p>
+            <p className="text-[11px] text-slate-400">{first.patientId}</p>
           </div>
         </div>
         <div className="text-right shrink-0">
-          <span className="text-[10px] text-slate-400 block">{format(new Date(group.createdAt), 'd MMM, HH:mm')}</span>
-          <span className={cn('text-[10px] font-bold uppercase', paymentTone)}>{paymentLabel}</span>
+          <span className="text-[11px] text-slate-400 block">{format(new Date(group.createdAt), 'd MMM, HH:mm')}</span>
+          <span className={cn('text-[11px] font-bold uppercase', paymentTone)}>{paymentLabel}</span>
         </div>
       </div>
 
       {first.familyMemberName ? (
         <div className="mb-3 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-amber-600">Give to</p>
+          <p className="text-[11px] font-bold uppercase tracking-wide text-amber-600">Give to</p>
           <p className="text-sm font-black text-amber-800">{first.familyMemberName}</p>
         </div>
       ) : first.patient?.category === 'family card' ? (
-        <p className="mb-3 text-[10px] font-bold uppercase text-slate-400">Family card — member not recorded</p>
+        <p className="mb-3 text-[11px] font-bold uppercase text-slate-400">Family card — member not recorded</p>
       ) : null}
 
       <div className="flex items-center justify-between mb-2">
@@ -113,7 +113,7 @@ export const PharmacyRxGroupCard: React.FC<Props> = ({
               <div key={rx.id} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-purple-50 border border-purple-100 text-xs">
                 <Check className="w-3.5 h-3.5 text-purple-600 shrink-0" />
                 <span className="font-bold text-purple-800 flex-1 min-w-0 break-words">{rx.drugName}</span>
-                <span className="text-[10px] font-bold uppercase text-purple-600 shrink-0">Dispensed</span>
+                <span className="text-[11px] font-bold uppercase text-purple-600 shrink-0">Dispensed</span>
               </div>
             );
           }
@@ -132,25 +132,25 @@ export const PharmacyRxGroupCard: React.FC<Props> = ({
               >
                 {isOpen ? <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" /> : <ChevronRight className="w-4 h-4 text-slate-500 shrink-0" />}
                 <span className="font-bold text-slate-900 flex-1 min-w-0 break-words">{rx.drugName}</span>
-                {rx.quantityConfirmed && <span className="text-[10px] font-bold uppercase text-green-700 shrink-0">✓ qty</span>}
-                {!blocker && <span className="text-[10px] font-bold uppercase text-emerald-700 shrink-0">ready</span>}
+                {rx.quantityConfirmed && <span className="text-[11px] font-bold uppercase text-green-700 shrink-0">✓ qty</span>}
+                {!blocker && <span className="text-[11px] font-bold uppercase text-emerald-700 shrink-0">ready</span>}
                 {blocker === 'Awaiting payment' && (
-                  <span className="text-[10px] font-bold uppercase text-yellow-700 shrink-0">unpaid</span>
+                  <span className="text-[11px] font-bold uppercase text-yellow-700 shrink-0">unpaid</span>
                 )}
                 {rx.paymentStatus === 'partial' && (
-                  <span className="text-[10px] font-bold uppercase text-blue-600 shrink-0">balance owing</span>
+                  <span className="text-[11px] font-bold uppercase text-blue-600 shrink-0">balance owing</span>
                 )}
-                {expired && <span className="text-[10px] font-bold uppercase text-red-600 shrink-0">expired</span>}
+                {expired && <span className="text-[11px] font-bold uppercase text-red-600 shrink-0">expired</span>}
               </button>
 
               {isOpen && (
                 <div className="px-3 pb-3 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 border border-purple-100">
+                    <span className="text-[11px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 border border-purple-100">
                       {rx.route}
                     </span>
                     <span className={cn(
-                      'text-[10px] font-bold uppercase',
+                      'text-[11px] font-bold uppercase',
                       rx.paymentStatus === 'paid' ? 'text-green-600' : rx.paymentStatus === 'partial' ? 'text-blue-600' : 'text-yellow-600'
                     )}>
                       {isFree(rx) ? 'no charge' : rx.paymentStatus}
