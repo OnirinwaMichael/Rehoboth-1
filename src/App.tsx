@@ -80,7 +80,12 @@ return (
 <p className="px-3 pt-4 pb-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider">{item.group}</p>
 )}
 <button
-onClick={() => setCurrentView(item.label)}
+onClick={() => {
+// Re-clicking the active item returns that section to its home screen
+// (the section component listens for this; e.g. Finance leaves a patient's billing).
+if (currentView === item.label) window.dispatchEvent(new CustomEvent('nav-reselect', { detail: item.label }));
+setCurrentView(item.label);
+}}
 className={cn(
 "w-full flex items-center gap-3 p-2.5 rounded-xl transition-all group",
 currentView === item.label

@@ -152,6 +152,21 @@ useEffect(() => {
 setView(section === 'finance' ? 'dashboard' : section);
 setSelectedPatient(null);
 }, [section]);
+// Where the billing screen was opened from, so Back returns there (Pending Bills, the
+// Finance dashboard, or the Patients list) instead of always dumping you on Patients.
+const [billingFrom, setBillingFrom] = useState<'dashboard' | 'pendingBills' | 'patients'>('patients');
+// Clicking the already-active sidebar item (e.g. Finance) sends the sidebar's "nav-reselect"
+// event; go back to that section's home screen. Without this the click did nothing.
+useEffect(() => {
+const onReselect = (e: Event) => {
+if ((e as CustomEvent<string>).detail !== 'Finance' || section !== 'finance') return;
+setView('dashboard');
+setSelectedPatient(null);
+setBillingItems([]);
+};
+window.addEventListener('nav-reselect', onReselect);
+return () => window.removeEventListener('nav-reselect', onReselect);
+}, [section]);
 const [allPatients, setAllPatients] = useState<Patient[]>([]);
 const [expandedPatientId, setExpandedPatientId] = useState<string | null>(null);
 const [patientSearchQuery, setPatientSearchQuery] = useState('');
@@ -332,6 +347,7 @@ await selectPatientForBilling(patient);
 const selectPatientForBilling = async (p: Patient) => {
 setSearchSuggestions([]);
 setSearchId('');
+if (view !== 'billing') setBillingFrom(view === 'pendingBills' ? 'pendingBills' : view === 'dashboard' ? 'dashboard' : 'patients');
 setSelectedPatient(p);
 setView('billing');
 await fetchBillingItems(p.cardId);
@@ -344,6 +360,7 @@ const { data: pData, error: patientErr } = await supabase.from('patients').selec
 if (patientErr) throw patientErr;
 if (pData) {
 const patient = patientFromRow(pData);
+if (view !== 'billing') setBillingFrom(view === 'pendingBills' ? 'pendingBills' : view === 'dashboard' ? 'dashboard' : 'patients');
 setSelectedPatient(patient);
 setView('billing');
 await fetchBillingItems(searchId);
@@ -549,12 +566,22 @@ view === 'pendingBills' ? 'Tap a patient to open their billing and take payment.
 </div>
 <div className="flex flex-wrap gap-2">
 {view === 'billing' && (
+<>
 <button
-onClick={() => { setView('patients'); setSelectedPatient(null); }}
+onClick={() => { setView(billingFrom); setSelectedPatient(null); setBillingItems([]); if (billingFrom === 'pendingBills') fetchPendingBills(); }}
 className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition-all"
 >
-← Back to Patients
+← Back to {billingFrom === 'pendingBills' ? 'Pending Bills' : billingFrom === 'dashboard' ? 'Dashboard' : 'Patients'}
 </button>
+{billingFrom !== 'dashboard' && section === 'finance' && (
+<button
+onClick={() => { setView('dashboard'); setSelectedPatient(null); setBillingItems([]); }}
+className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 transition-all"
+>
+Finance Dashboard
+</button>
+)}
+</>
 )}
 {view === 'pendingBills' && (
 <button
