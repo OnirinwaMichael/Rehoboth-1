@@ -458,93 +458,64 @@ toast.success('Payment reconciled successfully');
 const handlePrint = (record: FinancialRecord & { patient?: Patient }) => {
 const printWindow = window.open('', '_blank');
 if (!printWindow) return;
+// Built for a 58 mm thermal roll (Xprinter XP-58IIH: 48 mm / 384 dots printable).
+// Pure black, bold, large type and thick rules, because thermal heads turn grey text,
+// thin lines, tilted or coloured elements into faint, fuzzy dots.
+const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+const naira = (n: number) => '₦' + Number(n || 0).toLocaleString();
+const owing = record.pendingAmount > 0;
 const content = `
 <html>
 <head>
-<title>Payment Receipt - ${record.patient?.name || record.patientId}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payment Receipt - ${esc(record.patient?.name || record.patientId)}</title>
 <style>
-body { font-family: sans-serif; padding: 40px; color: #333; }
-.header { text-align: center; border-bottom: 2px solid #eee; padding-bottom: 20px; margin-bottom: 30px; }
-.hospital-name { font-size: 24px; font-weight: bold; color: #2563eb; }
-.receipt-title { font-size: 18px; margin-top: 10px; text-transform: uppercase; letter-spacing: 1px; }
-.details { margin-bottom: 30px; }
-.row { display: flex; justify-content: space-between; margin-bottom: 10px; }
-.label { font-weight: bold; color: #666; }
-.table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-.table th, .table td { border: 1px solid #eee; padding: 12px; text-align: left; }
-.table th { bg-color: #f9fafb; }
-.footer { margin-top: 50px; text-align: center; font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 20px; }
-.stamp { margin-top: 30px; border: 2px solid #2563eb; color: #2563eb; display: inline-block; padding: 10px 20px; border-radius: 8px; font-weight: bold; transform: rotate(-5deg); }
+@page { size: 58mm auto; margin: 0; }
+* { box-sizing: border-box; color: #000 !important; background: #fff !important; }
+html, body { margin: 0; padding: 0; }
+body { width: 48mm; margin: 0 auto; padding: 2mm 0 6mm; font-family: Arial, Helvetica, sans-serif; font-size: 14px; line-height: 1.3; font-weight: 700; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.center { text-align: center; }
+.clinic { font-size: 17px; font-weight: 900; line-height: 1.2; }
+.title { font-size: 15px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2mm; }
+.rule { border: 0; border-top: 2px dashed #000; margin: 2.5mm 0; }
+.solid { border-top: 3px solid #000; }
+.field { margin: 1.5mm 0; }
+.lbl { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+.val { font-size: 15px; font-weight: 900; word-break: break-word; }
+.small { font-size: 12px; font-weight: 700; word-break: break-all; }
+.line { display: flex; justify-content: space-between; align-items: baseline; gap: 2mm; margin: 1.5mm 0; }
+.line .k { font-size: 14px; font-weight: 700; }
+.line .v { font-size: 16px; font-weight: 900; white-space: nowrap; }
+.big .k { font-size: 15px; font-weight: 900; }
+.big .v { font-size: 18px; font-weight: 900; }
+.status { margin: 3mm auto 0; text-align: center; border: 3px solid #000; padding: 1.5mm 1mm; font-size: 17px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
+.foot { margin-top: 3mm; text-align: center; font-size: 12px; font-weight: 700; line-height: 1.3; }
 @media print { .no-print { display: none; } }
 </style>
 </head>
 <body>
-<div class="header">
-<div class="hospital-name">The Rehoboth Clinic and Maternity, Mopa</div>
-<div class="receipt-title">Official Payment Receipt</div>
+<div class="center">
+<div class="clinic">The Rehoboth Clinic and Maternity, Mopa</div>
+<div class="title">Official Payment Receipt</div>
 </div>
-<div class="details">
-<div class="row">
-<span class="label">Receipt No:</span>
-<span>${record.id || 'TEMP-' + Date.now()}</span>
-</div>
-<div class="row">
-<span class="label">Date:</span>
-<span>${format(new Date(record.createdAt), 'MMMM d, yyyy HH:mm')}</span>
-</div>
-<div class="row">
-<span class="label">Patient Name:</span>
-<span>${record.patient?.name || 'N/A'}</span>
-</div>
-<div class="row">
-<span class="label">Card ID:</span>
-<span>${record.patientId}</span>
-</div>
-</div>
-<table class="table">
-<thead>
-<tr>
-<th>Description</th>
-<th>Amount</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Hospital Services / Clinical Fees</td>
-<td>₦${record.totalAmount.toLocaleString()}</td>
-</tr>
-</tbody>
-<tfoot>
-<tr>
-<th style="text-align: right;">Total Amount:</th>
-<th>₦${record.totalAmount.toLocaleString()}</th>
-</tr>
-<tr>
-<th style="text-align: right;">Amount Paid:</th>
-<th>₦${record.paidAmount.toLocaleString()}</th>
-</tr>
-<tr>
-<th style="text-align: right;">Balance Due:</th>
-<th style="color: ${record.pendingAmount > 0 ? '#ef4444' : '#10b981'}">₦${record.pendingAmount.toLocaleString()}</th>
-</tr>
-</tfoot>
-</table>
-<div class="details" style="margin-top: 20px;">
-<div class="row">
-<span class="label">Payment Mode:</span>
-<span style="text-transform: capitalize;">${record.paymentMethod}</span>
-</div>
-<div class="row">
-<span class="label">Status:</span>
-<span style="text-transform: capitalize; font-weight: bold; color: ${record.paymentStatus === 'fully paid' ? '#10b981' : '#f59e0b'}">${record.paymentStatus}</span>
-</div>
-</div>
-<div style="text-align: right;">
-<div class="stamp">PAID</div>
-</div>
-<div class="footer">
-<p>Thank you for choosing Rehoboth Mopa Hospital.</p>
-<p>This is a computer-generated receipt and does not require a physical signature.</p>
+<hr class="rule" />
+<div class="field"><div class="lbl">Receipt No</div><div class="small">${esc(record.id || 'TEMP-' + Date.now())}</div></div>
+<div class="field"><div class="lbl">Date</div><div class="val">${esc(format(new Date(record.createdAt), 'MMM d, yyyy HH:mm'))}</div></div>
+<div class="field"><div class="lbl">Patient</div><div class="val">${esc(record.patient?.name || 'N/A')}</div></div>
+<div class="field"><div class="lbl">Card ID</div><div class="val">${esc(record.patientId)}</div></div>
+<hr class="rule" />
+<div class="field"><div class="lbl">Description</div><div class="val">Hospital Services / Clinical Fees</div></div>
+<hr class="rule solid" />
+<div class="line"><span class="k">Total</span><span class="v">${naira(record.totalAmount)}</span></div>
+<div class="line big"><span class="k">Paid</span><span class="v">${naira(record.paidAmount)}</span></div>
+<div class="line"><span class="k">${owing ? 'BALANCE DUE' : 'Balance'}</span><span class="v">${naira(record.pendingAmount)}</span></div>
+<hr class="rule solid" />
+<div class="line"><span class="k">Mode</span><span class="v" style="text-transform: capitalize;">${esc(record.paymentMethod)}</span></div>
+<div class="status">${owing ? 'PART PAYMENT' : 'PAID IN FULL'}</div>
+<hr class="rule" />
+<div class="foot">
+<div>Thank you for choosing Rehoboth Mopa Hospital.</div>
+<div style="margin-top:1.5mm;">Computer-generated receipt. No signature needed.</div>
 </div>
 <script>
 window.onload = () => {
