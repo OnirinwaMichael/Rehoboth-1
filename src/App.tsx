@@ -19,13 +19,17 @@ import { PatientSearch } from './components/PatientSearch';
 import { SystemClock } from './components/SystemClock';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { checkSystemHealth } from './lib/supabase';
+import { usePendingBillsAlert } from './lib/usePendingBillsAlert';
 import { AnimatePresence } from 'motion/react';
 const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const { user, logout } = useAuth();
 const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 const [isProfileOpen, setIsProfileOpen] = useState(false);
 const [currentView, setCurrentView] = useState('Overview');
-if (!user) return <Navigate to="/" />;
+// Receptionist and CMD: live count of patients with unpaid bills (badge on Finance) and a
+// toast when a new bill is raised, e.g. a walk-in's lab test.
+const pendingBillPatients = usePendingBillsAlert(!!user && !user.mustChangePassword && (user.role === 'CMD' || user.role === 'Receptionist'));
+if (!user) return <Navigate to="/" />
 // Staff who haven't set their own password yet are gated here,
 // before they see any clinical data — replaces the old default-
 // password flow entirely.
@@ -84,10 +88,16 @@ currentView === item.label
 : "text-slate-400 hover:bg-slate-800/60 hover:text-white"
 )}
 >
-<span className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-colors", item.color)}>
+<span className={cn("relative w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-colors", item.color)}>
 <item.icon className="w-4 h-4" />
+{item.label === 'Finance' && pendingBillPatients > 0 && !isSidebarOpen && (
+<span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-orange-500 border-2 border-slate-900" />
+)}
 </span>
 {isSidebarOpen && <span className="font-medium text-sm truncate">{item.label}</span>}
+{isSidebarOpen && item.label === 'Finance' && pendingBillPatients > 0 && (
+<span className="ml-auto bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full" title="Patients with unpaid bills">{pendingBillPatients}</span>
+)}
 </button>
 </React.Fragment>
 );

@@ -15,6 +15,7 @@ import { ConfirmModal } from './ConfirmModal';
 import { LabReportPrint } from './LabReportPrint';
 import { LabGroupEntryPanel, LabTestX, isLabTestLocked } from './LabGroupEntryPanel';
 import { paymentRecorded } from '../lib/paymentGate';
+import { WalkInPatientDialog } from './WalkInPatientDialog';
 import { LabRequestFormPaper } from './LabRequestFormPaper';
 import { buildPaperValues, toRequestDetails, PaperValues } from '../lib/labRequestForm';
 import { LabResultFormSheet } from './LabResultFormSheet';
@@ -182,6 +183,7 @@ if (!q) return testCatalog;
 return testCatalog.filter(test => test.name.toLowerCase().includes(q));
 }, [testCatalog, catalogSearch]);
 const [manualPatientSuggestions, setManualPatientSuggestions] = useState<Patient[]>([]);
+const [showWalkIn, setShowWalkIn] = useState(false);
 useEffect(() => {
 if (!manualEntry.patientId.trim() || manualEntry.patientId.trim().length < 2) {
 setManualPatientSuggestions([]);
@@ -557,6 +559,13 @@ setLoading(false);
 return (
 <div className="space-y-8 max-w-7xl mx-auto">
 {showResultForm && <LabResultFormSheet userId={userId} onClose={() => setShowResultForm(false)} />}
+{showWalkIn && (
+<WalkInPatientDialog
+userId={userId}
+onClose={() => setShowWalkIn(false)}
+onCreated={(cardId) => { setManualEntry({ ...manualEntry, patientId: cardId }); setManualPatientSuggestions([]); setShowWalkIn(false); }}
+/>
+)}
 {selectedGroup && (
 <LabGroupEntryPanel
 key={selectedGroup.key}
@@ -1020,7 +1029,12 @@ onCancel={() => setDeletingResource(null)}
 </div>
 <div className="p-8 space-y-6">
 <div className="space-y-2">
+<div className="flex items-center justify-between">
 <label className="text-sm font-bold text-slate-700">Patient</label>
+<button type="button" onClick={() => setShowWalkIn(true)} className="text-xs font-bold text-blue-600 hover:underline">
++ Walk-in (no card)
+</button>
+</div>
 <div className="relative">
 <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
 <input

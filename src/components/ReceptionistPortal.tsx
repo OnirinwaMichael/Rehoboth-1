@@ -45,6 +45,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { PatientHistory } from './PatientHistory';
 import { ConfirmModal } from './ConfirmModal';
 import { FinancePortal } from './FinancePortal';
+import { WalkInPatientDialog } from './WalkInPatientDialog';
 interface Props {
 userId: string;
 section: 'dashboard' | 'register' | 'appointments' | 'directory' | 'patients' | 'finance' | 'reconciliation' | 'expenses' | 'reports';
@@ -118,6 +119,7 @@ const [exporting, setExporting] = useState(false);
 const [regFees, setRegFees] = useState<RegistrationFeeSettings | null>(null);
 const [showFeeEditor, setShowFeeEditor] = useState(false);
 const [feeEditorForm, setFeeEditorForm] = useState({ single: '', family: '', antenatalNew: '', antenatalReturning: '' });
+const [showWalkIn, setShowWalkIn] = useState(false);
 const [pendingRegPayment, setPendingRegPayment] = useState<{ cardId: string; name: string; amount: string; method: 'cash' | 'bank transfer' } | null>(null);
 const getRegistrationFee = (category: Patient['category'], antenatalStatus?: 'new' | 'returning'): number => {
 if (!regFees) return 0;
@@ -230,6 +232,9 @@ const { count, error } = await supabase
 if (error) return handleSupabaseError(error, 'select', 'financials');
 setStats(prev => ({ ...prev, pendingBills: count || 0 }));
 };
+// Walk-ins have no clinic card, so they stay out of registration counts and charts
+// (they still appear in the directory so they can be found).
+const registeredPatients = useMemo(() => allPatients.filter(p => p.category !== 'walk-in'), [allPatients]);
 // Real trend data for the dashboard sparklines — derived from data
 // already fetched (allPatients/appointments), no extra round trips.
 const last7DaysRegistrations = useMemo(() => {
@@ -238,22 +243,22 @@ for (let i = 6; i >= 0; i--) {
 const d = new Date();
 d.setDate(d.getDate() - i);
 const key = format(d, 'yyyy-MM-dd');
-days.push({ label: format(d, 'EEE'), count: allPatients.filter(p => p.createdAt.startsWith(key)).length });
+days.push({ label: format(d, 'EEE'), count: registeredPatients.filter(p => p.createdAt.startsWith(key)).length });
 }
 return days;
-}, [allPatients]);
+}, [registeredPatients]);
 const registrationsTrendPct = useMemo(() => {
 let thisWeek = 0, prevWeek = 0;
 for (let i = 0; i <= 13; i++) {
 const d = new Date();
 d.setDate(d.getDate() - i);
 const key = format(d, 'yyyy-MM-dd');
-const count = allPatients.filter(p => p.createdAt.startsWith(key)).length;
+const count = registeredPatients.filter(p => p.createdAt.startsWith(key)).length;
 if (i <= 6) thisWeek += count; else prevWeek += count;
 }
 if (prevWeek === 0) return thisWeek > 0 ? 100 : 0;
 return Math.round(((thisWeek - prevWeek) / prevWeek) * 100);
-}, [allPatients]);
+}, [registeredPatients]);
 const last7DaysAppointments = useMemo(() => {
 const days: { label: string; count: number }[] = [];
 for (let i = 6; i >= 0; i--) {
@@ -272,14 +277,14 @@ return Math.round(((today - yesterday) / yesterday) * 100);
 }, [last7DaysAppointments]);
 const patientsByCategory = useMemo(() => {
 const counts: Record<string, number> = {};
-allPatients.forEach(p => { counts[p.category] = (counts[p.category] || 0) + 1; });
+registeredPatients.forEach(p => { counts[p.category] = (counts[p.category] || 0) + 1; });
 const colors: Record<string, string> = {
 'single card': '#0d9488', 'family card': '#7c3aed', 'antenatal': '#f97316', "children's card": '#0ea5e9',
 };
 const labels: Record<string, string> = {
 'single card': 'Single Card', 'family card': 'Family Card', 'antenatal': 'Antenatal', "children's card": "Children's Card",
 };
-const total = allPatients.length || 1;
+const total = registeredPatients.length || 1;
 const circumference = 2 * Math.PI * 70;
 let cumulative = 0;
 return Object.entries(counts)
@@ -292,7 +297,7 @@ const dashoffset = -cumulative;
 cumulative += length;
 return { ...seg, dasharray, dashoffset };
 });
-}, [allPatients]);
+}, [registeredPatients]);
 const fetchAppointments = async () => {
 const { data, error } = await supabase
 .from('appointments')
@@ -724,7 +729,7 @@ strokeDashoffset={seg.dashoffset}
 ))}
 </svg>
 <div className="absolute inset-0 flex flex-col items-center justify-center">
-<span className="text-2xl font-black text-slate-900">{allPatients.length}</span>
+<span className="text-2xl font-black text-slate-900">{registeredPatients.length}</span>
 <span className="text-[10px] text-slate-400 uppercase tracking-wider">Total</span>
 </div>
 </div>
@@ -746,10 +751,24 @@ strokeDashoffset={seg.dashoffset}
 )}
 {view === 'register' && (
 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+{showWalkIn && (
+<WalkInPatientDialog
+userId={userId}
+onClose={() => setShowWalkIn(false)}
+onCreated={() => { setShowWalkIn(false); fetchAllPatients(); }}
+/>
+)}
 <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-<div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
+<div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between gap-2">
+<div className="flex items-center gap-2">
 <UserPlus className="w-5 h-5 text-blue-600" />
 <h3 className="font-bold text-slate-900">{editingPatient ? 'Edit Patient Record' : 'New Patient Registration'}</h3>
+</div>
+{!editingPatient && (
+<button type="button" onClick={() => setShowWalkIn(true)} className="text-xs font-bold text-blue-600 hover:underline whitespace-nowrap">
++ Walk-in (no card)
+</button>
+)}
 </div>
 <form onSubmit={editingPatient ? handleEditPatient : handleSubmit} className="p-8 space-y-6">
 {!editingPatient && (

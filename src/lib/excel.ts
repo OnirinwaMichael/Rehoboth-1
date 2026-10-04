@@ -19,7 +19,8 @@ p.registrationType === 'old' ? 'Old / Existing File' : 'Fresh / New Patient',
 format(parseISO(p.createdAt), 'yyyy-MM-dd HH:mm'),
 ]),
 ];
-const sorted = [...patients].sort((a, b) => a.name.localeCompare(b.name));
+// Walk-ins have no clinic card, so they are not part of the patient register.
+const sorted = patients.filter(p => p.category !== 'walk-in').sort((a, b) => a.name.localeCompare(b.name));
 XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(toRows(sorted)), 'All Patients');
 XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(toRows(sorted.filter(p => p.registrationType === 'fresh'))), 'Fresh');
 XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(toRows(sorted.filter(p => p.registrationType === 'old'))), 'Old');

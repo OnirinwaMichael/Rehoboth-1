@@ -21,7 +21,7 @@ nextOfKin: string;
 relationship: string;
 nokAddress: string;
 nokPhone: string;
-category: 'single card' | 'family card' | 'antenatal' | "children's card";
+category: 'single card' | 'family card' | 'antenatal' | "children's card" | 'walk-in';
 createdAt: string;
 registrationType: 'fresh' | 'old';
 antenatalStatus?: 'new' | 'returning' | null;
