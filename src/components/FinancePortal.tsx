@@ -111,6 +111,71 @@ title="Delete Transaction"
 </td>
 </tr>
 ));
+// Phone layout of a transaction (same data and actions as TransactionRow, stacked as a card).
+const TransactionCard = memo(({ record, onPrint, onDelete }: {
+record: FinancialRecord & { patient?: Patient },
+onPrint: (record: FinancialRecord & { patient?: Patient }) => void,
+onDelete: (id: string) => void
+}) => (
+<div className="p-4 space-y-3">
+<div className="flex items-start justify-between gap-3">
+<div className="flex items-center gap-3 min-w-0">
+<div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold shrink-0">
+{record.patient?.name.charAt(0)}
+</div>
+<div className="min-w-0">
+<p className="text-base font-bold text-slate-900 truncate">{record.patient?.name}</p>
+<p className="text-xs text-slate-500">{record.patientId}</p>
+{record.familyMemberName && <p className="text-xs font-bold text-amber-700">For: {record.familyMemberName}</p>}
+</div>
+</div>
+<span className={cn(
+"text-[11px] font-bold px-2.5 py-1 rounded-full uppercase shrink-0",
+record.paymentStatus === 'fully paid' ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
+)}>
+{record.paymentStatus}
+</span>
+</div>
+{(record.referenceType === 'registration' || record.paymentMethod) && (
+<div className="flex flex-wrap items-center gap-2">
+{record.referenceType === 'registration' && (
+<span className="text-[11px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full uppercase">Registration</span>
+)}
+{record.paymentMethod && (
+<span className="text-[11px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full uppercase">{record.paymentMethod}</span>
+)}
+</div>
+)}
+<div className="grid grid-cols-3 gap-2 bg-slate-50 rounded-xl px-3 py-2.5">
+<div>
+<p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Total</p>
+<p className="text-sm font-semibold text-slate-700">₦{record.totalAmount.toLocaleString()}</p>
+</div>
+<div>
+<p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Paid</p>
+<p className="text-sm font-bold text-green-700">₦{record.paidAmount.toLocaleString()}</p>
+</div>
+<div className="text-right">
+<p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Pending</p>
+<p className="text-sm font-bold text-red-600">₦{record.pendingAmount.toLocaleString()}</p>
+</div>
+</div>
+<div className="flex gap-2">
+<button
+onClick={() => onPrint(record)}
+className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-blue-50 text-blue-700 font-bold text-sm active:bg-blue-100"
+>
+<Receipt className="w-4 h-4" /> Receipt
+</button>
+<button
+onClick={() => onDelete(record.id)}
+className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-red-50 text-red-700 font-bold text-sm active:bg-red-100"
+>
+<Trash2 className="w-4 h-4" /> Delete
+</button>
+</div>
+</div>
+));
 const ExpenseRow = memo(({ expense, onDelete }: { 
 expense: Expense, 
 onDelete: (id: string) => void 
@@ -627,7 +692,7 @@ Search
 </div>
 {view === 'dashboard' ? (
 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
+<div className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 sm:gap-6">
 <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center text-green-600">
 <Wallet className="w-8 h-8" />
 </div>
@@ -636,7 +701,7 @@ Search
 <h4 className="text-3xl font-black text-slate-900">₦{stats.totalRevenue.toLocaleString()}</h4>
 </div>
 </div>
-<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
+<div className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 sm:gap-6">
 <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600">
 <ArrowUpRight className="w-8 h-8" />
 </div>
@@ -648,7 +713,7 @@ Search
 <button
 type="button"
 onClick={() => setView('pendingBills')}
-className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6 text-left hover:border-orange-200 hover:shadow-md transition-all"
+className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 sm:gap-6 text-left hover:border-orange-200 hover:shadow-md transition-all"
 >
 <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-600">
 <Receipt className="w-8 h-8" />
@@ -658,7 +723,7 @@ className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items
 <h4 className="text-3xl font-black text-slate-900">{pendingBills.length}</h4>
 </div>
 </button>
-<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
+<div className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 sm:gap-6">
 <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center text-red-600">
 <TrendingDown className="w-8 h-8" />
 </div>
@@ -667,7 +732,7 @@ className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items
 <h4 className="text-3xl font-black text-slate-900">₦{stats.totalExpenses.toLocaleString()}</h4>
 </div>
 </div>
-<div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6">
+<div className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 sm:gap-6">
 <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center text-purple-600">
 <TrendingUp className="w-8 h-8" />
 </div>
@@ -676,7 +741,7 @@ className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items
 <h4 className="text-3xl font-black text-slate-900">₦{stats.netProfit.toLocaleString()}</h4>
 </div>
 </div>
-<div className="md:col-span-3 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+<div className="md:col-span-3 bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100">
 <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
 <History className="w-5 h-5 text-slate-400" /> Recent Transactions
 </h3>
@@ -708,7 +773,7 @@ className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items
 </div>
 </div>
 ) : view === 'billing' ? (
-<div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+<div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-8">
 {/* Itemized Billing */}
 <div className="lg:col-span-12 space-y-6">
 {selectedPatient ? (
@@ -785,12 +850,27 @@ Pay
 {/* Financial History */}
 <div className="lg:col-span-12 space-y-6">
 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-<div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+<div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
 <h3 className="font-bold text-slate-900 flex items-center gap-2">
 <History className="w-5 h-5 text-slate-400" /> Recent Transactions
 </h3>
 </div>
-<div className="overflow-x-auto">
+{/* Phone: stacked cards */}
+<div className="md:hidden divide-y divide-slate-100">
+{records.map((record, idx) => (
+<TransactionCard
+key={record.id || idx}
+record={record}
+onPrint={handlePrint}
+onDelete={(id) => setDeleteConfirm({ type: 'transaction', id })}
+/>
+))}
+{records.length === 0 && !loading && (
+<p className="px-6 py-16 text-center text-slate-500">No transactions found.</p>
+)}
+</div>
+{/* Tablet and desktop: table */}
+<div className="hidden md:block overflow-x-auto scroll-thin">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100">
@@ -798,7 +878,7 @@ Pay
 <th className="px-6 py-4">Amount</th>
 <th className="px-6 py-4">Paid/Pending</th>
 <th className="px-6 py-4">Status</th>
-<th className="px-6 py-4">Method</th>
+<th className="px-6 py-4">Actions</th>
 </tr>
 </thead>
 <tbody className="divide-y divide-slate-50">
@@ -830,7 +910,43 @@ No transactions found.
 <CheckCircle className="w-5 h-5 text-slate-400" /> Bank Transfer Reconciliation
 </h3>
 </div>
-<div className="overflow-x-auto">
+{/* Phone: stacked cards */}
+<div className="md:hidden divide-y divide-slate-100">
+{records.filter(r => r.paymentMethod === 'bank transfer').map((record, idx) => (
+<div key={record.id || idx} className="p-4 space-y-3">
+<div className="flex items-start justify-between gap-3">
+<div className="min-w-0">
+<p className="text-base font-bold text-slate-900 truncate">{record.patient?.name}</p>
+<p className="text-xs text-slate-500">{record.patientId}</p>
+<p className="text-xs text-slate-500">{format(new Date(record.createdAt), 'MMM d, yyyy HH:mm')}</p>
+</div>
+{record.reconciled ? (
+<span className="text-[11px] font-bold bg-green-100 text-green-700 px-2.5 py-1 rounded-full uppercase flex items-center gap-1 shrink-0">
+<CheckCircle className="w-3.5 h-3.5" /> Reconciled
+</span>
+) : (
+<span className="text-[11px] font-bold bg-orange-100 text-orange-700 px-2.5 py-1 rounded-full uppercase flex items-center gap-1 shrink-0">
+<Clock className="w-3.5 h-3.5" /> Pending
+</span>
+)}
+</div>
+<p className="text-lg font-black text-slate-900">₦{record.paidAmount.toLocaleString()}</p>
+{!record.reconciled && (
+<button
+onClick={() => handleReconcile(record.id)}
+className="w-full min-h-11 bg-blue-600 text-white rounded-xl text-sm font-bold active:bg-blue-700"
+>
+Mark Reconciled
+</button>
+)}
+</div>
+))}
+{records.filter(r => r.paymentMethod === 'bank transfer').length === 0 && !loading && (
+<p className="px-6 py-16 text-center text-slate-500">No bank transfers found.</p>
+)}
+</div>
+{/* Tablet and desktop: table */}
+<div className="hidden md:block overflow-x-auto scroll-thin">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100">
@@ -895,7 +1011,7 @@ No bank transfers found.
 </div>
 </div>
 ) : view === 'expenses' ? (
-<div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+<div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-8">
 <div className="lg:col-span-4">
 <div className="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
 <div className="p-6 border-b border-slate-100 bg-slate-900 text-white flex items-center justify-between">
@@ -960,7 +1076,33 @@ Save Expense
 <History className="w-5 h-5 text-slate-400" /> Expense History
 </h3>
 </div>
-<div className="overflow-x-auto">
+{/* Phone: stacked cards */}
+<div className="md:hidden divide-y divide-slate-100">
+{expenses.map((expense, idx) => (
+<div key={expense.id || idx} className="p-4 flex items-start justify-between gap-3">
+<div className="min-w-0 space-y-1">
+<p className="text-base font-bold text-slate-900">{expense.description}</p>
+<div className="flex flex-wrap items-center gap-2">
+<span className="text-[11px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full uppercase">{expense.category}</span>
+<span className="text-xs text-slate-500">{format(new Date(expense.createdAt), 'MMM d, yyyy')}</span>
+</div>
+<p className="text-lg font-black text-red-600">₦{expense.amount.toLocaleString()}</p>
+</div>
+<button
+onClick={() => setDeleteConfirm({ type: 'expense', id: expense.id })}
+aria-label="Delete expense"
+className="p-3 rounded-xl bg-red-50 text-red-700 active:bg-red-100 shrink-0"
+>
+<Trash2 className="w-5 h-5" />
+</button>
+</div>
+))}
+{expenses.length === 0 && (
+<p className="px-6 py-16 text-center text-slate-500">No expenses recorded.</p>
+)}
+</div>
+{/* Tablet and desktop: table */}
+<div className="hidden md:block overflow-x-auto scroll-thin">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100">
@@ -976,7 +1118,7 @@ Save Expense
 <ExpenseRow 
 key={expense.id || idx} 
 expense={expense} 
-onDelete={handleDeleteExpense}
+onDelete={(id) => setDeleteConfirm({ type: 'expense', id })}
 />
 ))}
 {expenses.length === 0 && (
@@ -1018,7 +1160,7 @@ No expenses recorded yet.
 <p className="text-xl font-black text-red-600 mt-4">₦{stats.totalExpenses.toLocaleString()}</p>
 </div>
 </div>
-<div className="p-8 rounded-3xl bg-blue-600 text-white space-y-6 shadow-2xl shadow-blue-200">
+<div className="p-5 sm:p-8 rounded-3xl bg-blue-600 text-white space-y-6 shadow-2xl shadow-blue-200">
 <div className="flex justify-between items-center">
 <div className="text-left">
 <p className="text-blue-100 text-sm font-bold uppercase tracking-widest">Net Financial Position</p>
@@ -1177,12 +1319,56 @@ Next
 </div>
 ) : view === 'pendingBills' ? (
 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-<div className="p-6 border-b border-slate-100 bg-slate-50/50">
+<div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/50">
 <h3 className="font-bold text-slate-900 flex items-center gap-2">
 <Receipt className="w-5 h-5 text-orange-500" /> Patients With Pending Bills
 </h3>
 </div>
-<div className="overflow-x-auto">
+{/* Phone: one tappable card per patient */}
+<div className="md:hidden divide-y divide-slate-100">
+{pendingBills.map(row => (
+<button
+key={row.patientId}
+type="button"
+onClick={() => openPendingBill(row)}
+className="w-full text-left p-4 flex flex-col gap-3 active:bg-orange-50 hover:bg-orange-50/60 transition-colors"
+>
+<div className="flex items-start justify-between gap-3">
+<div className="flex items-center gap-3 min-w-0">
+<div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center text-orange-600 font-bold shrink-0">
+{row.patientName?.charAt(0) || '?'}
+</div>
+<div className="min-w-0">
+<p className="text-base font-bold text-slate-900 truncate">{row.patientName || row.patientId}</p>
+<p className="text-xs text-slate-500">{row.patientId}</p>
+{row.familyMemberNames && <p className="text-xs font-bold text-amber-700">For: {row.familyMemberNames}</p>}
+</div>
+</div>
+<span className="text-[11px] font-bold px-2.5 py-1 rounded-full uppercase bg-orange-100 text-orange-700 shrink-0">
+{row.paidAmount > 0 ? 'partial' : 'pending'}
+</span>
+</div>
+<p className="text-sm text-slate-600">
+{row.kinds} · {row.itemCount} unpaid item{row.itemCount === 1 ? '' : 's'}
+</p>
+<div className="flex items-end justify-between gap-3 bg-slate-50 rounded-xl px-3 py-2.5">
+<div>
+<p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Total</p>
+<p className="text-sm font-semibold text-slate-700">₦{row.totalAmount.toLocaleString()}</p>
+</div>
+<div className="text-right">
+<p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Pending</p>
+<p className="text-lg font-black text-red-600">₦{row.outstanding.toLocaleString()}</p>
+</div>
+</div>
+</button>
+))}
+{pendingBills.length === 0 && (
+<p className="px-6 py-16 text-center text-slate-500">No pending bills right now.</p>
+)}
+</div>
+{/* Tablet and desktop: table */}
+<div className="hidden md:block overflow-x-auto scroll-thin">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100">
@@ -1240,12 +1426,12 @@ No pending bills right now.
 {/* Pay / Partial Payment Modal */}
 <AnimatePresence>
 {payModal && (
-<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+<div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
 <motion.div
 initial={{ opacity: 0, scale: 0.95 }}
 animate={{ opacity: 1, scale: 1 }}
 exit={{ opacity: 0, scale: 0.95 }}
-className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-sm max-h-[92dvh] overflow-y-auto pb-safe"
 >
 <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
 <h3 className="font-bold text-slate-900">Record Payment</h3>
@@ -1329,12 +1515,12 @@ onClose={() => setShowHistory(false)}
 {/* Print Preview Modal */}
 <AnimatePresence>
 {printingRecord && (
-<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+<div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
 <motion.div
 initial={{ opacity: 0, scale: 0.95 }}
 animate={{ opacity: 1, scale: 1 }}
 exit={{ opacity: 0, scale: 0.95 }}
-className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md max-h-[92dvh] overflow-y-auto pb-safe"
 >
 <div className="p-6 border-b border-slate-100 bg-slate-900 text-white flex items-center justify-between">
 <h3 className="font-bold flex items-center gap-2">
@@ -1344,7 +1530,7 @@ className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
 <X className="w-5 h-5" />
 </button>
 </div>
-<div className="p-8 text-center space-y-6">
+<div className="p-5 sm:p-8 text-center space-y-6">
 <div className="w-20 h-20 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto">
 <DollarSign className="w-10 h-10" />
 </div>

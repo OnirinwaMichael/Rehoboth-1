@@ -458,6 +458,31 @@ const { error } = await supabase.from('family_members').insert(toInsert);
 if (error) return handleSupabaseError(error, 'insert', 'family_members');
 }
 };
+const startEditPatient = (p: Patient) => {
+setEditingPatient(p);
+setEditCardId(p.cardId);
+setFormData({
+name: p.name, gender: p.gender, stateOfOrigin: p.stateOfOrigin, age: p.age,
+occupation: p.occupation, address: p.address, phone: p.phone, nextOfKin: p.nextOfKin,
+relationship: p.relationship, nokAddress: p.nokAddress, nokPhone: p.nokPhone, category: p.category,
+antenatalStatus: p.antenatalStatus || 'new'
+});
+if (p.category === 'family card') { loadFamilyMembers(p.cardId); } else { setFamilyMembers([]); setOriginalFamilyMemberIds([]); }
+setView('register');
+};
+const startEditAppointment = (appt: (typeof appointments)[number]) => {
+setEditingAppointment(appt);
+setAppointmentForm({
+patientId: appt.patientId,
+patientName: appt.patientName,
+doctorId: appt.doctorId,
+doctorName: appt.doctorName,
+date: appt.date,
+time: appt.time,
+reason: appt.reason
+});
+setShowAppointmentModal(true);
+};
 const handleAppointmentSubmit = async (e: React.FormEvent) => {
 e.preventDefault();
 if (!appointmentForm.doctorId) {
@@ -628,7 +653,7 @@ style={{ height: `${Math.max((d.count / max) * 100, 8)}%` }} title={`${d.label}:
 <button
 type="button"
 onClick={() => { setDirectoryFilter('all'); setDirectoryTodayOnly(true); setView('directory'); }}
-className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6 text-left hover:border-emerald-200 hover:shadow-md transition-all"
+className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 sm:gap-6 text-left hover:border-emerald-200 hover:shadow-md transition-all"
 >
 <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center text-emerald-600">
 <UserPlus className="w-8 h-8" />
@@ -672,7 +697,7 @@ style={{ height: `${Math.max((d.count / max) * 100, 8)}%` }} title={`${d.label}:
 </button>
 <button
 onClick={() => onNavigate?.('Finance')}
-className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-6 text-left hover:border-orange-200 transition-all"
+className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 sm:gap-6 text-left hover:border-orange-200 transition-all"
 >
 <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-600">
 <DollarSign className="w-8 h-8" />
@@ -682,7 +707,7 @@ className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex items
 <h4 className="text-3xl font-black text-slate-900">{stats.pendingBills}</h4>
 </div>
 </button>
-<div className="lg:col-span-3 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+<div className="lg:col-span-3 bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100">
 <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
 <History className="w-5 h-5 text-slate-400" /> Recent Activity
 </h3>
@@ -708,7 +733,7 @@ className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 text-left hover
 ))}
 </div>
 </div>
-<div className="lg:col-span-1 bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+<div className="lg:col-span-1 bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100">
 <h3 className="font-bold text-slate-900 mb-6">Patients by Category</h3>
 {allPatients.length === 0 ? (
 <p className="text-sm text-slate-400 text-center py-8">No patients yet.</p>
@@ -750,7 +775,7 @@ strokeDashoffset={seg.dashoffset}
 </div>
 )}
 {view === 'register' && (
-<div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8">
 {showWalkIn && (
 <WalkInPatientDialog
 userId={userId}
@@ -770,7 +795,7 @@ onCreated={() => { setShowWalkIn(false); fetchAllPatients(); }}
 </button>
 )}
 </div>
-<form onSubmit={editingPatient ? handleEditPatient : handleSubmit} className="p-8 space-y-6">
+<form onSubmit={editingPatient ? handleEditPatient : handleSubmit} className="p-4 sm:p-8 space-y-6">
 {!editingPatient && (
 <div className="space-y-3 pb-2 border-b border-slate-100">
 <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
@@ -1106,7 +1131,60 @@ className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl f
 </button>
 </div>
 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-<div className="overflow-x-auto">
+{/* Phone: stacked cards */}
+<div className="md:hidden divide-y divide-slate-100">
+{appointments.map((appt) => (
+<div key={appt.id} className="p-4 space-y-3">
+<div className="flex items-start justify-between gap-3">
+<div className="min-w-0">
+<p className="text-base font-bold text-slate-900 truncate">{appt.patientName}</p>
+<p className="text-xs text-slate-500">ID: {appt.patientId}</p>
+</div>
+<span className={cn(
+"px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider shrink-0",
+appt.status === 'scheduled' && "bg-blue-100 text-blue-700",
+appt.status === 'completed' && "bg-green-100 text-green-700",
+appt.status === 'cancelled' && "bg-red-100 text-red-700",
+appt.status === 'rescheduled' && "bg-amber-100 text-amber-700"
+)}>
+{appt.status}
+</span>
+</div>
+<div className="text-sm text-slate-700 space-y-1">
+<p className="font-medium">{appt.doctorName}</p>
+<p className="flex items-center gap-2 text-slate-600"><Calendar className="w-4 h-4" />{format(new Date(appt.date), 'MMM d, yyyy')} · {appt.time}</p>
+{appt.reason && <p className="text-slate-500">{appt.reason}</p>}
+</div>
+<div className="flex gap-2">
+{appt.status === 'scheduled' && (
+<button
+onClick={() => handleStatusChange(appt.id, 'completed')}
+className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-green-50 text-green-700 font-bold text-sm active:bg-green-100"
+>
+<CheckCircle className="w-4 h-4" /> Done
+</button>
+)}
+<button
+onClick={() => startEditAppointment(appt)}
+className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-blue-50 text-blue-700 font-bold text-sm active:bg-blue-100"
+>
+<Edit className="w-4 h-4" /> Edit
+</button>
+<button
+onClick={() => setAppointmentToDelete(appt.id)}
+className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-red-50 text-red-700 font-bold text-sm active:bg-red-100"
+>
+<Trash2 className="w-4 h-4" /> Delete
+</button>
+</div>
+</div>
+))}
+{appointments.length === 0 && (
+<p className="p-12 text-center text-slate-500 italic">No appointments found.</p>
+)}
+</div>
+{/* Tablet and desktop: table */}
+<div className="hidden md:block overflow-x-auto scroll-thin">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50/50 border-b border-slate-100">
@@ -1164,19 +1242,7 @@ title="Mark Completed"
 </button>
 )}
 <button 
-onClick={() => {
-setEditingAppointment(appt);
-setAppointmentForm({
-patientId: appt.patientId,
-patientName: appt.patientName,
-doctorId: appt.doctorId,
-doctorName: appt.doctorName,
-date: appt.date,
-time: appt.time,
-reason: appt.reason
-});
-setShowAppointmentModal(true);
-}}
+onClick={() => startEditAppointment(appt)}
 className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
 title="Edit"
 >
@@ -1257,7 +1323,91 @@ Registered Today
 </button>
 </div>
 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-<div className="overflow-x-auto">
+{/* Phone: stacked cards */}
+<div className="md:hidden divide-y divide-slate-100">
+{pagedDirectoryPatients.map((p) => (
+<div key={p.cardId} className="p-4 space-y-3">
+<div className="flex items-start justify-between gap-3">
+<div className="min-w-0">
+<p className="text-base font-bold text-slate-900 truncate">{p.name}</p>
+<p className="text-sm text-slate-600 capitalize">{p.category}{p.phone ? ` · ${p.phone}` : ''}</p>
+<p className="text-xs text-slate-500">Registered {format(new Date(p.createdAt), 'MMM d, yyyy')}</p>
+</div>
+<div className="flex flex-col items-end gap-1.5 shrink-0">
+<span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded-full uppercase">{p.cardId}</span>
+<span className={cn(
+"text-[11px] font-bold px-2 py-0.5 rounded-full uppercase",
+p.registrationType === 'old' ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"
+)}>
+{p.registrationType === 'old' ? 'Old' : 'Fresh'}
+</span>
+</div>
+</div>
+{expandedPatientId === p.cardId && (
+<div className="grid grid-cols-1 gap-3 text-sm bg-slate-50 rounded-xl p-3">
+<div>
+<p className="text-slate-500 font-bold mb-1">Contact Info</p>
+<p><span className="font-medium">Phone:</span> {p.phone}</p>
+<p><span className="font-medium">Address:</span> {p.address}</p>
+</div>
+<div>
+<p className="text-slate-500 font-bold mb-1">Personal Details</p>
+<p><span className="font-medium">Age/Gender:</span> {p.age} / {p.gender}</p>
+<p><span className="font-medium">Occupation:</span> {p.occupation}</p>
+</div>
+<div>
+<p className="text-slate-500 font-bold mb-1">Next of Kin</p>
+<p><span className="font-medium">Name:</span> {p.nextOfKin} ({p.relationship})</p>
+<p><span className="font-medium">Phone:</span> {p.nokPhone}</p>
+</div>
+</div>
+)}
+<div className="grid grid-cols-4 gap-2">
+<button
+onClick={() => setExpandedPatientId(expandedPatientId === p.cardId ? null : p.cardId)}
+className="flex flex-col items-center justify-center gap-1 min-h-14 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold active:bg-slate-200"
+>
+<UserIcon className="w-4 h-4" /> Details
+</button>
+<button
+onClick={() => { setSelectedPatientId(p.cardId); setShowHistory(true); }}
+className="flex flex-col items-center justify-center gap-1 min-h-14 rounded-xl bg-purple-50 text-purple-700 text-xs font-bold active:bg-purple-100"
+>
+<History className="w-4 h-4" /> History
+</button>
+<button
+onClick={() => startEditPatient(p)}
+className="flex flex-col items-center justify-center gap-1 min-h-14 rounded-xl bg-blue-50 text-blue-700 text-xs font-bold active:bg-blue-100"
+>
+<Edit className="w-4 h-4" /> Edit
+</button>
+<button
+onClick={() => setPatientToDelete(p.cardId)}
+className="flex flex-col items-center justify-center gap-1 min-h-14 rounded-xl bg-red-50 text-red-700 text-xs font-bold active:bg-red-100"
+>
+<Trash2 className="w-4 h-4" /> Delete
+</button>
+</div>
+</div>
+))}
+{patientsLoading && allPatients.length === 0 && (
+<p className="p-12 text-center text-slate-500 italic">Loading patients...</p>
+)}
+{!patientsLoading && patientsLoadError && allPatients.length === 0 && (
+<p className="p-12 text-center text-red-600 italic">
+Couldn't load the patient list. Check your connection and{' '}
+<button type="button" onClick={fetchAllPatients} className="underline">try again</button>.
+</p>
+)}
+{!patientsLoading && !patientsLoadError && allPatients.length === 0 && (
+<p className="p-12 text-center text-slate-500 italic">No patients found.</p>
+)}
+{!patientsLoading && !patientsLoadError && allPatients.length > 0 && filteredDirectoryPatients.length === 0 && (
+<p className="p-12 text-center text-slate-500 italic">No patients match your search.</p>
+)}
+</div>
+{/* Tablet and desktop: table */}
+<div className="hidden md:block overflow-x-auto scroll-thin">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50/50 border-b border-slate-100">
@@ -1312,18 +1462,7 @@ title="Full History"
 <History className="w-4 h-4" />
 </button>
 <button 
-onClick={() => {
-setEditingPatient(p);
-setEditCardId(p.cardId);
-setFormData({
-name: p.name, gender: p.gender, stateOfOrigin: p.stateOfOrigin, age: p.age,
-occupation: p.occupation, address: p.address, phone: p.phone, nextOfKin: p.nextOfKin,
-relationship: p.relationship, nokAddress: p.nokAddress, nokPhone: p.nokPhone, category: p.category,
-antenatalStatus: p.antenatalStatus || 'new'
-});
-if (p.category === 'family card') { loadFamilyMembers(p.cardId); } else { setFamilyMembers([]); setOriginalFamilyMemberIds([]); }
-setView('register');
-}}
+onClick={() => startEditPatient(p)}
 className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
 title="Edit Patient"
 >
@@ -1399,7 +1538,7 @@ No patients match your search.
 </table>
 </div>
 {filteredDirectoryPatients.length > 0 && (
-<div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 text-sm text-slate-500">
+<div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 text-sm text-slate-500">
 <span>
 Showing {(directoryPage - 1) * DIRECTORY_PAGE_SIZE + 1}
 {'-'}
@@ -1410,7 +1549,7 @@ Showing {(directoryPage - 1) * DIRECTORY_PAGE_SIZE + 1}
 type="button"
 onClick={() => setDirectoryPage(p => Math.max(1, p - 1))}
 disabled={directoryPage === 1}
-className="px-3 py-1.5 rounded-lg border border-slate-200 font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+className="px-4 py-2.5 sm:px-3 sm:py-1.5 rounded-lg border border-slate-200 font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
 >
 Prev
 </button>
@@ -1419,7 +1558,7 @@ Prev
 type="button"
 onClick={() => setDirectoryPage(p => Math.min(directoryPageCount, p + 1))}
 disabled={directoryPage === directoryPageCount}
-className="px-3 py-1.5 rounded-lg border border-slate-200 font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+className="px-4 py-2.5 sm:px-3 sm:py-1.5 rounded-lg border border-slate-200 font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
 >
 Next
 </button>
@@ -1432,12 +1571,12 @@ Next
 {/* Delete Confirmation Modal */}
 <AnimatePresence>
 {patientToDelete && (
-<div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+<div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
 <motion.div 
 initial={{ opacity: 0, scale: 0.95 }}
 animate={{ opacity: 1, scale: 1 }}
 exit={{ opacity: 0, scale: 0.95 }}
-className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center space-y-6"
+className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full max-h-[92dvh] overflow-y-auto pb-safe text-center space-y-6"
 >
 <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto">
 <Trash2 className="w-10 h-10 text-red-600" />
@@ -1471,12 +1610,12 @@ className="flex-1 px-6 py-3 rounded-xl font-bold text-white bg-red-600 hover:bg-
 {/* Appointment Modal */}
 <AnimatePresence>
 {showAppointmentModal && (
-<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+<div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
 <motion.div 
 initial={{ opacity: 0, scale: 0.95 }}
 animate={{ opacity: 1, scale: 1 }}
 exit={{ opacity: 0, scale: 0.95 }}
-className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md max-h-[92dvh] overflow-y-auto pb-safe"
 >
 <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
 <h3 className="font-bold text-slate-900 flex items-center gap-2">
@@ -1487,7 +1626,7 @@ className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
 <X className="w-5 h-5 text-slate-400" />
 </button>
 </div>
-<form onSubmit={handleAppointmentSubmit} className="p-8 space-y-4">
+<form onSubmit={handleAppointmentSubmit} className="p-4 sm:p-8 space-y-4">
 <div className="space-y-1.5">
 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Patient Card ID</label>
 <div className="relative">
@@ -1628,8 +1767,8 @@ onCancel={() => setAppointmentToDelete(null)}
 />
 {/* Registration Fee Editor */}
 {showFeeEditor && (
-<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-<div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+<div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+<div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-sm max-h-[92dvh] overflow-y-auto pb-safe">
 <div className="p-6 border-b border-slate-100 bg-slate-900 text-white flex items-center justify-between">
 <h3 className="text-lg font-bold flex items-center gap-2">
 <CreditCard className="w-5 h-5 text-blue-400" /> Registration Card Prices
@@ -1672,8 +1811,8 @@ Save Prices
 )}
 {/* Registration Payment */}
 {pendingRegPayment && (
-<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-<div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+<div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+<div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-sm max-h-[92dvh] overflow-y-auto pb-safe">
 <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
 <h3 className="font-bold text-slate-900">Record Registration Payment</h3>
 </div>
