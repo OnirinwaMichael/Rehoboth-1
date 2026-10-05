@@ -344,6 +344,8 @@ createdAt: string;
 referenceType?: string | null;
 referenceId?: string | null;
 familyMemberName?: string;
+// Set on refund rows (negative paidAmount): why the money was given back.
+refundReason?: string | null;
 }
 export interface RegistrationFeeSettings {
 singleCardPrice: number;

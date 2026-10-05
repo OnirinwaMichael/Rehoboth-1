@@ -3,7 +3,7 @@ import { applyPatientChange } from '../lib/patientSync';
 import { supabase, handleSupabaseError, fetchAllRows } from '../lib/supabase';
 import { FinancialRecord, Patient, MedicalRecord, Visit, Expense, BillingItem } from '../types';
 import { toast } from 'sonner';
-import { Receipt, Search, Plus, DollarSign, CreditCard, Banknote, User, CheckCircle, Clock, History, FileText, Save, X, LayoutDashboard, Wallet, ArrowUpRight, Trash2, Eraser, User as UserIcon, FileSpreadsheet, TrendingDown, TrendingUp } from 'lucide-react';
+import { Receipt, Search, Plus, DollarSign, CreditCard, Banknote, User, CheckCircle, Clock, History, FileText, Save, X, LayoutDashboard, Wallet, ArrowUpRight, Trash2, Eraser, User as UserIcon, FileSpreadsheet, TrendingDown, TrendingUp, RotateCcw } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, isWithinInterval, parseISO } from 'date-fns';
 import { cn } from '../lib/utils';
 import { logAction } from '../lib/audit';
@@ -38,6 +38,7 @@ id: r.id, patientId: r.patient_id, totalAmount: r.total_amount, paidAmount: r.pa
 pendingAmount: r.pending_amount, paymentStatus: r.payment_status, paymentMethod: r.payment_method,
 reconciled: r.reconciled, reconciledAt: r.reconciled_at, reconciledBy: r.reconciled_by,
 createdAt: r.created_at, referenceType: r.reference_type, referenceId: r.reference_id,
+refundReason: r.refund_reason,
 });
 const expenseFromRow = (r: any): Expense => ({
 id: r.id, description: r.description, amount: r.amount, category: r.category,
@@ -52,13 +53,17 @@ interface Props {
 userId: string;
 section: 'patients' | 'finance' | 'reconciliation' | 'expenses' | 'reports';
 }
+// Refunds are stored as negative payments, so amounts can be below zero.
+const money = (n: number) => `${n < 0 ? '−' : ''}₦${Math.abs(n).toLocaleString()}`;
 const BILL_TYPES = ['consultation','visit','lab_test','lab_test_group','prescription','prescription_group'];
-const TransactionRow = memo(({ record, onPrint, onDelete, onRemoveBill, canDelete }: { 
+const TransactionRow = memo(({ record, onPrint, onDelete, onRemoveBill, canDelete, canRefund, onRefund }: { 
 record: FinancialRecord & { patient?: Patient }, 
 onPrint: (record: FinancialRecord & { patient?: Patient }) => void,
 onDelete: (id: string) => void,
 onRemoveBill: (record: FinancialRecord & { patient?: Patient }) => void,
-canDelete: boolean
+canDelete: boolean,
+canRefund?: boolean,
+onRefund?: (record: FinancialRecord & { patient?: Patient }) => void
 }) => (
 <tr className="hover:bg-slate-50 transition-colors group">
 <td className="px-6 py-4">
@@ -79,24 +84,26 @@ canDelete: boolean
 </div>
 </td>
 <td className="px-6 py-4">
-<span className="text-sm font-semibold text-slate-700">₦{record.totalAmount.toLocaleString()}</span>
+<span className="text-sm font-semibold text-slate-700">{money(record.totalAmount)}</span>
 </td>
 <td className="px-6 py-4">
 <div className="text-xs">
-<p className="text-green-600 font-bold">₦{record.paidAmount.toLocaleString()}</p>
-<p className="text-red-500">₦{record.pendingAmount.toLocaleString()}</p>
+<p className={cn("font-bold", record.paidAmount < 0 ? "text-purple-700" : "text-green-600")}>{money(record.paidAmount)}</p>
+{record.paidAmount >= 0 && <p className="text-red-500">₦{record.pendingAmount.toLocaleString()}</p>}
+{record.refundReason && <p className="text-slate-500">Reason: {record.refundReason}</p>}
 </div>
 </td>
 <td className="px-6 py-4">
 <span className={cn(
 "text-[11px] font-bold px-2 py-1 rounded-full uppercase",
-record.paymentStatus === 'fully paid' ? "bg-green-100 text-green-600" : "bg-orange-100 text-orange-600"
+record.paidAmount < 0 ? "bg-purple-100 text-purple-700" : record.paymentStatus === 'fully paid' ? "bg-green-100 text-green-600" : "bg-orange-100 text-orange-600"
 )}>
-{record.paymentStatus}
+{record.paidAmount < 0 ? 'refund' : record.paymentStatus}
 </span>
 </td>
 <td className="px-6 py-4">
 <div className="flex items-center gap-2">
+{record.paidAmount >= 0 && (
 <button
 onClick={() => onPrint(record)}
 className="p-2 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors"
@@ -104,6 +111,16 @@ title="Print Receipt"
 >
 <Receipt className="w-4 h-4" />
 </button>
+)}
+{canRefund && onRefund && (
+<button
+onClick={() => onRefund(record)}
+className="p-2 hover:bg-amber-100 text-amber-700 rounded-lg transition-colors"
+title="Refund"
+>
+<RotateCcw className="w-4 h-4" />
+</button>
+)}
 {canDelete && (
 <button
 onClick={() => onDelete(record.id)}
@@ -127,12 +144,14 @@ title="Remove bill completely (payment, bill and record)"
 </tr>
 ));
 // Phone layout of a transaction (same data and actions as TransactionRow, stacked as a card).
-const TransactionCard = memo(({ record, onPrint, onDelete, onRemoveBill, canDelete }: {
+const TransactionCard = memo(({ record, onPrint, onDelete, onRemoveBill, canDelete, canRefund, onRefund }: {
 record: FinancialRecord & { patient?: Patient },
 onPrint: (record: FinancialRecord & { patient?: Patient }) => void,
 onDelete: (id: string) => void,
 onRemoveBill: (record: FinancialRecord & { patient?: Patient }) => void,
-canDelete: boolean
+canDelete: boolean,
+canRefund?: boolean,
+onRefund?: (record: FinancialRecord & { patient?: Patient }) => void
 }) => (
 <div className="p-4 space-y-3">
 <div className="flex items-start justify-between gap-3">
@@ -148,9 +167,9 @@ canDelete: boolean
 </div>
 <span className={cn(
 "text-[11px] font-bold px-2.5 py-1 rounded-full uppercase shrink-0",
-record.paymentStatus === 'fully paid' ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
+record.paidAmount < 0 ? "bg-purple-100 text-purple-700" : record.paymentStatus === 'fully paid' ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
 )}>
-{record.paymentStatus}
+{record.paidAmount < 0 ? 'refund' : record.paymentStatus}
 </span>
 </div>
 {(record.referenceType === 'registration' || record.paymentMethod) && (
@@ -163,6 +182,13 @@ record.paymentStatus === 'fully paid' ? "bg-green-100 text-green-700" : "bg-oran
 )}
 </div>
 )}
+{record.paidAmount < 0 ? (
+<div className="bg-purple-50 rounded-xl px-3 py-2.5">
+<p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Refunded</p>
+<p className="text-lg font-black text-purple-700">{money(-record.paidAmount)}</p>
+{record.refundReason && <p className="text-xs text-slate-600 mt-1">Reason: {record.refundReason}</p>}
+</div>
+) : (
 <div className="grid grid-cols-3 gap-2 bg-slate-50 rounded-xl px-3 py-2.5">
 <div>
 <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Total</p>
@@ -177,13 +203,24 @@ record.paymentStatus === 'fully paid' ? "bg-green-100 text-green-700" : "bg-oran
 <p className="text-sm font-bold text-red-600">₦{record.pendingAmount.toLocaleString()}</p>
 </div>
 </div>
+)}
 <div className="flex gap-2">
+{record.paidAmount >= 0 && (
 <button
 onClick={() => onPrint(record)}
 className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-blue-50 text-blue-700 font-bold text-sm active:bg-blue-100"
 >
 <Receipt className="w-4 h-4" /> Receipt
 </button>
+)}
+{canRefund && onRefund && (
+<button
+onClick={() => onRefund(record)}
+className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-amber-50 text-amber-800 font-bold text-sm active:bg-amber-100"
+>
+<RotateCcw className="w-4 h-4" /> Refund
+</button>
+)}
 {canDelete && (
 <button
 onClick={() => onDelete(record.id)}
@@ -283,6 +320,24 @@ netProfit: 0
 const [showHistory, setShowHistory] = useState(false);
 const [printingRecord, setPrintingRecord] = useState<(FinancialRecord & { patient?: Patient }) | null>(null);
 const [removeBill, setRemoveBill] = useState<FinancialRecord | null>(null);
+const [refundModal, setRefundModal] = useState<{ record: FinancialRecord & { patient?: Patient }; net: number; amount: string; method: 'cash' | 'bank transfer'; reason: string; busy: boolean } | null>(null);
+// A refund is a negative payment. A bill (or a patient's registration) can be refunded while
+// the net of its payments is above zero; the button sits on its most recent payment only, so
+// there is one Refund button per bill, never one per payment.
+const refundTargets = useMemo(() => {
+const groups = new Map<string, { net: number; latest?: (typeof records)[number] }>();
+for (const r of records) {
+if (!r.referenceType) continue;
+const key = `${r.referenceType}:${r.referenceId ?? r.patientId}`;
+const g = groups.get(key) || { net: 0 };
+g.net += r.paidAmount;
+if (r.paidAmount > 0 && (!g.latest || r.createdAt > g.latest.createdAt)) g.latest = r;
+groups.set(key, g);
+}
+const out = new Map<string, number>();
+groups.forEach(g => { if (g.net > 0 && g.latest) out.set(g.latest.id, g.net); });
+return out;
+}, [records]);
 const [deleteConfirm, setDeleteConfirm] = useState<{type: 'expense' | 'transaction', id: string} | null>(null);
 const [payModal, setPayModal] = useState<{ item: BillingItem; amount: string; method: 'cash' | 'bank transfer' } | null>(null);
 const { data: expenseForm, setData: setExpenseForm, clearDraft: clearExpenseDraft } = useFormDraft('accountant_expense_form', {
@@ -576,6 +631,37 @@ const r: any = data || {};
 toast.success(`Removed: ${r.payments_removed ?? 0} payment(s), ${r.records_removed ?? 0} record(s)`);
 setRecords(prev => prev.filter(x => !(x.referenceType === record.referenceType && x.referenceId === record.referenceId)));
 };
+const openRefund = (record: FinancialRecord & { patient?: Patient }) => {
+const net = refundTargets.get(record.id);
+if (!net) return;
+setRefundModal({ record, net, amount: String(net), method: record.paymentMethod === 'bank transfer' ? 'bank transfer' : 'cash', reason: '', busy: false });
+};
+const handleConfirmRefund = async () => {
+if (!refundModal || refundModal.busy) return;
+const { record, net, amount, method, reason } = refundModal;
+const amt = parseFloat(amount);
+if (!amt || amt <= 0) { toast.error('Enter the amount to refund.'); return; }
+if (amt > net) { toast.error(`You can refund at most ₦${net.toLocaleString()} on this bill.`); return; }
+if (reason.trim().length < 3) { toast.error('Give a reason for the refund.'); return; }
+setRefundModal({ ...refundModal, busy: true });
+const { error } = await supabase.rpc('record_item_refund', {
+p_item_type: record.referenceType,
+p_item_id: record.referenceId ?? null,
+p_patient_id: record.patientId,
+p_amount: amt,
+p_payment_method: method,
+p_reason: reason.trim(),
+});
+if (error) {
+toast.error(error.message || 'Could not record the refund.');
+setRefundModal(m => (m ? { ...m, busy: false } : m));
+return;
+}
+toast.success(`Refunded ₦${amt.toLocaleString()}`);
+setRefundModal(null);
+fetchFinancials();
+fetchPendingBills();
+};
 const handleReconcile = async (recordId: string) => {
 const { error } = await supabase.from('financials').update({
 reconciled: true,
@@ -800,7 +886,7 @@ className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100 fle
 ₦
 </div>
 <div>
-<p className="font-bold text-slate-900">₦{record.paidAmount.toLocaleString()}</p>
+<p className={cn("font-bold", record.paidAmount < 0 ? "text-purple-700" : "text-slate-900")}>{money(record.paidAmount)}</p>
 <p className="text-xs text-slate-500">Patient: {record.patient?.name || record.patientId}</p>
 {record.familyMemberName && <p className="text-[11px] font-bold text-amber-700">For: {record.familyMemberName}</p>}
 </div>
@@ -912,6 +998,8 @@ canDelete={canDelete}
 onPrint={handlePrint}
 onDelete={(id) => setDeleteConfirm({ type: 'transaction', id })}
 onRemoveBill={(r) => setRemoveBill(r)}
+canRefund={refundTargets.has(record.id)}
+onRefund={openRefund}
 />
 ))}
 {records.length === 0 && !loading && (
@@ -939,6 +1027,8 @@ canDelete={canDelete}
 onPrint={handlePrint}
 onDelete={(id) => setDeleteConfirm({ type: 'transaction', id })}
 onRemoveBill={(r) => setRemoveBill(r)}
+canRefund={refundTargets.has(record.id)}
+onRefund={openRefund}
 />
 ))}
 {records.length === 0 && !loading && (
@@ -981,7 +1071,7 @@ No transactions found.
 </span>
 )}
 </div>
-<p className="text-lg font-black text-slate-900">₦{record.paidAmount.toLocaleString()}</p>
+<p className="text-lg font-black text-slate-900">{money(record.paidAmount)}</p>
 {!record.reconciled && (
 <button
 onClick={() => handleReconcile(record.id)}
@@ -1020,7 +1110,7 @@ Mark Reconciled
 <p className="text-[11px] text-slate-400">{record.patientId}</p>
 </td>
 <td className="px-6 py-4">
-<p className="text-sm font-bold text-slate-900">₦{record.paidAmount.toLocaleString()}</p>
+<p className="text-sm font-bold text-slate-900">{money(record.paidAmount)}</p>
 </td>
 <td className="px-6 py-4">
 <span className="text-[11px] font-bold bg-blue-100 text-blue-600 px-2 py-1 rounded-full uppercase">
@@ -1547,6 +1637,89 @@ className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue
 >
 <Save className="w-4 h-4" />
 {parseFloat(payModal.amount || '0') >= payModal.item.balance ? 'Mark as Paid' : 'Record Partial Payment'}
+</button>
+</div>
+</motion.div>
+</div>
+)}
+</AnimatePresence>
+{/* Refund Modal */}
+<AnimatePresence>
+{refundModal && (
+<div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+<motion.div
+initial={{ opacity: 0, scale: 0.95 }}
+animate={{ opacity: 1, scale: 1 }}
+exit={{ opacity: 0, scale: 0.95 }}
+className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-sm max-h-[92dvh] overflow-y-auto pb-safe"
+>
+<div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+<h3 className="font-bold text-slate-900">Refund Payment</h3>
+<button onClick={() => setRefundModal(null)} className="p-2 hover:bg-slate-200 rounded-lg transition-colors" aria-label="Close">
+<X className="w-4 h-4" />
+</button>
+</div>
+<div className="p-6 space-y-4">
+<div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+<p className="text-xs font-bold text-slate-500">{refundModal.record.patient?.name} · {refundModal.record.patientId}</p>
+<p className="text-xs text-slate-500 capitalize">{(refundModal.record.referenceType || '').replace(/_/g, ' ')}</p>
+<p className="text-[11px] text-slate-400 mt-1">Paid on this bill: ₦{refundModal.net.toLocaleString()}</p>
+</div>
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Amount to Refund (₦)</label>
+<input
+type="number"
+autoFocus
+value={refundModal.amount}
+onChange={e => setRefundModal({ ...refundModal, amount: e.target.value })}
+className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500 outline-none font-bold text-lg"
+placeholder="0.00"
+/>
+<p className="text-[11px] text-slate-400">Defaults to everything paid. Enter less for a partial refund; the refunded amount becomes unpaid again on the bill.</p>
+</div>
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Refunded By</label>
+<div className="grid grid-cols-2 gap-3">
+<button
+type="button"
+onClick={() => setRefundModal({ ...refundModal, method: 'cash' })}
+className={cn(
+"flex items-center justify-center gap-2 p-3 rounded-xl border transition-all text-sm",
+refundModal.method === 'cash' ? "bg-amber-50 border-amber-600 text-amber-800 font-bold shadow-sm" : "border-slate-200 text-slate-500"
+)}
+>
+<Banknote className="w-4 h-4" /> Cash
+</button>
+<button
+type="button"
+onClick={() => setRefundModal({ ...refundModal, method: 'bank transfer' })}
+className={cn(
+"flex items-center justify-center gap-2 p-3 rounded-xl border transition-all text-sm",
+refundModal.method === 'bank transfer' ? "bg-amber-50 border-amber-600 text-amber-800 font-bold shadow-sm" : "border-slate-200 text-slate-500"
+)}
+>
+<CreditCard className="w-4 h-4" /> Transfer
+</button>
+</div>
+</div>
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Reason (required)</label>
+<textarea
+rows={2}
+value={refundModal.reason}
+onChange={e => setRefundModal({ ...refundModal, reason: e.target.value })}
+className="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-amber-500 outline-none text-sm"
+placeholder="e.g. Test cancelled before sample was taken"
+/>
+</div>
+<p className="text-[11px] text-slate-400">Not possible once the drug is dispensed or the lab result is entered. Recorded in the audit log.</p>
+<button
+onClick={handleConfirmRefund}
+disabled={refundModal.busy}
+className="w-full bg-amber-600 text-white py-3 rounded-xl font-bold hover:bg-amber-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+>
+<RotateCcw className="w-4 h-4" />
+{refundModal.busy ? 'Refunding...' : `Refund ₦${(parseFloat(refundModal.amount) || 0).toLocaleString()}`}
 </button>
 </div>
 </motion.div>
