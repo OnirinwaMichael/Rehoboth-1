@@ -342,6 +342,7 @@ reconciledAt?: string;
 reconciledBy?: string;
 createdAt: string;
 referenceType?: string | null;
+referenceId?: string | null;
 familyMemberName?: string;
 }
 export interface RegistrationFeeSettings {

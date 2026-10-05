@@ -3,7 +3,7 @@ import { applyPatientChange } from '../lib/patientSync';
 import { supabase, handleSupabaseError, fetchAllRows } from '../lib/supabase';
 import { FinancialRecord, Patient, MedicalRecord, Visit, Expense, BillingItem } from '../types';
 import { toast } from 'sonner';
-import { Receipt, Search, Plus, DollarSign, CreditCard, Banknote, User, CheckCircle, Clock, History, FileText, Save, X, LayoutDashboard, Wallet, ArrowUpRight, Trash2, User as UserIcon, FileSpreadsheet, TrendingDown, TrendingUp } from 'lucide-react';
+import { Receipt, Search, Plus, DollarSign, CreditCard, Banknote, User, CheckCircle, Clock, History, FileText, Save, X, LayoutDashboard, Wallet, ArrowUpRight, Trash2, Eraser, User as UserIcon, FileSpreadsheet, TrendingDown, TrendingUp } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, isWithinInterval, parseISO } from 'date-fns';
 import { cn } from '../lib/utils';
 import { logAction } from '../lib/audit';
@@ -37,7 +37,7 @@ const financialFromRow = (r: any): FinancialRecord => ({
 id: r.id, patientId: r.patient_id, totalAmount: r.total_amount, paidAmount: r.paid_amount,
 pendingAmount: r.pending_amount, paymentStatus: r.payment_status, paymentMethod: r.payment_method,
 reconciled: r.reconciled, reconciledAt: r.reconciled_at, reconciledBy: r.reconciled_by,
-createdAt: r.created_at, referenceType: r.reference_type,
+createdAt: r.created_at, referenceType: r.reference_type, referenceId: r.reference_id,
 });
 const expenseFromRow = (r: any): Expense => ({
 id: r.id, description: r.description, amount: r.amount, category: r.category,
@@ -52,10 +52,12 @@ interface Props {
 userId: string;
 section: 'patients' | 'finance' | 'reconciliation' | 'expenses' | 'reports';
 }
-const TransactionRow = memo(({ record, onPrint, onDelete, canDelete }: { 
+const BILL_TYPES = ['consultation','visit','lab_test','lab_test_group','prescription','prescription_group'];
+const TransactionRow = memo(({ record, onPrint, onDelete, onRemoveBill, canDelete }: { 
 record: FinancialRecord & { patient?: Patient }, 
 onPrint: (record: FinancialRecord & { patient?: Patient }) => void,
 onDelete: (id: string) => void,
+onRemoveBill: (record: FinancialRecord & { patient?: Patient }) => void,
 canDelete: boolean
 }) => (
 <tr className="hover:bg-slate-50 transition-colors group">
@@ -111,15 +113,25 @@ title="Delete Transaction"
 <Trash2 className="w-4 h-4" />
 </button>
 )}
+{canDelete && record.referenceId && BILL_TYPES.includes(record.referenceType || '') && (
+<button
+onClick={() => onRemoveBill(record)}
+className="p-2 hover:bg-red-100 text-red-800 rounded-lg transition-colors"
+title="Remove bill completely (payment, bill and record)"
+>
+<Eraser className="w-4 h-4" />
+</button>
+)}
 </div>
 </td>
 </tr>
 ));
 // Phone layout of a transaction (same data and actions as TransactionRow, stacked as a card).
-const TransactionCard = memo(({ record, onPrint, onDelete, canDelete }: {
+const TransactionCard = memo(({ record, onPrint, onDelete, onRemoveBill, canDelete }: {
 record: FinancialRecord & { patient?: Patient },
 onPrint: (record: FinancialRecord & { patient?: Patient }) => void,
 onDelete: (id: string) => void,
+onRemoveBill: (record: FinancialRecord & { patient?: Patient }) => void,
 canDelete: boolean
 }) => (
 <div className="p-4 space-y-3">
@@ -180,12 +192,21 @@ className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-
 <Trash2 className="w-4 h-4" /> Delete
 </button>
 )}
+{canDelete && record.referenceId && BILL_TYPES.includes(record.referenceType || '') && (
+<button
+onClick={() => onRemoveBill(record)}
+className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-red-100 text-red-900 font-bold text-sm active:bg-red-200"
+>
+<Eraser className="w-4 h-4" /> Remove bill
+</button>
+)}
 </div>
 </div>
 ));
 const ExpenseRow = memo(({ expense, onDelete, canDelete }: { 
 expense: Expense, 
 onDelete: (id: string) => void,
+onRemoveBill: (record: FinancialRecord & { patient?: Patient }) => void,
 canDelete: boolean
 }) => (
 <tr className="hover:bg-slate-50 transition-colors">
@@ -261,6 +282,7 @@ netProfit: 0
 });
 const [showHistory, setShowHistory] = useState(false);
 const [printingRecord, setPrintingRecord] = useState<(FinancialRecord & { patient?: Patient }) | null>(null);
+const [removeBill, setRemoveBill] = useState<FinancialRecord | null>(null);
 const [deleteConfirm, setDeleteConfirm] = useState<{type: 'expense' | 'transaction', id: string} | null>(null);
 const [payModal, setPayModal] = useState<{ item: BillingItem; amount: string; method: 'cash' | 'bank transfer' } | null>(null);
 const { data: expenseForm, setData: setExpenseForm, clearDraft: clearExpenseDraft } = useFormDraft('accountant_expense_form', {
@@ -544,6 +566,15 @@ if (error) return handleSupabaseError(error, 'delete', 'financials');
 if (!data || data.length === 0) { toast.error('Nothing was deleted. Only the CMD can delete transactions.'); return; }
 await logAction(userId, 'DELETE_TRANSACTION', `Deleted transaction ${id}`);
 toast.success('Transaction deleted successfully');
+};
+const handleRemoveBill = async (record: FinancialRecord) => {
+if (!canDelete) { toast.error('Only the CMD can remove bills.'); return; }
+if (!record.referenceType || !record.referenceId) return;
+const { data, error } = await supabase.rpc('cmd_remove_bill', { p_item_type: record.referenceType, p_item_id: record.referenceId });
+if (error) { toast.error(error.message || 'Could not remove the bill.'); return; }
+const r: any = data || {};
+toast.success(`Removed: ${r.payments_removed ?? 0} payment(s), ${r.records_removed ?? 0} record(s)`);
+setRecords(prev => prev.filter(x => !(x.referenceType === record.referenceType && x.referenceId === record.referenceId)));
 };
 const handleReconcile = async (recordId: string) => {
 const { error } = await supabase.from('financials').update({
@@ -881,6 +912,7 @@ record={record}
 canDelete={canDelete}
 onPrint={handlePrint}
 onDelete={(id) => setDeleteConfirm({ type: 'transaction', id })}
+onRemoveBill={(r) => setRemoveBill(r)}
 />
 ))}
 {records.length === 0 && !loading && (
@@ -907,6 +939,7 @@ record={record}
 canDelete={canDelete}
 onPrint={handlePrint}
 onDelete={(id) => setDeleteConfirm({ type: 'transaction', id })}
+onRemoveBill={(r) => setRemoveBill(r)}
 />
 ))}
 {records.length === 0 && !loading && (
@@ -1579,6 +1612,14 @@ className="flex-1 px-4 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg
 </div>
 )}
 </AnimatePresence>
+<ConfirmModal
+isOpen={!!removeBill}
+title="Remove bill completely"
+message={`This permanently deletes the ${removeBill?.referenceType?.replace(/_/g,' ')} bill, ALL its payments, and the ${removeBill?.referenceType === 'visit' ? 'visit' : removeBill?.referenceType === 'consultation' ? 'consultation (diagnosis) record' : removeBill?.referenceType?.startsWith('lab') ? 'lab test record(s)' : 'prescription record(s)'} it belongs to. This cannot be undone.`}
+confirmText="Remove completely"
+onConfirm={() => { if (removeBill) handleRemoveBill(removeBill); setRemoveBill(null); }}
+onCancel={() => setRemoveBill(null)}
+/>
 <ConfirmModal
 isOpen={!!deleteConfirm}
 title={deleteConfirm?.type === 'expense' ? "Delete Expense" : "Delete Transaction"}
