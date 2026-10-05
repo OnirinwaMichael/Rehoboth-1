@@ -663,14 +663,12 @@ return (
 <div className="space-y-8 max-w-7xl mx-auto">
 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
 <div>
+{/* The header already names the section; only a title that adds information is shown. */}
+{((view === 'billing' && selectedPatient) || view === 'pendingBills') && (
 <h2 className="text-3xl font-bold text-slate-900">
-{view === 'billing' && selectedPatient ? selectedPatient.name :
-view === 'pendingBills' ? 'Pending Bills' :
-section === 'finance' ? 'Finance' :
-section === 'patients' ? 'Patients' :
-section === 'reconciliation' ? 'Reconciliation' :
-section === 'expenses' ? 'Expenses' : 'Reports'}
+{view === 'billing' && selectedPatient ? selectedPatient.name : 'Pending Bills'}
 </h2>
+)}
 <p className="text-slate-500">
 {view === 'billing' && selectedPatient ? `Card ID: ${selectedPatient.cardId}` :
 view === 'pendingBills' ? 'Tap a patient to open their billing and take payment.' :

@@ -361,7 +361,6 @@ return (
 <div className="space-y-8 max-w-7xl mx-auto">
 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
 <div>
-<h2 className="text-3xl font-bold text-slate-900">Pharmacy Portal</h2>
 <p className="text-slate-500">Manage drug inventory and dispense prescriptions.</p>
 </div>
 <div className="flex flex-wrap gap-2">

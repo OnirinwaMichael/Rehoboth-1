@@ -73,7 +73,6 @@ return (
 <div className="max-w-6xl mx-auto space-y-8">
 <div className="flex items-center justify-between">
 <div>
-<h2 className="text-3xl font-black text-slate-900 tracking-tight">Patient Search</h2>
 <p className="text-slate-500 font-medium">Find patients and view their medical history.</p>
 </div>
 </div>

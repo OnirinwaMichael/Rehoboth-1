@@ -582,7 +582,6 @@ onPrint={(list) => setPrintTests(list)}
 )}
 <div className="flex items-center justify-between">
 <div>
-<h2 className="text-3xl font-bold text-slate-900">Laboratory Portal</h2>
 <p className="text-slate-500">Manage test requests and record results.</p>
 </div>
 <div className="flex gap-2">

@@ -615,10 +615,10 @@ return (
 <div className="space-y-8 max-w-6xl mx-auto">
 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
 <div>
-<h2 className="text-3xl font-bold text-slate-900">
-{view === 'dashboard' ? 'Dashboard' : view === 'register' ? (editingPatient ? 'Edit Patient Record' : 'Patient Registration') :
-view === 'appointments' ? 'Appointment' : 'Patient Directory'}
-</h2>
+{/* The header already names the section; only a title that adds information is shown. */}
+{view === 'register' && editingPatient && (
+<h2 className="text-3xl font-bold text-slate-900">Edit Patient Record</h2>
+)}
 <p className="text-slate-500">
 {view === 'dashboard' ? 'Front desk overview for today.' :
 view === 'register' ? 'Register new patients and digitize old files.' :

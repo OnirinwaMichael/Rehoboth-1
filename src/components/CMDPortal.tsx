@@ -528,7 +528,6 @@ Add Staff
 )}
 {showLogsOnly && (
 <div>
-<h2 className="text-3xl font-bold text-slate-900">Audit Logs</h2>
 <p className="text-slate-500">Real-time tracking of all hospital activities.</p>
 </div>
 )}

@@ -840,7 +840,6 @@ return (
 <div className="space-y-8 max-w-7xl mx-auto">
 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
 <div>
-<h2 className="text-3xl font-bold text-slate-900">{role} Portal</h2>
 <p className="text-slate-500">Patient assessment and clinical records.</p>
 </div>
 <div className="flex flex-wrap gap-2">
