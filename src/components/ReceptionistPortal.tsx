@@ -1145,7 +1145,7 @@ className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl f
 </div>
 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
 {/* Phone: stacked cards */}
-<div className="divide-y divide-slate-100 md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:gap-4 md:p-4 md:divide-y-0 md:[&>*:not(p)]:rounded-2xl md:[&>*:not(p)]:border md:[&>*:not(p)]:border-slate-200 md:[&>*:not(p)]:bg-white md:[&>*:not(p)]:shadow-sm md:[&>p]:col-span-full xl:hidden">
+<div className="divide-y divide-slate-100 md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:gap-4 md:p-4 md:divide-y-0 md:[&>*:not(p)]:rounded-2xl md:[&>*:not(p)]:border md:[&>*:not(p)]:border-slate-200 md:[&>*:not(p)]:bg-white md:[&>*:not(p)]:shadow-sm md:[&>p]:col-span-full">
 {appointments.map((appt) => (
 <div key={appt.id} className="p-4 space-y-3">
 <div className="flex items-start justify-between gap-3">
@@ -1197,7 +1197,7 @@ className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-
 )}
 </div>
 {/* Tablet and desktop: table */}
-<div className="hidden xl:block overflow-x-auto">
+<div className="hidden">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50/50 border-b border-slate-100">
@@ -1337,7 +1337,7 @@ Registered Today
 </div>
 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
 {/* Phone: stacked cards */}
-<div className="divide-y divide-slate-100 md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:gap-4 md:p-4 md:divide-y-0 md:[&>*:not(p)]:rounded-2xl md:[&>*:not(p)]:border md:[&>*:not(p)]:border-slate-200 md:[&>*:not(p)]:bg-white md:[&>*:not(p)]:shadow-sm md:[&>p]:col-span-full xl:hidden">
+<div className="divide-y divide-slate-100 md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:gap-4 md:p-4 md:divide-y-0 md:[&>*:not(p)]:rounded-2xl md:[&>*:not(p)]:border md:[&>*:not(p)]:border-slate-200 md:[&>*:not(p)]:bg-white md:[&>*:not(p)]:shadow-sm md:[&>p]:col-span-full">
 {pagedDirectoryPatients.map((p) => (
 <div key={p.cardId} className="p-4 space-y-3">
 <div className="flex items-start justify-between gap-3">
@@ -1420,7 +1420,7 @@ Couldn't load the patient list. Check your connection and{' '}
 )}
 </div>
 {/* Tablet and desktop: table */}
-<div className="hidden xl:block overflow-x-auto">
+<div className="hidden">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50/50 border-b border-slate-100">
