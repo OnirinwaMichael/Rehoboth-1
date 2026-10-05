@@ -905,7 +905,7 @@ Pay
 </h3>
 </div>
 {/* Phone: stacked cards */}
-<div className="divide-y divide-slate-100 md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:gap-4 md:p-4 md:divide-y-0 md:[&>*:not(p)]:rounded-2xl md:[&>*:not(p)]:border md:[&>*:not(p)]:border-slate-200 md:[&>*:not(p)]:bg-white md:[&>*:not(p)]:shadow-sm md:[&>p]:col-span-full">
+<div className="divide-y divide-slate-100 md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:gap-4 md:p-4 md:divide-y-0 md:[&>*:not(p)]:rounded-2xl md:[&>*:not(p)]:border md:[&>*:not(p)]:border-slate-200 md:[&>*:not(p)]:bg-white md:[&>*:not(p)]:shadow-sm md:[&>p]:col-span-full xl:hidden">
 {records.map((record, idx) => (
 <TransactionCard
 key={record.id || idx}
@@ -921,7 +921,7 @@ onRemoveBill={(r) => setRemoveBill(r)}
 )}
 </div>
 {/* Tablet and desktop: table */}
-<div className="hidden">
+<div className="hidden xl:block overflow-x-auto">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100">
@@ -964,7 +964,7 @@ No transactions found.
 </h3>
 </div>
 {/* Phone: stacked cards */}
-<div className="divide-y divide-slate-100 md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:gap-4 md:p-4 md:divide-y-0 md:[&>*:not(p)]:rounded-2xl md:[&>*:not(p)]:border md:[&>*:not(p)]:border-slate-200 md:[&>*:not(p)]:bg-white md:[&>*:not(p)]:shadow-sm md:[&>p]:col-span-full">
+<div className="divide-y divide-slate-100 md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:gap-4 md:p-4 md:divide-y-0 md:[&>*:not(p)]:rounded-2xl md:[&>*:not(p)]:border md:[&>*:not(p)]:border-slate-200 md:[&>*:not(p)]:bg-white md:[&>*:not(p)]:shadow-sm md:[&>p]:col-span-full xl:hidden">
 {records.filter(r => r.paymentMethod === 'bank transfer').map((record, idx) => (
 <div key={record.id || idx} className="p-4 space-y-3">
 <div className="flex items-start justify-between gap-3">
@@ -999,7 +999,7 @@ Mark Reconciled
 )}
 </div>
 {/* Tablet and desktop: table */}
-<div className="hidden">
+<div className="hidden xl:block overflow-x-auto">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100">
@@ -1130,7 +1130,7 @@ Save Expense
 </h3>
 </div>
 {/* Phone: stacked cards */}
-<div className="divide-y divide-slate-100 md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:gap-4 md:p-4 md:divide-y-0 md:[&>*:not(p)]:rounded-2xl md:[&>*:not(p)]:border md:[&>*:not(p)]:border-slate-200 md:[&>*:not(p)]:bg-white md:[&>*:not(p)]:shadow-sm md:[&>p]:col-span-full">
+<div className="divide-y divide-slate-100 md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:gap-4 md:p-4 md:divide-y-0 md:[&>*:not(p)]:rounded-2xl md:[&>*:not(p)]:border md:[&>*:not(p)]:border-slate-200 md:[&>*:not(p)]:bg-white md:[&>*:not(p)]:shadow-sm md:[&>p]:col-span-full xl:hidden">
 {expenses.map((expense, idx) => (
 <div key={expense.id || idx} className="p-4 flex items-start justify-between gap-3">
 <div className="min-w-0 space-y-1">
@@ -1157,7 +1157,7 @@ className="p-3 rounded-xl bg-red-50 text-red-700 active:bg-red-100 shrink-0"
 )}
 </div>
 {/* Tablet and desktop: table */}
-<div className="hidden">
+<div className="hidden xl:block overflow-x-auto">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100">
@@ -1381,7 +1381,7 @@ Next
 </h3>
 </div>
 {/* Phone: one tappable card per patient */}
-<div className="divide-y divide-slate-100 md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:gap-4 md:p-4 md:divide-y-0 md:[&>*:not(p)]:rounded-2xl md:[&>*:not(p)]:border md:[&>*:not(p)]:border-slate-200 md:[&>*:not(p)]:bg-white md:[&>*:not(p)]:shadow-sm md:[&>p]:col-span-full">
+<div className="divide-y divide-slate-100 md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:gap-4 md:p-4 md:divide-y-0 md:[&>*:not(p)]:rounded-2xl md:[&>*:not(p)]:border md:[&>*:not(p)]:border-slate-200 md:[&>*:not(p)]:bg-white md:[&>*:not(p)]:shadow-sm md:[&>p]:col-span-full xl:hidden">
 {pendingBills.map(row => (
 <button
 key={row.patientId}
@@ -1424,7 +1424,7 @@ className="w-full text-left p-4 flex flex-col gap-3 active:bg-orange-50 hover:bg
 )}
 </div>
 {/* Tablet and desktop: table */}
-<div className="hidden">
+<div className="hidden xl:block overflow-x-auto">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100">
