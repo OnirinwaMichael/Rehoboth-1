@@ -936,7 +936,7 @@ placeholder="Search patient or Card ID"
 </div>
 </div>
 </div>
-<div className="overflow-x-auto scroll-thin table-scroll max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
+<div className="overflow-x-auto scroll-thin table-scroll [&_table]:block [&_thead]:hidden [&_tbody]:block [&_tr]:block [&_tr]:p-4 [&_tr]:border-b [&_tr]:border-slate-100 [&_td]:block [&_td]:!px-0 [&_td]:!py-1 [&_td:empty]:hidden">
 <table className="w-full">
 <thead>
 <tr className="text-left text-xs font-bold text-slate-400 uppercase border-b border-slate-100">
@@ -1053,7 +1053,7 @@ placeholder="Search by name or Card ID"
 />
 </div>
 </div>
-<div className="overflow-x-auto scroll-thin table-scroll max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
+<div className="overflow-x-auto scroll-thin table-scroll [&_table]:block [&_thead]:hidden [&_tbody]:block [&_tr]:block [&_tr]:p-4 [&_tr]:border-b [&_tr]:border-slate-100 [&_td]:block [&_td]:!px-0 [&_td]:!py-1 [&_td:empty]:hidden">
 <table className="w-full">
 <thead>
 <tr className="text-left text-xs font-bold text-slate-400 uppercase border-b border-slate-100">
@@ -1124,7 +1124,7 @@ placeholder="Search patient or test"
 </div>
 </div>
 </div>
-<div className="overflow-x-auto scroll-thin table-scroll max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
+<div className="overflow-x-auto scroll-thin table-scroll [&_table]:block [&_thead]:hidden [&_tbody]:block [&_tr]:block [&_tr]:p-4 [&_tr]:border-b [&_tr]:border-slate-100 [&_td]:block [&_td]:!px-0 [&_td]:!py-1 [&_td:empty]:hidden">
 <table className="w-full">
 <thead>
 <tr className="text-left text-xs font-bold text-slate-400 uppercase border-b border-slate-100">
@@ -1203,7 +1203,7 @@ No lab tests found.
 <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2">
 <Activity className="w-5 h-5 text-purple-500" /> Active Admissions
 </h3>
-<div className="overflow-x-auto scroll-thin table-scroll max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
+<div className="overflow-x-auto scroll-thin table-scroll [&_table]:block [&_thead]:hidden [&_tbody]:block [&_tr]:block [&_tr]:p-4 [&_tr]:border-b [&_tr]:border-slate-100 [&_td]:block [&_td]:!px-0 [&_td]:!py-1 [&_td:empty]:hidden">
 <table className="w-full">
 <thead>
 <tr className="text-left text-xs font-bold text-slate-400 uppercase border-b border-slate-100">

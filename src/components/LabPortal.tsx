@@ -888,7 +888,7 @@ className="bg-blue-600 text-white px-5 py-2 rounded-xl font-bold hover:bg-blue-7
 </button>
 </div>
 </div>
-<div className="overflow-x-auto scroll-thin table-scroll max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
+<div className="overflow-x-auto scroll-thin table-scroll [&_table]:block [&_thead]:hidden [&_tbody]:block [&_tr]:block [&_tr]:p-4 [&_tr]:border-b [&_tr]:border-slate-100 [&_td]:block [&_td]:!px-0 [&_td]:!py-1 [&_td:empty]:hidden">
 <table className="w-full text-left text-sm">
 <thead>
 <tr className="border-b border-slate-100 text-slate-400 uppercase text-xs tracking-wider">
@@ -1243,7 +1243,7 @@ className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover
 <button type="button" onClick={() => setQueueStatusFilter('completed')} className={cn("flex items-center gap-1 px-3 py-1 rounded-full transition-colors", queueStatusFilter === 'completed' ? "bg-green-500 text-white" : "bg-green-50 text-green-500 hover:bg-green-100")}><CheckCircle className="w-3 h-3" /> Completed</button>
 </div>
 </div>
-<div className="overflow-x-auto scroll-thin table-scroll max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
+<div className="overflow-x-auto scroll-thin table-scroll [&_table]:block [&_thead]:hidden [&_tbody]:block [&_tr]:block [&_tr]:p-4 [&_tr]:border-b [&_tr]:border-slate-100 [&_td]:block [&_td]:!px-0 [&_td]:!py-1 [&_td:empty]:hidden">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100">

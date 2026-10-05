@@ -2,6 +2,10 @@
 
 /* Base layer: phone-first readability and touch comfort. Visual only. */
 @layer base {
+  @media (min-width: 64rem) {
+    html { font-size: 17px; }
+  }
+
   html {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
@@ -33,7 +37,7 @@
 
   /* Touch screens: 16px form text stops mobile browsers zooming into fields,
      and a little more room makes controls easier to hit. */
-  @media (pointer: coarse) {
+  @media (pointer: coarse), (min-width: 64rem) {
     input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
     select,
     textarea {

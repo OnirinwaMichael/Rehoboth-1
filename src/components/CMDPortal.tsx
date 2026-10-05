@@ -340,7 +340,7 @@ className="flex items-center gap-2 bg-red-600 text-white px-4 py-1.5 rounded-lg 
 </div>
 )}
 {/* Phone: stacked cards */}
-<div className="md:hidden divide-y divide-slate-100">
+<div className="divide-y divide-slate-100 md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:gap-4 md:p-4 md:divide-y-0 md:[&>*:not(p)]:rounded-2xl md:[&>*:not(p)]:border md:[&>*:not(p)]:border-slate-200 md:[&>*:not(p)]:bg-white md:[&>*:not(p)]:shadow-sm md:[&>p]:col-span-full">
 {staff.map((member) => (
 <div key={member.uid} className={cn("p-4 space-y-3", selectedStaff.has(member.uid) && "bg-blue-50/40")}>
 <div className="flex items-center gap-3">
@@ -393,7 +393,7 @@ className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-
 ))}
 </div>
 {/* Tablet and desktop: table */}
-<table className="hidden md:table w-full text-left border-collapse">
+<table className="hidden w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100">
 <th className="px-6 py-4 w-10">

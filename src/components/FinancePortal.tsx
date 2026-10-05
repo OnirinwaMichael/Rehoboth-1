@@ -904,7 +904,7 @@ Pay
 </h3>
 </div>
 {/* Phone: stacked cards */}
-<div className="md:hidden divide-y divide-slate-100">
+<div className="divide-y divide-slate-100 md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:gap-4 md:p-4 md:divide-y-0 md:[&>*:not(p)]:rounded-2xl md:[&>*:not(p)]:border md:[&>*:not(p)]:border-slate-200 md:[&>*:not(p)]:bg-white md:[&>*:not(p)]:shadow-sm md:[&>p]:col-span-full">
 {records.map((record, idx) => (
 <TransactionCard
 key={record.id || idx}
@@ -920,7 +920,7 @@ onRemoveBill={(r) => setRemoveBill(r)}
 )}
 </div>
 {/* Tablet and desktop: table */}
-<div className="hidden md:block overflow-x-auto scroll-thin table-scroll">
+<div className="hidden">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100">
@@ -963,7 +963,7 @@ No transactions found.
 </h3>
 </div>
 {/* Phone: stacked cards */}
-<div className="md:hidden divide-y divide-slate-100">
+<div className="divide-y divide-slate-100 md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:gap-4 md:p-4 md:divide-y-0 md:[&>*:not(p)]:rounded-2xl md:[&>*:not(p)]:border md:[&>*:not(p)]:border-slate-200 md:[&>*:not(p)]:bg-white md:[&>*:not(p)]:shadow-sm md:[&>p]:col-span-full">
 {records.filter(r => r.paymentMethod === 'bank transfer').map((record, idx) => (
 <div key={record.id || idx} className="p-4 space-y-3">
 <div className="flex items-start justify-between gap-3">
@@ -998,7 +998,7 @@ Mark Reconciled
 )}
 </div>
 {/* Tablet and desktop: table */}
-<div className="hidden md:block overflow-x-auto scroll-thin table-scroll">
+<div className="hidden">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100">
@@ -1129,7 +1129,7 @@ Save Expense
 </h3>
 </div>
 {/* Phone: stacked cards */}
-<div className="md:hidden divide-y divide-slate-100">
+<div className="divide-y divide-slate-100 md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:gap-4 md:p-4 md:divide-y-0 md:[&>*:not(p)]:rounded-2xl md:[&>*:not(p)]:border md:[&>*:not(p)]:border-slate-200 md:[&>*:not(p)]:bg-white md:[&>*:not(p)]:shadow-sm md:[&>p]:col-span-full">
 {expenses.map((expense, idx) => (
 <div key={expense.id || idx} className="p-4 flex items-start justify-between gap-3">
 <div className="min-w-0 space-y-1">
@@ -1156,7 +1156,7 @@ className="p-3 rounded-xl bg-red-50 text-red-700 active:bg-red-100 shrink-0"
 )}
 </div>
 {/* Tablet and desktop: table */}
-<div className="hidden md:block overflow-x-auto scroll-thin table-scroll">
+<div className="hidden">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100">
@@ -1261,7 +1261,7 @@ placeholder="Search by name or ID..."
 />
 </div>
 </div>
-<div className="overflow-x-auto scroll-thin table-scroll max-md:[&_table]:block max-md:[&_thead]:hidden max-md:[&_tbody]:block max-md:[&_tr]:block max-md:[&_tr]:p-4 max-md:[&_tr]:border-b max-md:[&_tr]:border-slate-100 max-md:[&_td]:block max-md:[&_td]:!px-0 max-md:[&_td]:!py-1 max-md:[&_td:empty]:hidden">
+<div className="overflow-x-auto scroll-thin table-scroll [&_table]:block [&_thead]:hidden [&_tbody]:block [&_tr]:block [&_tr]:p-4 [&_tr]:border-b [&_tr]:border-slate-100 [&_td]:block [&_td]:!px-0 [&_td]:!py-1 [&_td:empty]:hidden">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100">
@@ -1380,7 +1380,7 @@ Next
 </h3>
 </div>
 {/* Phone: one tappable card per patient */}
-<div className="md:hidden divide-y divide-slate-100">
+<div className="divide-y divide-slate-100 md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:gap-4 md:p-4 md:divide-y-0 md:[&>*:not(p)]:rounded-2xl md:[&>*:not(p)]:border md:[&>*:not(p)]:border-slate-200 md:[&>*:not(p)]:bg-white md:[&>*:not(p)]:shadow-sm md:[&>p]:col-span-full">
 {pendingBills.map(row => (
 <button
 key={row.patientId}
@@ -1423,7 +1423,7 @@ className="w-full text-left p-4 flex flex-col gap-3 active:bg-orange-50 hover:bg
 )}
 </div>
 {/* Tablet and desktop: table */}
-<div className="hidden md:block overflow-x-auto scroll-thin table-scroll">
+<div className="hidden">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100">

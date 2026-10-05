@@ -552,7 +552,7 @@ className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-7
 </div>
 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
 {/* Phone: stacked cards */}
-<div className="md:hidden divide-y divide-slate-100">
+<div className="divide-y divide-slate-100 md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:gap-4 md:p-4 md:divide-y-0 md:[&>*:not(p)]:rounded-2xl md:[&>*:not(p)]:border md:[&>*:not(p)]:border-slate-200 md:[&>*:not(p)]:bg-white md:[&>*:not(p)]:shadow-sm md:[&>p]:col-span-full">
 {filteredInventory.map((item) => {
 const ex = expiryStatus(item.expiryDate);
 return (
@@ -609,7 +609,7 @@ className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-
 )}
 </div>
 {/* Tablet and desktop: table */}
-<div className="hidden md:block overflow-x-auto scroll-thin table-scroll">
+<div className="hidden">
 <table className="w-full text-left border-collapse">
 <thead>
 <tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100">
