@@ -40,6 +40,13 @@ const onChange = () => { setIsDesktop(mq.matches); };
 mq.addEventListener('change', onChange);
 return () => mq.removeEventListener('change', onChange);
 }, []);
+// At 1280px+ the menu is always visible, so a drawer left open (and its scroll lock) must close.
+useEffect(() => {
+const mq = window.matchMedia('(min-width: 1280px)');
+const onChange = () => { if (mq.matches) setIsMobileNavOpen(false); };
+mq.addEventListener('change', onChange);
+return () => mq.removeEventListener('change', onChange);
+}, []);
 // Escape closes the drawer; the page behind it does not scroll while it is open.
 useEffect(() => {
 if (!isMobileNavOpen) return;
@@ -86,7 +93,7 @@ return (
 {/* Mobile drawer backdrop */}
 {isMobileNavOpen && (
 <div
-className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm"
+className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm xl:hidden"
 onClick={() => setIsMobileNavOpen(false)}
 aria-hidden="true"
 />
@@ -95,6 +102,8 @@ aria-hidden="true"
 <aside className={cn(
 "bg-slate-900 text-white flex flex-col h-dvh z-50 transition-all duration-300 pt-safe pb-safe",
 "fixed inset-y-0 left-0 w-72 max-w-[85vw] shadow-2xl",
+// Laptop/PC (1280px+): the menu is a permanent column instead of a drawer
+"xl:sticky xl:top-0 xl:translate-x-0 xl:w-64 xl:max-w-none xl:shrink-0 xl:shadow-none xl:border-r xl:border-slate-800",
 isMobileNavOpen ? "translate-x-0" : "-translate-x-full",
 )}>
 <div className="p-4 sm:p-6 flex items-center gap-3 border-b border-slate-800">
@@ -102,7 +111,7 @@ isMobileNavOpen ? "translate-x-0" : "-translate-x-full",
 {showLabels && <span className="font-bold text-lg truncate flex-1">Rehoboth Clinic</span>}
 <button
 onClick={() => setIsMobileNavOpen(false)}
-className="p-2 -mr-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+className="p-2 -mr-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 xl:hidden"
 aria-label="Close menu"
 >
 <X className="w-5 h-5" />
@@ -176,7 +185,7 @@ className="w-full flex items-center gap-4 p-3 min-h-12 rounded-xl hover:bg-red-9
 <div className="flex items-center gap-2 min-w-0">
 <button
 onClick={() => setIsMobileNavOpen(true)}
-className="relative p-2.5 hover:bg-slate-100 rounded-lg shrink-0"
+className="relative p-2.5 hover:bg-slate-100 rounded-lg shrink-0 xl:hidden"
 aria-label="Open menu"
 >
 <Menu className="w-6 h-6 text-slate-600" />
