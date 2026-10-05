@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, memo } from 'react';
+import React, { useState, useEffect, useMemo, memo, useRef } from 'react';
 import { upsertPatient } from '../lib/patientSync';
 import { supabase, handleSupabaseError, fetchAllRows } from '../lib/supabase';
 import { Patient, Appointment, User, RegistrationFeeSettings } from '../types';
@@ -202,6 +202,12 @@ date: format(new Date(), 'yyyy-MM-dd'),
 time: '09:00',
 reason: ''
 });
+const pendingCountTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+// One action can touch several tables, so refresh the count once after the burst.
+const schedulePendingCount = () => {
+if (pendingCountTimer.current) clearTimeout(pendingCountTimer.current);
+pendingCountTimer.current = setTimeout(fetchPendingBillsCount, 400);
+};
 useEffect(() => {
 fetchRecentPatients();
 fetchAllPatients();
@@ -215,22 +221,27 @@ const channel = supabase
 .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, () => {
 fetchAppointments();
 })
-.on('postgres_changes', { event: '*', schema: 'public', table: 'financials' }, () => {
-fetchPendingBillsCount();
-})
+.on('postgres_changes', { event: '*', schema: 'public', table: 'financials' }, schedulePendingCount)
+.on('postgres_changes', { event: '*', schema: 'public', table: 'prescriptions' }, schedulePendingCount)
+.on('postgres_changes', { event: '*', schema: 'public', table: 'lab_tests' }, schedulePendingCount)
+.on('postgres_changes', { event: '*', schema: 'public', table: 'medical_records' }, schedulePendingCount)
+.on('postgres_changes', { event: '*', schema: 'public', table: 'visits' }, schedulePendingCount)
 .on('postgres_changes', { event: '*', schema: 'public', table: 'registration_fee_settings' }, () => {
 fetchRegFees();
 })
 .subscribe();
-return () => { supabase.removeChannel(channel); };
+return () => {
+if (pendingCountTimer.current) clearTimeout(pendingCountTimer.current);
+supabase.removeChannel(channel);
+};
 }, []);
+// Same source as the Finance/CMD card and the sidebar badge: patients who still owe
+// something, from pending_bills_summary(). Counting raw financials rows gave a different
+// number (one patient could be several rows, and unbilled items were missed).
 const fetchPendingBillsCount = async () => {
-const { count, error } = await supabase
-.from('financials')
-.select('*', { count: 'exact', head: true })
-.neq('payment_status', 'fully paid');
-if (error) return handleSupabaseError(error, 'select', 'financials');
-setStats(prev => ({ ...prev, pendingBills: count || 0 }));
+const { data, error } = await supabase.rpc('pending_bills_summary');
+if (error) return handleSupabaseError(error, 'select', 'pending_bills_summary');
+setStats(prev => ({ ...prev, pendingBills: (data || []).length }));
 };
 // Walk-ins have no clinic card, so they stay out of registration counts and charts
 // (they still appear in the directory so they can be found).
@@ -696,15 +707,17 @@ style={{ height: `${Math.max((d.count / max) * 100, 8)}%` }} title={`${d.label}:
 </div>
 </button>
 <button
+type="button"
 onClick={() => onNavigate?.('Finance')}
-className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 sm:gap-6 text-left hover:border-orange-200 transition-all"
+className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 sm:gap-6 text-left hover:border-orange-200 hover:shadow-md transition-all"
 >
-<div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-600">
+<div className="w-16 h-16 shrink-0 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-600">
 <DollarSign className="w-8 h-8" />
 </div>
-<div>
+<div className="min-w-0">
 <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Pending Bills</p>
 <h4 className="text-3xl font-black text-slate-900">{stats.pendingBills}</h4>
+<p className="text-xs text-slate-400 mt-0.5">{stats.pendingBills === 1 ? 'patient owing' : 'patients owing'}</p>
 </div>
 </button>
 <div className="lg:col-span-3 bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100">

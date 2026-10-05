@@ -763,12 +763,13 @@ type="button"
 onClick={() => setView('pendingBills')}
 className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 sm:gap-6 text-left hover:border-orange-200 hover:shadow-md transition-all"
 >
-<div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-600">
+<div className="w-16 h-16 shrink-0 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-600">
 <Receipt className="w-8 h-8" />
 </div>
-<div>
+<div className="min-w-0">
 <p className="text-sm font-bold text-slate-400 uppercase tracking-wider">Pending Bills</p>
 <h4 className="text-3xl font-black text-slate-900">{pendingBills.length}</h4>
+<p className="text-xs text-slate-400 mt-0.5">{pendingBills.length === 1 ? 'patient owing' : 'patients owing'}</p>
 </div>
 </button>
 <div className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 sm:gap-6">
