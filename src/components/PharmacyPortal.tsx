@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useDeferredValue } from 'react';
 import { supabase, handleSupabaseError } from '../lib/supabase';
 import { InventoryItem, MedicalRecord, Patient, Prescription } from '../types';
 import { toast } from 'sonner';
@@ -53,8 +53,10 @@ if (st === 'expired') expired++; else if (st === 'soon') soon++;
 }
 return { expired, soon };
 }, [inventory]);
+// The search box stays instant while the long list catches up.
+const deferredSearch = useDeferredValue(inventorySearch);
 const filteredInventory = useMemo(() => {
-const q = inventorySearch.trim().toLowerCase();
+const q = deferredSearch.trim().toLowerCase();
 let list = inventory;
 if (showLowStockOnly) list = list.filter(item => (item.stock || 0) < 10);
 if (expiryFilter !== 'all') list = list.filter(item => expiryStatus(item.expiryDate).state === expiryFilter);
@@ -62,7 +64,11 @@ if (!q) return list;
 return list.filter(item =>
 item.name.toLowerCase().includes(q) || (item.category || '').toLowerCase().includes(q)
 );
-}, [inventory, inventorySearch, showLowStockOnly, expiryFilter]);
+}, [inventory, deferredSearch, showLowStockOnly, expiryFilter]);
+// Hundreds of drugs at once made the page heavy, so show them in pages.
+const INVENTORY_PAGE = 60;
+const [visibleCount, setVisibleCount] = useState(INVENTORY_PAGE);
+useEffect(() => { setVisibleCount(INVENTORY_PAGE); }, [deferredSearch, showLowStockOnly, expiryFilter]);
 const [prescriptions, setPrescriptions] = useState<(MedicalRecord & { patient?: Patient })[]>([]);
 const [familyNameById, setFamilyNameById] = useState<Record<string, string>>({});
 const [structuredRx, setStructuredRx] = useState<(Prescription & { patient?: Patient })[]>([]);
@@ -116,6 +122,12 @@ const yesterday = last7DaysDispensed[5]?.count ?? 0;
 if (yesterday === 0) return today > 0 ? 100 : 0;
 return Math.round(((today - yesterday) / yesterday) * 100);
 }, [last7DaysDispensed]);
+// A dispense can touch several drugs at once; refresh the list once after the burst.
+const inventoryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+const scheduleInventoryRefresh = () => {
+if (inventoryTimer.current) clearTimeout(inventoryTimer.current);
+inventoryTimer.current = setTimeout(fetchInventory, 300);
+};
 useEffect(() => {
 fetchInventory();
 fetchPrescriptionsFromRecords();
@@ -123,12 +135,15 @@ fetchPrescriptionsFromVisits();
 fetchStructuredPrescriptions();
 const channel = supabase
 .channel('pharmacy-portal')
-.on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, fetchInventory)
+.on('postgres_changes', { event: '*', schema: 'public', table: 'inventory' }, scheduleInventoryRefresh)
 .on('postgres_changes', { event: '*', schema: 'public', table: 'medical_records' }, fetchPrescriptionsFromRecords)
 .on('postgres_changes', { event: '*', schema: 'public', table: 'visits' }, fetchPrescriptionsFromVisits)
 .on('postgres_changes', { event: '*', schema: 'public', table: 'prescriptions' }, fetchStructuredPrescriptions)
 .subscribe();
-return () => { supabase.removeChannel(channel); };
+return () => {
+if (inventoryTimer.current) clearTimeout(inventoryTimer.current);
+supabase.removeChannel(channel);
+};
 }, []);
 const fetchStructuredPrescriptions = async () => {
 const { data, error } = await supabase
@@ -552,7 +567,7 @@ className="bg-blue-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-blue-7
 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
 {/* Phone: stacked cards */}
 <div className="divide-y divide-slate-100 md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:gap-4 md:p-4 md:divide-y-0 md:[&>*:not(p)]:rounded-2xl md:[&>*:not(p)]:border md:[&>*:not(p)]:border-slate-200 md:[&>*:not(p)]:bg-white md:[&>*:not(p)]:shadow-sm md:[&>p]:col-span-full">
-{filteredInventory.map((item) => {
+{filteredInventory.slice(0, visibleCount).map((item) => {
 const ex = expiryStatus(item.expiryDate);
 return (
 <div key={item.id} className="p-4 space-y-3">
@@ -607,87 +622,16 @@ className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-
 </p>
 )}
 </div>
-{/* Tablet and desktop: table */}
-<div className="hidden">
-<table className="w-full text-left border-collapse">
-<thead>
-<tr className="bg-slate-50 text-slate-500 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100">
-<th className="px-6 py-4">Drug Name</th>
-<th className="px-6 py-4">Category</th>
-<th className="px-6 py-4">Price (₦)</th>
-<th className="px-6 py-4">Billed</th>
-<th className="px-6 py-4">Stock</th>
-<th className="px-6 py-4">Expiry</th>
-<th className="px-6 py-4">Actions</th>
-</tr>
-</thead>
-<tbody className="divide-y divide-slate-50">
-{filteredInventory.map((item) => (
-<tr key={item.id} className="hover:bg-slate-50 transition-colors">
-<td className="px-6 py-4 font-bold text-slate-900">{item.name}</td>
-<td className="px-6 py-4">
-<span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-md text-[11px] font-bold uppercase">
-{item.category || 'General'}
-</span>
-</td>
-<td className="px-6 py-4 font-bold text-blue-600">
-₦{item.price.toLocaleString()}
-{!item.priceVerified && <span className="block text-[11px] font-bold uppercase text-amber-600">price not confirmed</span>}
-</td>
-<td className="px-6 py-4 text-xs font-bold text-slate-600">{item.billingBasis === 'per_pack' ? 'Per pack' : 'Per unit'}</td>
-<td className="px-6 py-4">
-<span className={cn(
-"font-bold",
-(item.stock || 0) < 10 ? "text-red-500" : "text-slate-700"
-)}>
-{item.stock || 0}
-</span>
-{!item.stockVerified && <span className="block text-[11px] font-bold uppercase text-amber-600">count not confirmed</span>}
-{(item.oversoldUnits || 0) > 0 && <span className="block text-[11px] font-bold uppercase text-red-600">{item.oversoldUnits} dispensed beyond stock</span>}
-</td>
-<td className="px-6 py-4">
-{(() => {
-const ex = expiryStatus(item.expiryDate);
-if (ex.state === 'none') return <span className="text-[11px] font-bold uppercase text-slate-300">not recorded</span>;
-return (
-<span className="block">
-<span className={cn("text-xs font-bold", ex.state === 'expired' ? "text-red-600" : ex.state === 'soon' ? "text-amber-600" : "text-slate-700")}>
-{formatExpiry(item.expiryDate as string)}
-</span>
-{ex.state === 'expired' && <span className="block text-[11px] font-bold uppercase text-red-600">Expired {Math.abs(ex.daysLeft as number)} day{Math.abs(ex.daysLeft as number) === 1 ? '' : 's'} ago</span>}
-{ex.state === 'soon' && <span className="block text-[11px] font-bold uppercase text-amber-600">{ex.daysLeft === 0 ? 'Expires today' : `Expires in ${ex.daysLeft} day${ex.daysLeft === 1 ? '' : 's'}`}</span>}
-</span>
-);
-})()}
-</td>
-<td className="px-6 py-4">
-<div className="flex gap-2">
+{filteredInventory.length > visibleCount && (
+<div className="p-4 text-center border-t border-slate-100">
 <button
-onClick={() => startEditDrug(item)}
-className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+onClick={() => setVisibleCount(c => c + INVENTORY_PAGE)}
+className="px-6 min-h-11 rounded-xl bg-blue-50 text-blue-700 font-bold text-sm hover:bg-blue-100"
 >
-<Edit className="w-4 h-4" />
-</button>
-<button
-onClick={() => handleDeleteDrug(item.id)}
-className="p-2 text-slate-400 hover:text-red-500 transition-colors"
->
-<Trash2 className="w-4 h-4" />
+Show more ({filteredInventory.length - visibleCount} left)
 </button>
 </div>
-</td>
-</tr>
-))}
-{filteredInventory.length === 0 && (
-<tr>
-<td colSpan={7} className="p-12 text-center text-slate-400 italic">
-{inventory.length === 0 ? 'No drugs in inventory.' : expiryFilter === 'expired' ? 'No expired drugs recorded.' : expiryFilter === 'soon' ? `Nothing expires within ${EXPIRY_WARNING_DAYS} days.` : showLowStockOnly ? 'No low-stock drugs right now.' : 'No drugs match your search.'}
-</td>
-</tr>
 )}
-</tbody>
-</table>
-</div>
 </div>
 </div>
 ) : (
