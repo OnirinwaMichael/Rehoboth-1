@@ -365,6 +365,8 @@ netProfit: 0
 const [showHistory, setShowHistory] = useState(false);
 const [printingRecord, setPrintingRecord] = useState<(FinancialRecord & { patient?: Patient }) | null>(null);
 const [removeBill, setRemoveBill] = useState<FinancialRecord | null>(null);
+// Set when a CMD removes an unpaid bill from a patient's billing panel (names the bill in the confirm).
+const [removeBillNote, setRemoveBillNote] = useState<string | null>(null);
 const [refundModal, setRefundModal] = useState<{ record: FinancialRecord & { patient?: Patient }; net: number; amount: string; method: 'cash' | 'bank transfer'; reason: string; busy: boolean } | null>(null);
 // A refund is a negative payment. A bill (or a patient's registration) can be refunded while
 // the net of its payments is above zero; the button sits on its most recent payment only, so
@@ -697,6 +699,9 @@ if (error) { toast.error(error.message || 'Could not remove the bill.'); return;
 const r: any = data || {};
 toast.success(`Removed: ${r.payments_removed ?? 0} payment(s), ${r.records_removed ?? 0} record(s)`);
 setRecords(prev => prev.filter(x => !(x.referenceType === record.referenceType && x.referenceId === record.referenceId)));
+// The bill may have been removed from a patient's billing panel (e.g. opened from Pending Bills).
+if (selectedPatient) fetchBillingItems(selectedPatient.cardId);
+fetchPendingBills();
 };
 const openCombined = () => {
 const lines = [...unpaidItems]
@@ -1099,16 +1104,31 @@ item.paymentStatus === 'pending' && "bg-orange-50 text-orange-600 border-orange-
 <p className="text-[11px] text-slate-400">Paid ₦{item.paidSoFar.toLocaleString()} · Owes ₦{item.balance.toLocaleString()}</p>
 )}
 </div>
+<div className="flex items-center gap-1 shrink-0">
 {item.balance > 0 ? (
 <button
 onClick={() => setPayModal({ item, amount: item.balance.toString(), method: 'cash' })}
-className="shrink-0 px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700 transition-all"
+className="min-h-11 px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700 transition-all"
 >
 Pay
 </button>
 ) : (
 <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />
 )}
+{canDelete && item.balance > 0 && item.paidSoFar === 0 && (
+<button
+onClick={() => {
+setRemoveBillNote(`${SERVICE_LABEL[item.itemType] || 'Bill'}: ${item.description} (₦${item.amount.toLocaleString()})`);
+setRemoveBill({ referenceType: item.itemType, referenceId: item.id, patientId: selectedPatient?.cardId || '' } as FinancialRecord);
+}}
+className="min-w-11 min-h-11 flex items-center justify-center hover:bg-red-100 text-red-800 rounded-lg transition-colors"
+title="Remove this unpaid bill"
+aria-label="Remove this unpaid bill"
+>
+<Eraser className="w-4 h-4" />
+</button>
+)}
+</div>
 </div>
 ))
 )}
@@ -2033,10 +2053,10 @@ className="flex-1 px-4 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg
 <ConfirmModal
 isOpen={!!removeBill}
 title="Remove bill completely"
-message={`This permanently deletes the ${removeBill?.referenceType?.replace(/_/g,' ')} bill, ALL its payments, and the ${removeBill?.referenceType === 'visit' ? 'visit' : removeBill?.referenceType === 'consultation' ? 'consultation (diagnosis) record' : removeBill?.referenceType?.startsWith('lab') ? 'lab test record(s)' : 'prescription record(s)'} it belongs to. This cannot be undone.`}
+message={removeBillNote ? `Remove ${removeBillNote}? Nothing has been paid on it. This permanently deletes the bill and the ${removeBill?.referenceType === 'visit' ? 'visit' : removeBill?.referenceType === 'consultation' ? 'consultation (diagnosis) record' : removeBill?.referenceType?.startsWith('lab') ? 'lab test record(s)' : 'prescription record(s)'} it belongs to. This cannot be undone.` : `This permanently deletes the ${removeBill?.referenceType?.replace(/_/g,' ')} bill, ALL its payments, and the ${removeBill?.referenceType === 'visit' ? 'visit' : removeBill?.referenceType === 'consultation' ? 'consultation (diagnosis) record' : removeBill?.referenceType?.startsWith('lab') ? 'lab test record(s)' : 'prescription record(s)'} it belongs to. This cannot be undone.`}
 confirmText="Remove completely"
-onConfirm={() => { if (removeBill) handleRemoveBill(removeBill); setRemoveBill(null); }}
-onCancel={() => setRemoveBill(null)}
+onConfirm={() => { if (removeBill) handleRemoveBill(removeBill); setRemoveBill(null); setRemoveBillNote(null); }}
+onCancel={() => { setRemoveBill(null); setRemoveBillNote(null); }}
 />
 <ConfirmModal
 isOpen={!!deleteConfirm}
