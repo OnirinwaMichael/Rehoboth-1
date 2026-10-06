@@ -39,6 +39,7 @@ pendingAmount: r.pending_amount, paymentStatus: r.payment_status, paymentMethod:
 reconciled: r.reconciled, reconciledAt: r.reconciled_at, reconciledBy: r.reconciled_by,
 createdAt: r.created_at, referenceType: r.reference_type, referenceId: r.reference_id,
 refundReason: r.refund_reason,
+receiptId: r.receipt_id,
 });
 const expenseFromRow = (r: any): Expense => ({
 id: r.id, description: r.description, amount: r.amount, category: r.category,
@@ -56,14 +57,51 @@ section: 'patients' | 'finance' | 'reconciliation' | 'expenses' | 'reports';
 // Refunds are stored as negative payments, so amounts can be below zero.
 const money = (n: number) => `${n < 0 ? '−' : ''}₦${Math.abs(n).toLocaleString()}`;
 const BILL_TYPES = ['consultation','visit','lab_test','lab_test_group','prescription','prescription_group'];
-const TransactionRow = memo(({ record, onPrint, onDelete, onRemoveBill, canDelete, canRefund, onRefund }: { 
+const SERVICE_LABEL: Record<string, string> = {
+consultation: 'Consultation', visit: 'Visit', lab_test: 'Lab test', lab_test_group: 'Lab tests',
+prescription: 'Prescription', prescription_group: 'Prescriptions', registration: 'Registration',
+};
+const SERVICE_RANK: Record<string, number> = { registration: 0, consultation: 1, visit: 2, lab_test_group: 3, lab_test: 3, prescription_group: 4, prescription: 4 };
+// The services one combined payment covered, each with its own amount (and refund/remove actions).
+const ServiceLines = ({ parts, canDelete, refundTargets, onRefund, onRemoveBill }: {
+parts: FinancialRecord[],
+canDelete: boolean,
+refundTargets?: Map<string, number>,
+onRefund?: (record: FinancialRecord & { patient?: Patient }) => void,
+onRemoveBill: (record: FinancialRecord & { patient?: Patient }) => void,
+}) => (
+<div className="rounded-xl border border-slate-100 divide-y divide-slate-100 bg-white">
+{parts.map(p => (
+<div key={p.id} className="px-3 py-1.5 flex items-center justify-between gap-2">
+<div className="min-w-0">
+<p className="text-sm font-semibold text-slate-800">{SERVICE_LABEL[p.referenceType || ''] || 'Service'}</p>
+<p className="text-xs font-bold text-green-700">Paid ₦{p.paidAmount.toLocaleString()}</p>
+</div>
+<div className="flex items-center gap-1 shrink-0">
+{onRefund && refundTargets?.has(p.id) && (
+<button onClick={() => onRefund(p as FinancialRecord & { patient?: Patient })} className="p-2 min-w-11 min-h-11 flex items-center justify-center hover:bg-amber-100 text-amber-700 rounded-lg transition-colors" title="Refund this service" aria-label="Refund this service">
+<RotateCcw className="w-4 h-4" />
+</button>
+)}
+{canDelete && p.referenceId && BILL_TYPES.includes(p.referenceType || '') && (
+<button onClick={() => onRemoveBill(p as FinancialRecord & { patient?: Patient })} className="p-2 min-w-11 min-h-11 flex items-center justify-center hover:bg-red-100 text-red-800 rounded-lg transition-colors" title="Remove this bill completely" aria-label="Remove this bill completely">
+<Eraser className="w-4 h-4" />
+</button>
+)}
+</div>
+</div>
+))}
+</div>
+);
+const TransactionRow = memo(({ record, onPrint, onDelete, onRemoveBill, canDelete, canRefund, onRefund, refundTargets }: { 
 record: FinancialRecord & { patient?: Patient }, 
 onPrint: (record: FinancialRecord & { patient?: Patient }) => void,
 onDelete: (id: string) => void,
 onRemoveBill: (record: FinancialRecord & { patient?: Patient }) => void,
 canDelete: boolean,
 canRefund?: boolean,
-onRefund?: (record: FinancialRecord & { patient?: Patient }) => void
+onRefund?: (record: FinancialRecord & { patient?: Patient }) => void,
+refundTargets?: Map<string, number>
 }) => (
 <tr className="hover:bg-slate-50 transition-colors group">
 <td className="px-6 py-4">
@@ -80,6 +118,9 @@ onRefund?: (record: FinancialRecord & { patient?: Patient }) => void
 </p>
 <p className="text-[11px] text-slate-400">{record.patientId}</p>
 {record.familyMemberName && <p className="text-[11px] font-bold text-amber-700">For: {record.familyMemberName}</p>}
+{record.parts && (
+<div className="mt-2"><ServiceLines parts={record.parts} canDelete={canDelete} refundTargets={refundTargets} onRefund={onRefund} onRemoveBill={onRemoveBill} /></div>
+)}
 </div>
 </div>
 </td>
@@ -130,7 +171,7 @@ title="Delete Transaction"
 <Trash2 className="w-4 h-4" />
 </button>
 )}
-{canDelete && record.referenceId && BILL_TYPES.includes(record.referenceType || '') && (
+{canDelete && !record.parts && record.referenceId && BILL_TYPES.includes(record.referenceType || '') && (
 <button
 onClick={() => onRemoveBill(record)}
 className="p-2 hover:bg-red-100 text-red-800 rounded-lg transition-colors"
@@ -144,14 +185,15 @@ title="Remove bill completely (payment, bill and record)"
 </tr>
 ));
 // Phone layout of a transaction (same data and actions as TransactionRow, stacked as a card).
-const TransactionCard = memo(({ record, onPrint, onDelete, onRemoveBill, canDelete, canRefund, onRefund }: {
+const TransactionCard = memo(({ record, onPrint, onDelete, onRemoveBill, canDelete, canRefund, onRefund, refundTargets }: {
 record: FinancialRecord & { patient?: Patient },
 onPrint: (record: FinancialRecord & { patient?: Patient }) => void,
 onDelete: (id: string) => void,
 onRemoveBill: (record: FinancialRecord & { patient?: Patient }) => void,
 canDelete: boolean,
 canRefund?: boolean,
-onRefund?: (record: FinancialRecord & { patient?: Patient }) => void
+onRefund?: (record: FinancialRecord & { patient?: Patient }) => void,
+refundTargets?: Map<string, number>
 }) => (
 <div className="p-4 space-y-3">
 <div className="flex items-start justify-between gap-3">
@@ -204,6 +246,7 @@ record.paidAmount < 0 ? "bg-purple-100 text-purple-700" : record.paymentStatus =
 </div>
 </div>
 )}
+{record.parts && <ServiceLines parts={record.parts} canDelete={canDelete} refundTargets={refundTargets} onRefund={onRefund} onRemoveBill={onRemoveBill} />}
 <div className="flex gap-2">
 {record.paidAmount >= 0 && (
 <button
@@ -229,7 +272,7 @@ className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-
 <Trash2 className="w-4 h-4" /> Delete
 </button>
 )}
-{canDelete && record.referenceId && BILL_TYPES.includes(record.referenceType || '') && (
+{canDelete && !record.parts && record.referenceId && BILL_TYPES.includes(record.referenceType || '') && (
 <button
 onClick={() => onRemoveBill(record)}
 className="flex-1 flex items-center justify-center gap-2 min-h-11 rounded-xl bg-red-100 text-red-900 font-bold text-sm active:bg-red-200"
@@ -309,6 +352,8 @@ const [patientSearchQuery, setPatientSearchQuery] = useState('');
 const [financePatientsPage, setFinancePatientsPage] = useState(1);
 const FINANCE_PATIENTS_PAGE_SIZE = 50;
 const [billingItems, setBillingItems] = useState<BillingItem[]>([]);
+const unpaidItems = useMemo(() => billingItems.filter(i => i.balance > 0), [billingItems]);
+const [combinedModal, setCombinedModal] = useState<{ method: 'cash' | 'bank transfer'; busy: boolean; lines: { item: BillingItem; include: boolean; amount: string }[] } | null>(null);
 const [pendingBills, setPendingBills] = useState<PendingBillRow[]>([]);
 const pendingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 const [stats, setStats] = useState({
@@ -338,7 +383,29 @@ const out = new Map<string, number>();
 groups.forEach(g => { if (g.net > 0 && g.latest) out.set(g.latest.id, g.net); });
 return out;
 }, [records]);
-const [deleteConfirm, setDeleteConfirm] = useState<{type: 'expense' | 'transaction', id: string} | null>(null);
+// Payments made together (one receipt) show as one entry that lists the services paid for.
+const groupedRecords = useMemo(() => {
+const out: (FinancialRecord & { patient?: Patient })[] = [];
+const byReceipt = new Map<string, FinancialRecord & { patient?: Patient }>();
+for (const r of records) {
+if (!r.receiptId) { out.push(r); continue; }
+const g = byReceipt.get(r.receiptId);
+if (!g) {
+const head = { ...r, parts: [r] as FinancialRecord[] };
+byReceipt.set(r.receiptId, head);
+out.push(head);
+} else {
+g.parts!.push(r);
+g.totalAmount += r.totalAmount;
+g.paidAmount += r.paidAmount;
+g.pendingAmount += r.pendingAmount;
+if (r.paymentStatus !== 'fully paid') g.paymentStatus = 'partially paid';
+}
+}
+byReceipt.forEach(g => g.parts!.sort((a, b) => (SERVICE_RANK[a.referenceType || ''] ?? 9) - (SERVICE_RANK[b.referenceType || ''] ?? 9)));
+return out;
+}, [records]);
+const [deleteConfirm, setDeleteConfirm] = useState<{type: 'expense' | 'transaction', id: string, ids?: string[]} | null>(null);
 const [payModal, setPayModal] = useState<{ item: BillingItem; amount: string; method: 'cash' | 'bank transfer' } | null>(null);
 const { data: expenseForm, setData: setExpenseForm, clearDraft: clearExpenseDraft } = useFormDraft('accountant_expense_form', {
 description: '',
@@ -614,12 +681,12 @@ if (error) return handleSupabaseError(error, 'delete', 'expenses');
 if (!data || data.length === 0) { toast.error('Nothing was deleted. Only the CMD can delete expenses.'); return; }
 toast.success('Expense deleted');
 };
-const handleDeleteTransaction = async (id: string) => {
+const handleDeleteTransaction = async (id: string, ids?: string[]) => {
 if (!canDelete) { toast.error('Only the CMD can delete transactions.'); return; }
-const { data, error } = await supabase.from('financials').delete().eq('id', id).select('id');
+const { data, error } = await supabase.from('financials').delete().in('id', ids && ids.length ? ids : [id]).select('id');
 if (error) return handleSupabaseError(error, 'delete', 'financials');
 if (!data || data.length === 0) { toast.error('Nothing was deleted. Only the CMD can delete transactions.'); return; }
-await logAction(userId, 'DELETE_TRANSACTION', `Deleted transaction ${id}`);
+await logAction(userId, 'DELETE_TRANSACTION', ids && ids.length > 1 ? `Deleted combined payment (${ids.length} services): ${ids.join(', ')}` : `Deleted transaction ${id}`);
 toast.success('Transaction deleted successfully');
 };
 const handleRemoveBill = async (record: FinancialRecord) => {
@@ -630,6 +697,63 @@ if (error) { toast.error(error.message || 'Could not remove the bill.'); return;
 const r: any = data || {};
 toast.success(`Removed: ${r.payments_removed ?? 0} payment(s), ${r.records_removed ?? 0} record(s)`);
 setRecords(prev => prev.filter(x => !(x.referenceType === record.referenceType && x.referenceId === record.referenceId)));
+};
+const openCombined = () => {
+const lines = [...unpaidItems]
+.sort((a, b) => (SERVICE_RANK[a.itemType] ?? 9) - (SERVICE_RANK[b.itemType] ?? 9) || a.createdAt.localeCompare(b.createdAt))
+.map(item => ({ item, include: true, amount: String(item.balance) }));
+setCombinedModal({ method: 'cash', busy: false, lines });
+};
+const setCombinedLine = (i: number, patch: Partial<{ include: boolean; amount: string }>) =>
+setCombinedModal(m => (m ? { ...m, lines: m.lines.map((l, j) => (j === i ? { ...l, ...patch } : l)) } : m));
+const combinedTotal = combinedModal
+? combinedModal.lines.reduce((sum, l) => sum + (l.include ? (parseFloat(l.amount) || 0) : 0), 0)
+: 0;
+const handleConfirmCombined = async () => {
+if (!combinedModal || combinedModal.busy || !selectedPatient) return;
+const chosen = combinedModal.lines.filter(l => l.include);
+if (chosen.length === 0) { toast.error('Choose at least one service.'); return; }
+for (const l of chosen) {
+const a = parseFloat(l.amount);
+const name = SERVICE_LABEL[l.item.itemType] || 'Service';
+if (!a || a <= 0) { toast.error(`Enter an amount for ${name}.`); return; }
+if (a > l.item.balance) { toast.error(`${name}: amount cannot exceed its balance of ₦${l.item.balance.toLocaleString()}.`); return; }
+}
+setCombinedModal({ ...combinedModal, busy: true });
+const { data, error } = await supabase.rpc('record_combined_payment', {
+p_patient_id: selectedPatient.cardId,
+p_payment_method: combinedModal.method,
+p_lines: chosen.map(l => ({ item_type: l.item.itemType, item_id: l.item.id, amount: parseFloat(l.amount) })),
+});
+if (error) {
+toast.error(error.message || 'Could not record the payment.');
+setCombinedModal(m => (m ? { ...m, busy: false } : m));
+return;
+}
+const res: any = data || {};
+const now = new Date().toISOString();
+const parts: FinancialRecord[] = chosen.map(l => {
+const paid = parseFloat(l.amount);
+const left = Math.max(l.item.balance - paid, 0);
+return {
+id: `${res.receipt_id}-${l.item.id}`, patientId: selectedPatient.cardId, totalAmount: l.item.amount, paidAmount: paid,
+pendingAmount: left, paymentStatus: left > 0 ? 'partially paid' : 'fully paid', paymentMethod: combinedModal.method,
+createdAt: now, referenceType: l.item.itemType, referenceId: l.item.id,
+};
+});
+setPrintingRecord({
+id: res.receipt_id, receiptId: res.receipt_id, patientId: selectedPatient.cardId,
+totalAmount: parts.reduce((s, p) => s + p.totalAmount, 0),
+paidAmount: parts.reduce((s, p) => s + p.paidAmount, 0),
+pendingAmount: parts.reduce((s, p) => s + p.pendingAmount, 0),
+paymentStatus: parts.some(p => p.paymentStatus !== 'fully paid') ? 'partially paid' : 'fully paid',
+paymentMethod: combinedModal.method, createdAt: now, parts, patient: selectedPatient,
+} as FinancialRecord & { patient: Patient });
+toast.success(`Recorded ₦${Number(res.total ?? 0).toLocaleString()} for ${res.services ?? chosen.length} service(s)`);
+setCombinedModal(null);
+await fetchBillingItems(selectedPatient.cardId);
+fetchFinancials();
+fetchPendingBills();
 };
 const openRefund = (record: FinancialRecord & { patient?: Patient }) => {
 const net = refundTargets.get(record.id);
@@ -680,6 +804,9 @@ if (!printWindow) return;
 const esc = (v: unknown) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 const naira = (n: number) => '₦' + Number(n || 0).toLocaleString();
 const owing = record.pendingAmount > 0;
+const descHtml = record.parts && record.parts.length
+? '<div class="field"><div class="lbl">Services paid</div></div>' + record.parts.map(p => `<div class="line"><span class="k">${esc(SERVICE_LABEL[p.referenceType || ''] || 'Service')}</span><span class="v">${naira(p.paidAmount)}</span></div>`).join('')
+: '<div class="field"><div class="lbl">Description</div><div class="val">Hospital Services / Clinical Fees</div></div>';
 const content = `
 <html>
 <head>
@@ -715,12 +842,12 @@ body { width: 48mm; margin: 0 auto; padding: 2mm 0 6mm; font-family: Arial, Helv
 <div class="title">Official Payment Receipt</div>
 </div>
 <hr class="rule" />
-<div class="field"><div class="lbl">Receipt No</div><div class="small">${esc(record.id || 'TEMP-' + Date.now())}</div></div>
+<div class="field"><div class="lbl">Receipt No</div><div class="small">${esc(record.receiptId || record.id || 'TEMP-' + Date.now())}</div></div>
 <div class="field"><div class="lbl">Date</div><div class="val">${esc(format(new Date(record.createdAt), 'MMM d, yyyy HH:mm'))}</div></div>
 <div class="field"><div class="lbl">Patient</div><div class="val">${esc(record.patient?.name || 'N/A')}</div></div>
 <div class="field"><div class="lbl">Card ID</div><div class="val">${esc(record.patientId)}</div></div>
 <hr class="rule" />
-<div class="field"><div class="lbl">Description</div><div class="val">Hospital Services / Clinical Fees</div></div>
+${descHtml}
 <hr class="rule solid" />
 <div class="line"><span class="k">Total</span><span class="v">${naira(record.totalAmount)}</span></div>
 <div class="line big"><span class="k">Paid</span><span class="v">${naira(record.paidAmount)}</span></div>
@@ -931,6 +1058,20 @@ title="View Patient History"
 </button>
 </div>
 </div>
+{unpaidItems.length >= 2 && (
+<div className="p-4 bg-blue-50/70 border-b border-blue-100 flex items-center justify-between gap-3">
+<div className="min-w-0">
+<p className="text-sm font-bold text-slate-900">{unpaidItems.length} services unpaid</p>
+<p className="text-xs text-slate-500">Owing ₦{unpaidItems.reduce((s, i) => s + i.balance, 0).toLocaleString()} in total</p>
+</div>
+<button
+onClick={openCombined}
+className="shrink-0 min-h-11 px-4 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-all flex items-center gap-2"
+>
+<Wallet className="w-4 h-4" /> Pay together
+</button>
+</div>
+)}
 <div className="divide-y divide-slate-100">
 {billingItems.length === 0 ? (
 <p className="text-center text-slate-400 text-sm py-12">No billable items found for this patient.</p>
@@ -990,16 +1131,17 @@ Pay
 </div>
 {/* Phone: stacked cards */}
 <div className="divide-y divide-slate-100 md:grid md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:gap-4 md:p-4 md:divide-y-0 md:[&>*:not(p)]:rounded-2xl md:[&>*:not(p)]:border md:[&>*:not(p)]:border-slate-200 md:[&>*:not(p)]:bg-white md:[&>*:not(p)]:shadow-sm md:[&>p]:col-span-full">
-{records.map((record, idx) => (
+{groupedRecords.map((record, idx) => (
 <TransactionCard
 key={record.id || idx}
 record={record}
 canDelete={canDelete}
 onPrint={handlePrint}
-onDelete={(id) => setDeleteConfirm({ type: 'transaction', id })}
+onDelete={() => setDeleteConfirm({ type: 'transaction', id: record.id, ids: record.parts?.map(p => p.id) })}
 onRemoveBill={(r) => setRemoveBill(r)}
-canRefund={refundTargets.has(record.id)}
+canRefund={!record.parts && refundTargets.has(record.id)}
 onRefund={openRefund}
+refundTargets={refundTargets}
 />
 ))}
 {records.length === 0 && !loading && (
@@ -1019,16 +1161,17 @@ onRefund={openRefund}
 </tr>
 </thead>
 <tbody className="divide-y divide-slate-50">
-{records.map((record, idx) => (
+{groupedRecords.map((record, idx) => (
 <TransactionRow 
 key={record.id || idx} 
 record={record} 
 canDelete={canDelete}
 onPrint={handlePrint}
-onDelete={(id) => setDeleteConfirm({ type: 'transaction', id })}
+onDelete={() => setDeleteConfirm({ type: 'transaction', id: record.id, ids: record.parts?.map(p => p.id) })}
 onRemoveBill={(r) => setRemoveBill(r)}
-canRefund={refundTargets.has(record.id)}
+canRefund={!record.parts && refundTargets.has(record.id)}
 onRefund={openRefund}
+refundTargets={refundTargets}
 />
 ))}
 {records.length === 0 && !loading && (
@@ -1643,6 +1786,109 @@ className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue
 </div>
 )}
 </AnimatePresence>
+{/* Pay Together Modal */}
+<AnimatePresence>
+{combinedModal && (
+<div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm">
+<motion.div
+initial={{ opacity: 0, scale: 0.95 }}
+animate={{ opacity: 1, scale: 1 }}
+exit={{ opacity: 0, scale: 0.95 }}
+className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md max-h-[92dvh] overflow-y-auto pb-safe"
+>
+<div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50 sticky top-0 z-10">
+<div>
+<h3 className="font-bold text-slate-900">Pay Together</h3>
+<p className="text-xs text-slate-500">{selectedPatient?.name} · {selectedPatient?.cardId}</p>
+</div>
+<button onClick={() => setCombinedModal(null)} className="p-2 hover:bg-slate-200 rounded-lg transition-colors" aria-label="Close">
+<X className="w-4 h-4" />
+</button>
+</div>
+<div className="p-5 space-y-4">
+<p className="text-xs text-slate-500">Untick a service to leave it unpaid. Change an amount to pay part of a service; the rest stays owing.</p>
+<div className="space-y-2">
+{combinedModal.lines.map((l, i) => (
+<div key={`${l.item.itemType}-${l.item.id}`} className={cn("p-3 rounded-xl border", l.include ? "border-blue-200 bg-blue-50/40" : "border-slate-200 bg-white opacity-70")}>
+<label className="flex items-start gap-3 min-h-11 cursor-pointer">
+<input
+type="checkbox"
+checked={l.include}
+onChange={e => setCombinedLine(i, { include: e.target.checked })}
+className="mt-1 w-5 h-5 accent-blue-600 shrink-0"
+/>
+<div className="min-w-0 flex-1">
+<p className="text-sm font-bold text-slate-900">{SERVICE_LABEL[l.item.itemType] || 'Service'}</p>
+<p className="text-xs text-slate-500 break-words">{l.item.description}</p>
+{l.item.familyMemberName && <p className="text-xs font-bold text-amber-700">For: {l.item.familyMemberName}</p>}
+<p className="text-[11px] text-slate-400 mt-0.5">
+Balance ₦{l.item.balance.toLocaleString()}
+{l.item.paidSoFar > 0 && ` (paid ₦${l.item.paidSoFar.toLocaleString()} of ₦${l.item.amount.toLocaleString()})`}
+</p>
+</div>
+</label>
+{l.include && (
+<div className="mt-2 flex items-center gap-2 pl-8">
+<span className="text-sm font-bold text-slate-500">₦</span>
+<input
+type="number"
+inputMode="decimal"
+value={l.amount}
+onChange={e => setCombinedLine(i, { amount: e.target.value })}
+className="flex-1 min-w-0 p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none font-bold"
+placeholder="0.00"
+aria-label={`Amount for ${SERVICE_LABEL[l.item.itemType] || 'service'}`}
+/>
+<button
+type="button"
+onClick={() => setCombinedLine(i, { amount: String(l.item.balance) })}
+className="min-h-11 px-3 text-xs font-bold text-blue-600 hover:bg-blue-50 rounded-lg"
+>
+Full
+</button>
+</div>
+)}
+</div>
+))}
+</div>
+<div className="space-y-2">
+<label className="text-sm font-bold text-slate-700">Payment Method</label>
+<div className="grid grid-cols-2 gap-3">
+<button
+type="button"
+onClick={() => setCombinedModal({ ...combinedModal, method: 'cash' })}
+className={cn(
+"flex items-center justify-center gap-2 p-3 min-h-11 rounded-xl border transition-all text-sm",
+combinedModal.method === 'cash' ? "bg-blue-50 border-blue-600 text-blue-600 font-bold shadow-sm" : "border-slate-200 text-slate-500"
+)}
+>
+<Banknote className="w-4 h-4" /> Cash
+</button>
+<button
+type="button"
+onClick={() => setCombinedModal({ ...combinedModal, method: 'bank transfer' })}
+className={cn(
+"flex items-center justify-center gap-2 p-3 min-h-11 rounded-xl border transition-all text-sm",
+combinedModal.method === 'bank transfer' ? "bg-blue-50 border-blue-600 text-blue-600 font-bold shadow-sm" : "border-slate-200 text-slate-500"
+)}
+>
+<CreditCard className="w-4 h-4" /> Transfer
+</button>
+</div>
+</div>
+<button
+onClick={handleConfirmCombined}
+disabled={combinedModal.busy || combinedTotal <= 0}
+className="w-full min-h-12 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+>
+<Save className="w-4 h-4" />
+{combinedModal.busy ? 'Recording...' : `Pay ₦${combinedTotal.toLocaleString()}`}
+</button>
+</div>
+</motion.div>
+</div>
+)}
+</AnimatePresence>
 {/* Refund Modal */}
 <AnimatePresence>
 {refundModal && (
@@ -1795,13 +2041,13 @@ onCancel={() => setRemoveBill(null)}
 <ConfirmModal
 isOpen={!!deleteConfirm}
 title={deleteConfirm?.type === 'expense' ? "Delete Expense" : "Delete Transaction"}
-message={`Are you sure you want to delete this ${deleteConfirm?.type}? This action cannot be undone.`}
+message={deleteConfirm?.ids && deleteConfirm.ids.length > 1 ? `This deletes the whole combined payment (${deleteConfirm.ids.length} services). This action cannot be undone.` : `Are you sure you want to delete this ${deleteConfirm?.type}? This action cannot be undone.`}
 confirmText="Delete"
 onConfirm={() => {
 if (deleteConfirm?.type === 'expense') {
 handleDeleteExpense(deleteConfirm.id);
 } else if (deleteConfirm?.type === 'transaction') {
-handleDeleteTransaction(deleteConfirm.id);
+handleDeleteTransaction(deleteConfirm.id, deleteConfirm.ids);
 }
 setDeleteConfirm(null);
 }}

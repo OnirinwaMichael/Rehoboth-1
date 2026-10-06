@@ -346,6 +346,10 @@ referenceId?: string | null;
 familyMemberName?: string;
 // Set on refund rows (negative paidAmount): why the money was given back.
 refundReason?: string | null;
+// Rows paid together in one combined payment share a receiptId.
+receiptId?: string | null;
+// Only on a grouped list entry: the individual service payments it combines.
+parts?: FinancialRecord[];
 }
 export interface RegistrationFeeSettings {
 singleCardPrice: number;
