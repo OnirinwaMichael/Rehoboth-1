@@ -3,7 +3,7 @@ import { upsertPatient } from '../lib/patientSync';
 import { supabase, handleSupabaseError, fetchAllRows } from '../lib/supabase';
 import { Patient, Appointment, User, RegistrationFeeSettings } from '../types';
 import { toast } from 'sonner';
-import { UserPlus, Search, CreditCard, User as UserIcon, Phone, MapPin, Calendar, Briefcase, Heart, LayoutDashboard, Users as UsersIcon, History, X, Clock, Plus, Edit, Trash2, CheckCircle, AlertCircle, DollarSign } from 'lucide-react';
+import { UserPlus, Search, CreditCard, User as UserIcon, Phone, MapPin, Calendar, Briefcase, Heart, LayoutDashboard, Users as UsersIcon, History, X, Clock, Plus, Edit, Trash2, CheckCircle, AlertCircle, DollarSign, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '../lib/utils';
 import SearchSelect from './SearchSelect';
@@ -63,13 +63,14 @@ const PatientCard = memo(({ patient }: { patient: Patient }) => (
 <p className="text-[11px] text-slate-400 mt-2">{format(new Date(patient.createdAt), 'MMM d, yyyy HH:mm')}</p>
 </div>
 ));
+const localDay = (iso: string) => format(new Date(iso), 'yyyy-MM-dd');
 export const ReceptionistPortal: React.FC<Props> = ({ userId, section, onNavigate }) => {
 const [loading, setLoading] = useState(false);
 const [patients, setPatients] = useState<Patient[]>([]);
 const [appointments, setAppointments] = useState<Appointment[]>([]);
 const [doctors, setDoctors] = useState<User[]>([]);
 const OWN_SECTIONS = ['dashboard', 'register', 'appointments', 'directory'] as const;
-const [view, setView] = useState<'dashboard' | 'register' | 'appointments' | 'directory'>(
+const [view, setView] = useState<'dashboard' | 'register' | 'appointments' | 'directory' | 'registrations'>(
 (OWN_SECTIONS as readonly string[]).includes(section) ? (section as any) : 'dashboard'
 );
 useEffect(() => {
@@ -104,12 +105,31 @@ const DIRECTORY_PAGE_SIZE = 50;
 useEffect(() => { setDirectoryPage(1); }, [searchQuery, directoryFilter, directoryTodayOnly]);
 const filteredDirectoryPatients = useMemo(() => {
 const q = searchQuery.toLowerCase();
-const todayStr = new Date().toISOString().split('T')[0];
+const todayStr = format(new Date(), 'yyyy-MM-dd');
 return allPatients
 .filter(p => p.name.toLowerCase().includes(q) || p.cardId.includes(searchQuery))
 .filter(p => directoryFilter === 'all' || p.registrationType === directoryFilter)
-.filter(p => !directoryTodayOnly || p.createdAt.startsWith(todayStr));
+.filter(p => !directoryTodayOnly || localDay(p.createdAt) === todayStr);
 }, [allPatients, searchQuery, directoryFilter, directoryTodayOnly]);
+// Registrations grouped by the clinic's local day (created_at is stored in UTC, so
+// comparing its text against a local date drifts around midnight).
+const [regDay, setRegDay] = useState(() => format(new Date(), 'yyyy-MM-dd'));
+const registrationsByDay = useMemo(() => {
+const map = new Map<string, Patient[]>();
+allPatients.forEach(p => {
+const key = localDay(p.createdAt);
+if (!map.has(key)) map.set(key, []);
+map.get(key)!.push(p);
+});
+map.forEach(list => list.sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
+const todayKey = format(new Date(), 'yyyy-MM-dd');
+if (!map.has(todayKey)) map.set(todayKey, []);
+return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+}, [allPatients]);
+const regDayPatients = useMemo(
+() => registrationsByDay.find(([k]) => k === regDay)?.[1] ?? [],
+[registrationsByDay, regDay]
+);
 const directoryPageCount = Math.max(1, Math.ceil(filteredDirectoryPatients.length / DIRECTORY_PAGE_SIZE));
 const pagedDirectoryPatients = useMemo(() => {
 const start = (directoryPage - 1) * DIRECTORY_PAGE_SIZE;
@@ -254,7 +274,7 @@ for (let i = 6; i >= 0; i--) {
 const d = new Date();
 d.setDate(d.getDate() - i);
 const key = format(d, 'yyyy-MM-dd');
-days.push({ label: format(d, 'EEE'), count: registeredPatients.filter(p => p.createdAt.startsWith(key)).length });
+days.push({ label: format(d, 'EEE'), count: registeredPatients.filter(p => localDay(p.createdAt) === key).length });
 }
 return days;
 }, [registeredPatients]);
@@ -264,7 +284,7 @@ for (let i = 0; i <= 13; i++) {
 const d = new Date();
 d.setDate(d.getDate() - i);
 const key = format(d, 'yyyy-MM-dd');
-const count = registeredPatients.filter(p => p.createdAt.startsWith(key)).length;
+const count = registeredPatients.filter(p => localDay(p.createdAt) === key).length;
 if (i <= 6) thisWeek += count; else prevWeek += count;
 }
 if (prevWeek === 0) return thisWeek > 0 ? 100 : 0;
@@ -372,12 +392,15 @@ const { data, error } = await supabase
 if (error) return handleSupabaseError(error, 'select', 'patients');
 setPatients((data || []).map(patientFromRow));
 const { count: total } = await supabase.from('patients').select('*', { count: 'exact', head: true });
-const today = new Date().toISOString().split('T')[0];
+const dayStart = new Date();
+dayStart.setHours(0, 0, 0, 0);
+const dayEnd = new Date(dayStart);
+dayEnd.setDate(dayEnd.getDate() + 1);
 const { count: todayCount } = await supabase
 .from('patients')
 .select('*', { count: 'exact', head: true })
-.gte('created_at', `${today}T00:00:00`)
-.lt('created_at', `${today}T23:59:59.999`);
+.gte('created_at', dayStart.toISOString())
+.lt('created_at', dayEnd.toISOString());
 setStats(prev => ({ ...prev, total: total || 0, today: todayCount || 0 }));
 };
 // Card IDs are generated by a Postgres sequence-backed function so
@@ -623,10 +646,82 @@ return (
 {view === 'dashboard' ? 'Front desk overview for today.' :
 view === 'register' ? 'Register new patients and digitize old files.' :
 view === 'appointments' ? 'Book and manage patient appointments.' :
+view === 'registrations' ? 'Every patient registered, grouped by day.' :
 'Search, view, and edit every patient on file.'}
 </p>
 </div>
 </div>
+{(view === 'directory' || view === 'appointments' || view === 'registrations') && (
+<button
+type="button"
+onClick={() => setView('dashboard')}
+className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-colors -mt-4"
+>
+<ArrowLeft className="w-4 h-4" /> Back to Dashboard
+</button>
+)}
+{view === 'registrations' && (
+<div className="space-y-6">
+<h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+<UserPlus className="w-6 h-6 text-emerald-600" /> Patients Registered by Day
+</h3>
+<div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
+{registrationsByDay.map(([day, list]) => (
+<button
+key={day}
+type="button"
+onClick={() => setRegDay(day)}
+className={cn(
+"shrink-0 px-4 py-2 rounded-xl text-left border transition-colors",
+regDay === day ? "bg-emerald-600 border-emerald-600 text-white" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+)}
+>
+<span className="block text-[11px] font-bold uppercase tracking-wider opacity-80">
+{day === format(new Date(), 'yyyy-MM-dd') ? 'Today' : format(new Date(`${day}T12:00:00`), 'EEE')}
+</span>
+<span className="block text-sm font-bold">{format(new Date(`${day}T12:00:00`), 'MMM d, yyyy')}</span>
+<span className="block text-xs font-semibold">{list.length} {list.length === 1 ? 'patient' : 'patients'}</span>
+</button>
+))}
+</div>
+<div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+<div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
+<p className="text-sm font-bold text-slate-900">{format(new Date(`${regDay}T12:00:00`), 'EEEE, MMM d, yyyy')}</p>
+<span className="text-xs font-bold bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full">{regDayPatients.length}</span>
+</div>
+{patientsLoading && allPatients.length === 0 ? (
+<p className="p-10 text-center text-slate-500 italic">Loading patients...</p>
+) : patientsLoadError && allPatients.length === 0 ? (
+<p className="p-10 text-center text-red-600 italic">
+Couldn't load the patient list. <button type="button" onClick={fetchAllPatients} className="underline">Try again</button>.
+</p>
+) : regDayPatients.length === 0 ? (
+<p className="p-10 text-center text-slate-500 italic">No patients were registered on this day.</p>
+) : (
+<div className="divide-y divide-slate-100 md:grid md:grid-cols-2 xl:grid-cols-3 md:gap-4 md:p-4 md:divide-y-0">
+{regDayPatients.map(p => (
+<div key={p.cardId} className="p-4 md:rounded-2xl md:border md:border-slate-200 flex items-start justify-between gap-3">
+<div className="min-w-0">
+<p className="text-base font-bold text-slate-900 truncate">{p.name}</p>
+<p className="text-sm text-slate-600 capitalize">{p.category}{p.phone ? ` · ${p.phone}` : ''}</p>
+<p className="text-xs text-slate-500">Registered at {format(new Date(p.createdAt), 'HH:mm')}</p>
+</div>
+<div className="flex flex-col items-end gap-1.5 shrink-0">
+<span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded-full uppercase">{p.cardId}</span>
+<span className={cn(
+"text-[11px] font-bold px-2 py-0.5 rounded-full uppercase",
+p.registrationType === 'old' ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"
+)}>
+{p.registrationType === 'old' ? 'Old' : 'Fresh'}
+</span>
+</div>
+</div>
+))}
+</div>
+)}
+</div>
+</div>
+)}
 {view === 'dashboard' && (
 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 <button
@@ -663,7 +758,7 @@ style={{ height: `${Math.max((d.count / max) * 100, 8)}%` }} title={`${d.label}:
 </button>
 <button
 type="button"
-onClick={() => { setDirectoryFilter('all'); setDirectoryTodayOnly(true); setView('directory'); }}
+onClick={() => { setRegDay(format(new Date(), 'yyyy-MM-dd')); setView('registrations'); }}
 className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 sm:gap-6 text-left hover:border-emerald-200 hover:shadow-md transition-all"
 >
 <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center text-emerald-600">
