@@ -41,6 +41,11 @@ saveDraft();
 }, interval);
 return () => clearInterval(timer);
 }, [saveDraft, interval]);
+// The idle auto-logout asks every open form to save its draft just before signing out.
+useEffect(() => {
+window.addEventListener('app:flush-drafts', saveDraft);
+return () => window.removeEventListener('app:flush-drafts', saveDraft);
+}, [saveDraft]);
 // Also save on unmount
 useEffect(() => {
 return () => {

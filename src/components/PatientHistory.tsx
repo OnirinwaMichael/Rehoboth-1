@@ -3,6 +3,7 @@ import { supabase, handleSupabaseError } from '../lib/supabase';
 import { Patient, MedicalRecord, LabTest, FinancialRecord, Visit, ClinicalLetter, Prescription } from '../types';
 import { groupPrescriptions, summariseGroup } from '../lib/groupPrescriptions';
 import { format } from 'date-fns';
+import { Time } from './Time';
 import { ClipboardList, FlaskConical, Receipt, Clock, User, Phone, MapPin, Calendar, Heart, Activity, ChevronRight, Search, X, FolderOpen, FileText, Pill } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -237,7 +238,7 @@ visits.map((visit) => (
 </div>
 <div>
 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Visit Date</p>
-<p className="font-bold text-slate-900">{format(new Date(visit.timestamp), 'MMMM d, yyyy HH:mm')}</p>
+<p className="font-bold text-slate-900"><Time value={visit.timestamp} pattern="MMMM d, yyyy HH:mm" /></p>
 </div>
 </div>
 <div className="text-right">
@@ -317,7 +318,7 @@ medicalRecords.map((record) => (
 </div>
 <div>
 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Assessment Date</p>
-<p className="font-bold text-slate-900">{format(new Date(record.createdAt), 'MMMM d, yyyy HH:mm')}</p>
+<p className="font-bold text-slate-900"><Time value={record.createdAt} pattern="MMMM d, yyyy HH:mm" /></p>
 {record.familyMemberId && familyNameById[record.familyMemberId] && (
 <p className="text-xs font-bold text-amber-700 mt-1">For: {familyNameById[record.familyMemberId]}</p>
 )}
@@ -449,7 +450,7 @@ test.result ? "bg-green-50 text-green-600" : "bg-orange-50 text-orange-600"
 </div>
 <div>
 <p className="font-bold text-slate-900">{test.testType}</p>
-<p className="text-xs text-slate-400">{format(new Date(test.createdAt), 'MMM d, yyyy HH:mm')}</p>
+<p className="text-xs text-slate-400"><Time value={test.createdAt} pattern="MMM d, yyyy HH:mm" /></p>
 {test.familyMemberId && familyNameById[test.familyMemberId] && (
 <p className="text-xs font-bold text-amber-700 mt-0.5">For: {familyNameById[test.familyMemberId]}</p>
 )}
@@ -540,7 +541,7 @@ return (
 </div>
 <div className="min-w-0">
 <p className="font-bold text-slate-900">{sum.count} drug{sum.count === 1 ? '' : 's'} prescribed</p>
-<p className="text-xs text-slate-400 mt-0.5">{format(new Date(group.createdAt), 'MMM d, yyyy HH:mm')}{sum.total > 0 ? ` · ₦${sum.total.toLocaleString()}` : ''}</p>
+<p className="text-xs text-slate-400 mt-0.5"><Time value={group.createdAt} pattern="MMM d, yyyy HH:mm" />{sum.total > 0 ? ` · ₦${sum.total.toLocaleString()}` : ''}</p>
 {member && <p className="text-xs font-bold text-amber-700 mt-0.5">For: {member}</p>}
 </div>
 </div>
@@ -607,7 +608,7 @@ className="space-y-4"
 </div>
 <div>
 <p className="font-bold text-slate-900 capitalize">{letter.letterType} Letter</p>
-<p className="text-xs text-slate-400">{format(new Date(letter.createdAt), 'MMM d, yyyy HH:mm')} · {letter.ourRef}</p>
+<p className="text-xs text-slate-400"><Time value={letter.createdAt} pattern="MMM d, yyyy HH:mm" /> · {letter.ourRef}</p>
 </div>
 </div>
 <button
@@ -649,7 +650,7 @@ className="space-y-4"
 </div>
 <div>
 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Transaction Date</p>
-<p className="font-bold text-slate-900">{format(new Date(record.createdAt), 'MMMM d, yyyy HH:mm')}</p>
+<p className="font-bold text-slate-900"><Time value={record.createdAt} pattern="MMMM d, yyyy HH:mm" /></p>
 </div>
 </div>
 <span className={cn(

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
+import { Time } from './Time';
 import { Check, ChevronDown, ChevronRight, Pill } from 'lucide-react';
 import { Patient, Prescription } from '../types';
 import { RxGroup, summariseGroup } from '../lib/groupPrescriptions';
@@ -71,7 +72,7 @@ export const PharmacyRxGroupCard: React.FC<Props> = ({
           </div>
         </div>
         <div className="text-right shrink-0">
-          <span className="text-[11px] text-slate-400 block">{format(new Date(group.createdAt), 'd MMM, HH:mm')}</span>
+          <span className="text-[11px] text-slate-400 block"><Time value={group.createdAt} pattern="d MMM, HH:mm" /></span>
           <span className={cn('text-[11px] font-bold uppercase', paymentTone)}>{paymentLabel}</span>
         </div>
       </div>

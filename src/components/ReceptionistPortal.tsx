@@ -5,6 +5,7 @@ import { Patient, Appointment, User, RegistrationFeeSettings } from '../types';
 import { toast } from 'sonner';
 import { UserPlus, Search, CreditCard, User as UserIcon, Phone, MapPin, Calendar, Briefcase, Heart, LayoutDashboard, Users as UsersIcon, History, X, Clock, Plus, Edit, Trash2, CheckCircle, AlertCircle, DollarSign, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
+import { Time } from './Time';
 import { cn } from '../lib/utils';
 import SearchSelect from './SearchSelect';
 import { logAction } from '../lib/audit';
@@ -60,7 +61,7 @@ const PatientCard = memo(({ patient }: { patient: Patient }) => (
 </span>
 </div>
 <p className="text-xs text-slate-500">{patient.category}</p>
-<p className="text-[11px] text-slate-400 mt-2">{format(new Date(patient.createdAt), 'MMM d, yyyy HH:mm')}</p>
+<p className="text-[11px] text-slate-400 mt-2"><Time value={patient.createdAt} pattern="MMM d, yyyy HH:mm" /></p>
 </div>
 ));
 const localDay = (iso: string) => format(new Date(iso), 'yyyy-MM-dd');
@@ -704,7 +705,7 @@ Couldn't load the patient list. <button type="button" onClick={fetchAllPatients}
 <div className="min-w-0">
 <p className="text-base font-bold text-slate-900 truncate">{p.name}</p>
 <p className="text-sm text-slate-600 capitalize">{p.category}{p.phone ? ` · ${p.phone}` : ''}</p>
-<p className="text-xs text-slate-500">Registered at {format(new Date(p.createdAt), 'HH:mm')}</p>
+<p className="text-xs text-slate-500">Registered at <Time value={p.createdAt} pattern="HH:mm" /></p>
 </div>
 <div className="flex flex-col items-end gap-1.5 shrink-0">
 <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded-full uppercase">{p.cardId}</span>
@@ -836,7 +837,7 @@ className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 text-left hover
 </span>
 </div>
 <p className="text-xs text-slate-500">{p.category}</p>
-<p className="text-[11px] text-slate-400 mt-2">{format(new Date(p.createdAt), 'MMM d, yyyy HH:mm')}</p>
+<p className="text-[11px] text-slate-400 mt-2"><Time value={p.createdAt} pattern="MMM d, yyyy HH:mm" /></p>
 </button>
 ))}
 </div>

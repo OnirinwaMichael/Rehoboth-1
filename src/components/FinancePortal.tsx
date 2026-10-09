@@ -5,6 +5,8 @@ import { FinancialRecord, Patient, MedicalRecord, Visit, Expense, BillingItem } 
 import { toast } from 'sonner';
 import { Receipt, Search, Plus, DollarSign, CreditCard, Banknote, User, CheckCircle, Clock, History, FileText, Save, X, LayoutDashboard, Wallet, ArrowUpRight, Trash2, Eraser, User as UserIcon, FileSpreadsheet, TrendingDown, TrendingUp, RotateCcw } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, isWithinInterval, parseISO } from 'date-fns';
+import { Time } from './Time';
+import { fmtTime } from '../lib/timeFormat';
 import { cn } from '../lib/utils';
 import { logAction } from '../lib/audit';
 import { PatientHistory } from './PatientHistory';
@@ -848,7 +850,7 @@ body { width: 48mm; margin: 0 auto; padding: 2mm 0 6mm; font-family: Arial, Helv
 </div>
 <hr class="rule" />
 <div class="field"><div class="lbl">Receipt No</div><div class="small">${esc(record.receiptId || record.id || 'TEMP-' + Date.now())}</div></div>
-<div class="field"><div class="lbl">Date</div><div class="val">${esc(format(new Date(record.createdAt), 'MMM d, yyyy HH:mm'))}</div></div>
+<div class="field"><div class="lbl">Date</div><div class="val">${esc(fmtTime(record.createdAt, 'MMM d, yyyy HH:mm'))}</div></div>
 <div class="field"><div class="lbl">Patient</div><div class="val">${esc(record.patient?.name || 'N/A')}</div></div>
 <div class="field"><div class="lbl">Card ID</div><div class="val">${esc(record.patientId)}</div></div>
 <hr class="rule" />
@@ -1027,7 +1029,7 @@ className="bg-white p-4 sm:p-8 rounded-2xl shadow-sm border border-slate-100 fle
 <span className="text-[11px] font-bold bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full uppercase">
 {record.paymentMethod}
 </span>
-<p className="text-[11px] text-slate-400 mt-1">{format(new Date(record.createdAt), 'MMM d, HH:mm')}</p>
+<p className="text-[11px] text-slate-400 mt-1"><Time value={record.createdAt} pattern="MMM d, HH:mm" /></p>
 </div>
 </div>
 ))}
@@ -1222,7 +1224,7 @@ No transactions found.
 <div className="min-w-0">
 <p className="text-base font-bold text-slate-900 truncate">{record.patient?.name}</p>
 <p className="text-xs text-slate-500">{record.patientId}</p>
-<p className="text-xs text-slate-500">{format(new Date(record.createdAt), 'MMM d, yyyy HH:mm')}</p>
+<p className="text-xs text-slate-500"><Time value={record.createdAt} pattern="MMM d, yyyy HH:mm" /></p>
 </div>
 {record.reconciled ? (
 <span className="text-[11px] font-bold bg-green-100 text-green-700 px-2.5 py-1 rounded-full uppercase flex items-center gap-1 shrink-0">
@@ -1266,7 +1268,7 @@ Mark Reconciled
 {records.filter(r => r.paymentMethod === 'bank transfer').map((record, idx) => (
 <tr key={idx} className="hover:bg-slate-50 transition-colors">
 <td className="px-6 py-4 text-sm text-slate-600">
-{format(new Date(record.createdAt), 'MMM d, yyyy HH:mm')}
+<Time value={record.createdAt} pattern="MMM d, yyyy HH:mm" />
 </td>
 <td className="px-6 py-4">
 <p className="text-sm font-bold text-slate-900">{record.patient?.name}</p>

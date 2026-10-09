@@ -17,6 +17,8 @@ import { ProfileSettings } from './components/ProfileSettings';
 import { ClinicalBoard } from './components/ClinicalBoard';
 import { PatientSearch } from './components/PatientSearch';
 import { SystemClock } from './components/SystemClock';
+import { TimeFormatSync } from './components/TimeFormatSync';
+import { IdleLogout } from './components/IdleLogout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { checkSystemHealth } from './lib/supabase';
 import { usePendingBillsAlert } from './lib/usePendingBillsAlert';
@@ -187,9 +189,7 @@ aria-label="Open menu"
 {/* Current section name: orientation on every screen size */}
 <span className="font-bold text-slate-900 truncate">{currentView === 'Overview' ? 'Home' : currentView}</span>
 </div>
-<div className="hidden sm:block">
 <SystemClock />
-</div>
 <div className="flex items-center gap-3 sm:gap-6 shrink-0">
 <div className="text-right hidden sm:block">
 <p className="text-sm font-bold text-slate-900">{user.name}</p>
@@ -325,6 +325,8 @@ return (
 <Route path="*" element={<Navigate to="/" />} />
 </Routes>
 </Router>
+<TimeFormatSync />
+<IdleLogout />
 <Toaster position="top-center" richColors />
 {/* System Status Indicator: a compact dot on phones so it never covers content, full label from sm up */}
 <div className="fixed bottom-3 right-3 sm:bottom-4 sm:right-4 z-30 pointer-events-none">

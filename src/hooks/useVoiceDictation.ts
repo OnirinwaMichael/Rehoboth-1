@@ -72,6 +72,8 @@ export function useVoiceDictation(onFinalResult: (text: string) => void) {
     recognition.lang = 'en-NG';
 
     recognition.onresult = (event: any) => {
+      // Dictating is activity even though it produces no taps or keystrokes.
+      window.dispatchEvent(new Event('app:activity'));
       let interim = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript;

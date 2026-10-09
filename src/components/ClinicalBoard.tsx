@@ -16,6 +16,7 @@ ChevronRight
 } from 'lucide-react';
 import { supabase, handleSupabaseError } from '../lib/supabase';
 import { format } from 'date-fns';
+import { Time } from './Time';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { MedicalRecord, LabTest } from '../types';
@@ -183,7 +184,7 @@ className="grid grid-cols-1 lg:grid-cols-2 gap-6"
 <h3 className="font-bold text-slate-900">{record.patientName}</h3>
 <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
 <Clock className="w-3 h-3" />
-{record.timestamp?.toDate ? format(record.timestamp.toDate(), 'MMM d, h:mm a') : 'Just now'}
+{record.timestamp?.toDate ? <Time value={record.timestamp.toDate()} pattern="MMM d, HH:mm" /> : 'Just now'}
 </div>
 </div>
 </div>

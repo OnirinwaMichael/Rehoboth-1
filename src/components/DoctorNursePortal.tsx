@@ -4,6 +4,7 @@ import { Patient, MedicalRecord, UserRole, Visit, LabTest, ClinicalLetter, Inven
 import { toast } from 'sonner';
 import { Search, Activity, ClipboardList, FlaskConical, Pill, Plus, Save, History, User, Heart, Thermometer, Droplets, Stethoscope, FileText, CreditCard, LayoutDashboard, Users as UsersIcon, ChevronDown, ChevronUp, Wind, X, AlertTriangle, FolderOpen, Camera } from 'lucide-react';
 import { format } from 'date-fns';
+import { Time } from './Time';
 import { cn } from '../lib/utils';
 import { logAction, logRecordAccess } from '../lib/audit';
 import { useFormDraft } from '../hooks/useFormDraft';
@@ -954,7 +955,7 @@ const recOpen = expandedGlobalRecord === record.id;
 return (
 <React.Fragment key={record.id}>
 <tr className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => record.patient && selectPatientDirectly(record.patient)}>
-<td className="py-4 text-sm text-slate-600">{format(new Date(record.createdAt), 'MMM d, yyyy HH:mm')}</td>
+<td className="py-4 text-sm text-slate-600"><Time value={record.createdAt} pattern="MMM d, yyyy HH:mm" /></td>
 <td className="py-4">
 <div className="flex items-center gap-3">
 <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
@@ -1143,7 +1144,7 @@ onClick={() => { if (test.patient) { setPatient(test.patient); setView('assessme
 className={cn("hover:bg-slate-50 transition-colors", test.patient && "cursor-pointer")}
 >
 <td className="py-4 text-sm text-slate-600">
-{format(new Date(test.createdAt), 'MMM d, yyyy HH:mm')}
+<Time value={test.createdAt} pattern="MMM d, yyyy HH:mm" />
 </td>
 <td className="py-4">
 <div className="flex items-center gap-3">
@@ -1219,7 +1220,7 @@ onClick={() => { if (admission.patient) { setPatient(admission.patient); setView
 className={cn("hover:bg-slate-50 transition-colors", admission.patient && "cursor-pointer")}
 >
 <td className="py-4 text-sm text-slate-600">
-{format(new Date(admission.admittedAt), 'MMM d, yyyy HH:mm')}
+<Time value={admission.admittedAt} pattern="MMM d, yyyy HH:mm" />
 </td>
 <td className="py-4">
 <div className="flex items-center gap-3">
@@ -1371,7 +1372,7 @@ className="w-full p-4 rounded-xl border border-slate-50 bg-slate-50/50 flex just
 </div>
 </div>
 <div className="text-right">
-<p className="text-xs font-bold text-slate-400">{format(new Date(record.createdAt), 'MMM d, HH:mm')}</p>
+<p className="text-xs font-bold text-slate-400"><Time value={record.createdAt} pattern="MMM d, HH:mm" /></p>
 </div>
 </button>
 ))}
@@ -1445,7 +1446,7 @@ className="w-full flex items-center justify-center gap-2 py-3 bg-sky-50 text-sky
 <>
 <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-center">
 <p className="text-[11px] font-black uppercase tracking-widest text-amber-700">Currently Admitted</p>
-<p className="text-[11px] text-amber-600">since {format(new Date(activeAdmission.admittedAt), 'MMM d, yyyy HH:mm')}</p>
+<p className="text-[11px] text-amber-600">since <Time value={activeAdmission.admittedAt} pattern="MMM d, yyyy HH:mm" /></p>
 </div>
 <button
 onClick={() => setShowDrugChart(true)}
@@ -1505,7 +1506,7 @@ Antenatal Follow-up
 <div key={rec.id} className="flex items-center justify-between gap-3 bg-white p-3 rounded-xl border border-amber-100">
 <div className="min-w-0">
 <p className="text-xs font-bold text-slate-900 truncate">{rec.diagnosis || 'No diagnosis yet'}</p>
-<p className="text-[11px] text-slate-400">{format(new Date(rec.createdAt), 'MMM d, yyyy HH:mm')}</p>
+<p className="text-[11px] text-slate-400"><Time value={rec.createdAt} pattern="MMM d, yyyy HH:mm" /></p>
 </div>
 <button
 onClick={() => { setContinueRecord(rec); setContinueRxItems([]); setContinueNote(''); }}
@@ -2339,7 +2340,7 @@ className="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-l
 <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-amber-50 shrink-0">
 <div>
 <h3 className="font-bold text-slate-900">Continue Consultation — {patient.name}</h3>
-<p className="text-xs text-slate-500">{format(new Date(continueRecord.createdAt), 'MMM d, yyyy HH:mm')}</p>
+<p className="text-xs text-slate-500"><Time value={continueRecord.createdAt} pattern="MMM d, yyyy HH:mm" /></p>
 </div>
 <button onClick={() => setContinueRecord(null)} className="p-2 hover:bg-amber-100 rounded-lg transition-colors">
 <X className="w-4 h-4" />

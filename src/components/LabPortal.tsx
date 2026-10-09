@@ -4,6 +4,7 @@ import { LabTest, Patient, LabTestCatalogItem, LabResource, WardCatalogItem, Fam
 import { toast } from 'sonner';
 import { FlaskConical, Search, CheckCircle, Clock, FileText, User, CreditCard, Save, X, LayoutDashboard, History, Beaker, CheckCircle2, Plus, Camera, Trash2, Package, Users as UsersIcon } from 'lucide-react';
 import { format } from 'date-fns';
+import { Time } from './Time';
 import { cn } from '../lib/utils';
 import SearchSelect from './SearchSelect';
 import { motion, AnimatePresence } from 'motion/react';
@@ -738,7 +739,7 @@ test.result ? "bg-green-100 text-green-600" : "bg-orange-100 text-orange-600"
 )}>
 {test.result ? 'Completed' : 'Pending'}
 </span>
-<p className="text-[11px] text-slate-400 mt-1">{format(new Date(test.createdAt), 'MMM d, HH:mm')}</p>
+<p className="text-[11px] text-slate-400 mt-1"><Time value={test.createdAt} pattern="MMM d, HH:mm" /></p>
 </div>
 </div>
 ))}

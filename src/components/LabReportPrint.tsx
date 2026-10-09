@@ -1,6 +1,7 @@
 import React from 'react';
 import { LabTest, Patient } from '../types';
 import { format } from 'date-fns';
+import { Time } from './Time';
 import { Printer } from 'lucide-react';
 import { FullScreenSheet } from './FullScreenSheet';
 import { LabRequestFormPaper } from './LabRequestFormPaper';
@@ -63,7 +64,7 @@ const LabReportSheet: React.FC<{ test: TestX }> = ({ test }) => {
               <p className="text-[10px] font-bold uppercase text-slate-500">
                 Laboratory Report
               </p>
-              <p className="text-[10px] text-slate-500">{format(new Date(test.createdAt), 'MMM d, yyyy HH:mm')}</p>
+              <p className="text-[10px] text-slate-500"><Time value={test.createdAt} pattern="MMM d, yyyy HH:mm" /></p>
             </div>
           </div>
 

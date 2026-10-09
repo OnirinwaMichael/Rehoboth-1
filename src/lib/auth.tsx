@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { toast } from 'sonner';
+import { clearActivity, touchActivity } from './idle';
 export type UserRole = 'CMD' | 'Doctor' | 'Nurse' | 'Lab' | 'Accountant' | 'Receptionist' | 'Pharmacy';
 export interface AppUser {
 id: string;
@@ -96,8 +97,11 @@ toast.error('Failed to sign in.');
 }
 throw error;
 }
+// A fresh sign-in starts a fresh idle timer.
+touchActivity();
 };
 const logout = async () => {
+clearActivity();
 await supabase.auth.signOut();
 toast.success('Logged out successfully.');
 };

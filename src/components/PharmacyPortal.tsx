@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Pill, Search, Plus, Trash2, Edit, Save, X, ClipboardList, FileText, User, Activity, DollarSign, LayoutDashboard, Package, AlertCircle, TrendingUp, History, CalendarClock } from 'lucide-react';
 import { expiryStatus, formatExpiry, EXPIRY_WARNING_DAYS } from '../lib/expiry';
 import { format } from 'date-fns';
+import { Time } from './Time';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { logAction } from '../lib/audit';
@@ -495,7 +496,7 @@ Rx
 </div>
 </div>
 <div className="text-right">
-<p className="text-[11px] text-slate-400">{format(new Date(rx.createdAt), 'MMM d, HH:mm')}</p>
+<p className="text-[11px] text-slate-400"><Time value={rx.createdAt} pattern="MMM d, HH:mm" /></p>
 </div>
 </div>
 ))}
@@ -684,7 +685,7 @@ busy={rxBusy}
 </div>
 </div>
 <div className="text-right">
-<span className="text-[11px] text-slate-400 block">{format(new Date(rx.createdAt), 'HH:mm')}</span>
+<span className="text-[11px] text-slate-400 block"><Time value={rx.createdAt} pattern="HH:mm" /></span>
 {rx.paymentStatus && (
 <span className={cn(
 "text-[11px] font-bold uppercase",

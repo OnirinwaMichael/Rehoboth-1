@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { format } from 'date-fns';
+import { Time } from './Time';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
 import { StandardFeeState } from '../lib/useStandardFee';
@@ -51,7 +52,7 @@ export const StandardFeeDialog: React.FC<Props> = ({ state, onClose }) => {
         </div>
         {state.updatedAt && (
           <p className="text-[11px] text-slate-400">
-            Last changed {format(new Date(state.updatedAt), 'MMM d, yyyy HH:mm')}{state.updatedByName ? ` by ${state.updatedByName}` : ''}
+            Last changed <Time value={state.updatedAt} pattern="MMM d, yyyy HH:mm" />{state.updatedByName ? ` by ${state.updatedByName}` : ''}
           </p>
         )}
         <div className="flex gap-2">

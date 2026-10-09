@@ -6,12 +6,27 @@ throw new Error(
 'Missing Supabase environment variables. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.'
 );
 }
+// Counts saves/payments/uploads (anything that is not a plain read) that are still in flight,
+// so the idle auto-logout never cuts one off halfway.
+let inFlightWrites = 0;
+export const getInFlightWrites = () => inFlightWrites;
+const trackedFetch: typeof fetch = async (input, init) => {
+const method = (init?.method || (typeof Request !== 'undefined' && input instanceof Request ? input.method : 'GET')).toUpperCase();
+const isWrite = method !== 'GET' && method !== 'HEAD';
+if (isWrite) inFlightWrites++;
+try {
+return await fetch(input, init);
+} finally {
+if (isWrite) inFlightWrites--;
+}
+};
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 auth: {
 persistSession: true,
 autoRefreshToken: true,
 detectSessionInUrl: true,
 },
+global: { fetch: trackedFetch },
 });
 // --- Error handling (mirrors old handleFirestoreError, but never
 // bundles PII into the thrown message — logs it locally only) ---

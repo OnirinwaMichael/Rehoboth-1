@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
+import { Time } from './Time';
 import { Save, Plus, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { Patient, FamilyMember, LabRequestForm } from '../types';
@@ -263,7 +264,7 @@ const ResultFormEditor: React.FC<EditorProps> = ({ patient, userId, readOnly = f
                   selectedId === f.id ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200'
                 )}
               >
-                <span className="block">{format(new Date(f.createdAt), 'MMM d, yyyy HH:mm')}</span>
+                <span className="block"><Time value={f.createdAt} pattern="MMM d, yyyy HH:mm" /></span>
                 <span className="block font-normal opacity-70 truncate">{f.testsRequired || f.patientName || 'Untitled'}</span>
               </button>
             ))}
@@ -473,7 +474,7 @@ export const LabResultFormSheet: React.FC<Props> = ({ userId, onClose }) => {
                     <span className="block font-bold text-slate-800 text-sm truncate">{r.patientName || `Card ${r.patientId}`}</span>
                     <span className="block text-xs text-slate-400 truncate">{r.testsRequired || 'No test listed'}</span>
                   </span>
-                  <span className="text-xs text-slate-400 shrink-0">{format(new Date(r.createdAt), 'MMM d, HH:mm')}</span>
+                  <span className="text-xs text-slate-400 shrink-0"><Time value={r.createdAt} pattern="MMM d, HH:mm" /></span>
                 </button>
               ))}
             </div>

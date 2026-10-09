@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { format } from 'date-fns';
+import { Time } from './Time';
 import { Patient, Admission, DrugChartGrid, DrugChartGridRow, DrugChartGivenMark } from '../types';
 import { Check, Plus, Save } from 'lucide-react';
 import { useAuth } from '../lib/auth';
@@ -330,7 +331,7 @@ export const DrugChartSheet: React.FC<Props> = ({ patient, admission, userId, on
                               </button>
                               {mark && (
                                 <span className="text-[9px] leading-tight text-emerald-800 text-center">
-                                  {mark.byName} · {format(new Date(mark.at), 'd MMM, HH:mm')}
+                                  {mark.byName} · <Time value={mark.at} pattern="d MMM, HH:mm" />
                                 </span>
                               )}
                             </div>

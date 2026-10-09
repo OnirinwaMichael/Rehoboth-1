@@ -4,6 +4,7 @@ import { User, AuditLog, UserRole } from '../types';
 import { toast } from 'sonner';
 import { ShieldCheck, UserPlus, Trash2, Edit, Save, X, History, Activity, Eye, EyeOff, User as UserIcon, Mail, Shield, CheckCircle, Clock, Lock, AlertTriangle, Camera } from 'lucide-react';
 import { format } from 'date-fns';
+import { Time } from './Time';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { ConfirmModal } from './ConfirmModal';
@@ -79,7 +80,7 @@ const LogItem = memo(({ log, staffName }: { log: AuditLog, staffName: string }) 
 <div className="flex justify-between items-start">
 <span className="text-[11px] font-bold text-blue-600 uppercase tracking-widest">{log.action}</span>
 <span className="text-[11px] text-slate-400">
-{log.timestamp ? format(new Date(log.timestamp), 'HH:mm:ss') : '...'}
+{log.timestamp ? <Time value={log.timestamp} pattern="HH:mm:ss" /> : '...'}
 </span>
 </div>
 <p className="text-xs text-slate-700 font-medium">{log.details}</p>
