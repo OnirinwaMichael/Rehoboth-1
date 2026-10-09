@@ -10,6 +10,7 @@ import { LabReportEditor } from './LabReportEditor';
 import { LabRequestFormPaper } from './LabRequestFormPaper';
 import { buildPaperValues, PaperValues, toRequestDetails } from '../lib/labRequestForm';
 import { paymentRecorded } from '../lib/paymentGate';
+import { loadOwnedDraft, saveOwnedDraft } from '../lib/drafts';
 import { ComprehensivePanelResults, emptyPanelResults } from '../data/labReportTemplates';
 
 export type LabTestX = LabTest & { patient?: Patient };
@@ -41,11 +42,10 @@ const initDraft = (t: LabTestX): Draft => {
 
 const draftKey = (id: string) => `draft_lab_entry_${id}`;
 
-const loadStored = (t: LabTestX): Draft | null => {
+const loadStored = (t: LabTestX, owner: string): Draft | null => {
   try {
-    const raw = localStorage.getItem(draftKey(t.id));
-    if (!raw) return null;
-    const p = JSON.parse(raw);
+    // Only the staff member who typed the draft gets it back (see lib/drafts.ts).
+    const p = loadOwnedDraft<any>(draftKey(t.id), owner);
     if (!p || typeof p !== 'object' || !p.paper) return null;
     const base = initDraft(t);
     return { ...base, ...p, paper: { ...base.paper, ...p.paper } };
@@ -117,7 +117,7 @@ export const LabGroupEntryPanel: React.FC<Props> = ({
     const rest: string[] = [];
     tests.forEach(t => {
       if (isLabTestLocked(t)) { out[t.id] = initDraft(t); return; }
-      const stored = loadStored(t);
+      const stored = loadStored(t, userId);
       if (stored) { out[t.id] = stored; rest.push(t.id); } else out[t.id] = initDraft(t);
     });
     startRef.current = { drafts: out, restored: rest };
@@ -155,7 +155,7 @@ export const LabGroupEntryPanel: React.FC<Props> = ({
         if (isLabTestLocked(t)) return;
         const d = drafts[t.id];
         try {
-          if (d && JSON.stringify(d) !== JSON.stringify(initDraft(t))) localStorage.setItem(draftKey(t.id), JSON.stringify(d));
+          if (d && JSON.stringify(d) !== JSON.stringify(initDraft(t))) saveOwnedDraft(draftKey(t.id), userId, d);
           else localStorage.removeItem(draftKey(t.id));
         } catch { /* storage full or blocked: drafts are best-effort */ }
       });

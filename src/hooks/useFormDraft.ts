@@ -1,36 +1,37 @@
 import { useState, useEffect, useCallback } from 'react';
-import { toast } from 'sonner';
+import { useAuth } from '../lib/auth';
+import { loadOwnedDraft, saveOwnedDraft } from '../lib/drafts';
 /**
-* Custom hook to auto-save form drafts to localStorage
+* Custom hook to auto-save form drafts to localStorage.
+* A draft belongs to the signed-in staff member who typed it (see lib/drafts.ts): nobody else gets
+* it back, and it expires after 12 hours.
 * @param key Unique key for the form in localStorage
 * @param initialData Initial state of the form
 * @param interval Auto-save interval in milliseconds (default 30s)
 */
 export function useFormDraft<T>(key: string, initialData: T, interval: number = 30000) {
+const { user } = useAuth();
+const uid = user?.id;
 const [data, setData] = useState<T>(() => {
-const saved = localStorage.getItem(`draft_${key}`);
-if (saved) {
-try {
-const parsed = JSON.parse(saved);
+const parsed = loadOwnedDraft<any>(`draft_${key}`, uid);
+if (parsed !== null && parsed !== undefined) {
 // Merge over initialData rather than replacing it outright — a
 // draft saved before a form's shape changed (e.g. a new field
 // added) would otherwise come back missing that field entirely,
 // crashing anything that assumes it exists (see e.g. an old
 // draft missing a newly-added array/object field).
-if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) &&
+if (typeof parsed === 'object' && !Array.isArray(parsed) &&
 typeof initialData === 'object' && initialData !== null && !Array.isArray(initialData)) {
 return { ...(initialData as object), ...parsed } as T;
 }
-return parsed;
-} catch (e) {
-console.error('Failed to parse draft:', e);
-}
+return parsed as T;
 }
 return initialData;
 });
 const saveDraft = useCallback(() => {
-localStorage.setItem(`draft_${key}`, JSON.stringify(data));
-}, [key, data]);
+if (!uid) return;
+try { saveOwnedDraft(`draft_${key}`, uid, data); } catch { /* storage full or blocked: drafts are best-effort */ }
+}, [key, data, uid]);
 const clearDraft = useCallback(() => {
 localStorage.removeItem(`draft_${key}`);
 setData(initialData);

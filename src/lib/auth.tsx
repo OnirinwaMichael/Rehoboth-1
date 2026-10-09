@@ -3,6 +3,7 @@ import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 import { toast } from 'sonner';
 import { clearActivity, touchActivity } from './idle';
+import { purgeDraftsExcept } from './drafts';
 export type UserRole = 'CMD' | 'Doctor' | 'Nurse' | 'Lab' | 'Accountant' | 'Receptionist' | 'Pharmacy';
 export interface AppUser {
 id: string;
@@ -73,6 +74,8 @@ return;
 }
 // status === 'invited' is allowed through here — ForcePasswordChange
 // gates the rest of the app until they set a real password.
+// Unsaved drafts left on this device by anyone else (or expired) are deleted on sign-in.
+purgeDraftsExcept(data.id);
 setUser(mapProfile(data));
 }
 useEffect(() => {
