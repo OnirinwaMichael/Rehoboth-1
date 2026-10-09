@@ -5,6 +5,7 @@ import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { useAuth } from '../lib/auth';
 import { fmtTime, saveTimeFormat, useTimeFormat, TimeFormat } from '../lib/timeFormat';
+import { IDLE_MINUTE_OPTIONS, IdleGroup, saveIdleMinutes, useIdleSettings } from '../lib/idle';
 export const SystemClock: React.FC = () => {
 const { user } = useAuth();
 const timeFormat = useTimeFormat();
@@ -17,6 +18,16 @@ const res = await saveTimeFormat(next);
 setSavingFormat(false);
 if (res.ok) toast.success(`Time format set to ${next === '12h' ? '12-hour' : '24-hour'} for the whole clinic.`);
 else toast.error(res.message || 'Could not save the time format.');
+};
+const idleSettings = useIdleSettings();
+const [savingIdle, setSavingIdle] = useState(false);
+const chooseIdle = async (group: IdleGroup, minutes: number) => {
+if (!isCmd || savingIdle || minutes === idleSettings[group]) return;
+setSavingIdle(true);
+const res = await saveIdleMinutes(group, minutes);
+setSavingIdle(false);
+if (res.ok) toast.success(`Auto-logout for ${group === 'clinical' ? 'doctors and nurses' : 'all other staff'} set to ${minutes} minutes.`);
+else toast.error(res.message || 'Could not save the timeout.');
 };
 const [now, setNow] = useState(new Date());
 const [isManual, setIsManual] = useState(false);
@@ -157,6 +168,30 @@ timeFormat === opt ? "bg-white text-blue-700 shadow ring-1 ring-blue-200" : "tex
 {isCmd ? 'Applies to every user in the clinic.' : 'Set by the CMD for the whole clinic.'}
 </p>
 </div>
+{isCmd && (
+<div className="space-y-1.5">
+<label className="text-[10px] font-bold text-slate-400 uppercase">Auto-logout when idle</label>
+<div className="grid grid-cols-2 gap-3">
+{([['standard', 'All other staff'], ['clinical', 'Doctors & nurses']] as const).map(([group, label]) => (
+<div key={group} className="space-y-1">
+<span className="block text-[11px] font-semibold text-slate-600">{label}</span>
+<select
+aria-label={`Idle timeout for ${label}`}
+value={idleSettings[group]}
+disabled={savingIdle}
+onChange={(e) => chooseIdle(group, Number(e.target.value))}
+className="w-full min-h-11 px-2 rounded-lg border border-slate-200 bg-white text-xs font-semibold outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+>
+{IDLE_MINUTE_OPTIONS.map((m) => (
+<option key={m} value={m}>{m} min</option>
+))}
+</select>
+</div>
+))}
+</div>
+<p className="text-[10px] text-slate-400">A warning shows 60 seconds before sign-out. Applies to the whole clinic.</p>
+</div>
+)}
 <div className="space-y-4">
 <div className="flex items-center justify-between">
 <h5 className="text-xs font-bold text-slate-900">{format(calendarMonth, 'MMMM yyyy')}</h5>

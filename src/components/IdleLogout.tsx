@@ -3,13 +3,16 @@ import { ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase, getInFlightWrites } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
-import { IDLE_LIMIT_MS, IDLE_WARNING_MS, clearActivity, readLastActivity, touchActivity } from '../lib/idle';
+import {
+  IDLE_SETTING_KEYS, IDLE_WARNING_MS, applyIdleRow, clearActivity, idleMinutesForRole, readLastActivity, touchActivity,
+} from '../lib/idle';
 
 // Any of these counts as activity. 'app:activity' is fired by things that are activity but
 // produce no pointer/keyboard events (e.g. voice dictation).
 const ACTIVITY_EVENTS = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart', 'scroll', 'input', 'app:activity'];
 
-// Signs the user out after 10 idle minutes, with a 60-second warning first.
+// Signs the user out after the clinic's idle timeout (10 minutes unless the CMD changed it; Doctors
+// and Nurses have their own setting), with a 60-second warning first.
 // - Activity in any open tab keeps every tab alive (shared timestamp in localStorage).
 // - A save, payment or upload that is still in flight is never cut off.
 // - Drafts are flushed to the device just before sign-out.
@@ -22,6 +25,27 @@ export const IdleLogout: React.FC = () => {
   const lastWriteRef = useRef(0);
   const warningRef = useRef(false);
   const loggingOutRef = useRef(false);
+  const roleRef = useRef<string | null>(null);
+  roleRef.current = user?.role ?? null;
+  const uid = user?.id;
+
+  // Load the clinic's timeouts and follow live changes made by the CMD.
+  useEffect(() => {
+    if (!uid) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('app_settings').select('key, value_numeric').in('key', Object.values(IDLE_SETTING_KEYS));
+      if (cancelled) return;
+      if (error) { console.error('[app_settings:idle_timeout:select]', error.message); return; }
+      (data || []).forEach(applyIdleRow);
+    })();
+    const channel = supabase
+      .channel('idle-settings')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, (payload: any) => applyIdleRow(payload.new))
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(channel); };
+  }, [uid]);
 
   const markActivity = (force = false) => {
     if (warningRef.current && !force) return; // while warning, only the button counts
@@ -53,7 +77,7 @@ export const IdleLogout: React.FC = () => {
     const onActivity = () => markActivity(false);
     ACTIVITY_EVENTS.forEach((e) => window.addEventListener(e, onActivity, { capture: true, passive: true }));
 
-    const signOutNow = async () => {
+    const signOutNow = async (minutes: number) => {
       loggingOutRef.current = true;
       warningRef.current = false;
       setSecondsLeft(null);
@@ -70,7 +94,7 @@ export const IdleLogout: React.FC = () => {
         window.location.assign('/');
         return;
       }
-      toast.info('You were signed out after 10 minutes of inactivity. Please sign in again.');
+      toast.info(`You were signed out after ${minutes} minutes of inactivity. Please sign in again.`);
     };
 
     const tick = () => {
@@ -78,14 +102,16 @@ export const IdleLogout: React.FC = () => {
       const shared = readLastActivity();
       if (shared && shared > lastRef.current) lastRef.current = shared; // activity in another tab
       const idle = Date.now() - lastRef.current;
-      if (idle >= IDLE_LIMIT_MS) {
+      const minutes = idleMinutesForRole(roleRef.current);
+      const limitMs = minutes * 60 * 1000;
+      if (idle >= limitMs) {
         if (getInFlightWrites() > 0) { markActivity(true); return; } // never cut off a save in progress
-        void signOutNow();
+        void signOutNow(minutes);
         return;
       }
-      if (idle >= IDLE_LIMIT_MS - IDLE_WARNING_MS) {
+      if (idle >= limitMs - IDLE_WARNING_MS) {
         warningRef.current = true;
-        setSecondsLeft(Math.max(1, Math.ceil((IDLE_LIMIT_MS - idle) / 1000)));
+        setSecondsLeft(Math.max(1, Math.ceil((limitMs - idle) / 1000)));
       } else if (warningRef.current) {
         warningRef.current = false;
         setSecondsLeft(null);
